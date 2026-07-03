@@ -1,0 +1,85 @@
+# Dependencies
+node_modules
+apps/api/node_modules
+apps/web/node_modules
+
+# Environment files
+.env
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Build outputs
+dist
+build
+apps/api/dist
+apps/web/.next
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Temporary files
+tmp/
+
+# Large files and deployment artifacts
+*.zip
+apps/web/web.zip
+temp/
+
+# Uploads and user files
+apps/api/src/uploads/resumes/*.pdf
+apps/api/src/uploads/documents/*.pdf
+uploads/
+
+# Docker
+.dockerignore
+
+# SSL certificates (should be managed separately)
+*.pem
+*.key
+*.crt
+
+# Backup files
+*.bak
+*.backup
+
+# Cache
+.cache/
+.parcel-cache/
+
+.config/
+
+# Local settings
+settings.local.json
+.claude/settings.local.json

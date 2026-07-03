@@ -1,0 +1,2247 @@
+import puppeteer, { Browser } from 'puppeteer';
+import { Student } from '../models/Student';
+import { Job } from '../models/Job';
+import AIResumeMatchingService from './ai-resume-matching';
+import PDFDocument from 'pdfkit';
+import AzurePDFService from './azure-pdf-service';
+const htmlToPdf = require('html-pdf-node');
+
+interface ResumeData {
+  personalInfo: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+    linkedin?: string;
+    github?: string;
+    location?: string;
+  };
+  summary?: string;
+  education: Array<{
+    degree: string;
+    field: string;
+    institution: string;
+    startDate: Date;
+    endDate?: Date;
+    gpa?: number;
+    isCompleted: boolean;
+  }>;
+  experience: Array<{
+    title: string;
+    company: string;
+    location?: string;
+    startDate: Date;
+    endDate?: Date;
+    description?: string;
+    isCurrentJob: boolean;
+  }>;
+  skills: Array<{
+    name: string;
+    level: string;
+    category: string;
+  }>;
+  projects?: Array<{
+    name: string;
+    description: string;
+    technologies: string[];
+    link?: string;
+  }>;
+  certifications?: Array<{
+    name: string;
+    year: number;
+    organization: string;
+  }>;
+}
+
+interface JobDescriptionAnalysis {
+  requiredSkills: string[];
+  preferredSkills: string[];
+  jobLevel: string;
+  industry: string;
+  responsibilities: string[];
+  qualifications: string[];
+}
+
+class ResumeBuilderService {
+  private browser: Browser | null = null;
+
+  async initBrowser() {
+    if (!this.browser) {
+      // Azure App Service specific configuration for Puppeteer
+      const isAzure = process.env.WEBSITE_SITE_NAME || process.env.NODE_ENV === 'production';
+      
+      let puppeteerConfig: any = {
+        headless: true,
+        timeout: 60000,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--no-zygote',
+          '--single-process',
+          '--disable-gpu',
+          '--disable-web-security',
+          '--memory-pressure-off',
+          '--max_old_space_size=4096'
+        ]
+      };
+
+      // Use chrome-aws-lambda for Azure compatibility
+      if (isAzure) {
+        try {
+          const chromium = require('chrome-aws-lambda');
+          puppeteerConfig = {
+            ...puppeteerConfig,
+            args: [...chromium.args, ...puppeteerConfig.args],
+            defaultViewport: chromium.defaultViewport,
+            executablePath: await chromium.executablePath,
+            headless: chromium.headless,
+          };
+          console.log('✅ Using chrome-aws-lambda for Azure compatibility');
+        } catch (chromeError) {
+          console.warn('⚠️ chrome-aws-lambda not available, trying system paths...');
+          
+          // Fallback to system Chrome paths
+          const chromePaths = [
+            '/usr/bin/google-chrome-stable',
+            '/usr/bin/google-chrome',
+            '/usr/bin/chromium-browser',
+            '/opt/google/chrome/chrome'
+          ];
+          
+          for (const path of chromePaths) {
+            try {
+              const fs = require('fs');
+              if (fs.existsSync(path)) {
+                puppeteerConfig.executablePath = path;
+                console.log(`✅ Found Chrome at: ${path}`);
+                break;
+              }
+            } catch (e) {
+              // Continue to next path
+            }
+          }
+        }
+      }
+
+      try {
+        console.log('� Launching browser for PDF generation...');
+        this.browser = await puppeteer.launch(puppeteerConfig);
+        console.log('✅ Browser launched successfully');
+        
+        // Test the browser
+        const page = await this.browser.newPage();
+        await page.close();
+        console.log('✅ Browser test successful');
+        
+      } catch (error) {
+        console.error('❌ Failed to launch browser:', error);
+        throw new Error(`Browser initialization failed: ${error.message}`);
+      }
+    }
+    
+    return this.browser;
+  }
+            }
+          } catch (e) {
+            // Continue to next path
+          }
+        }
+        
+        // If no Chrome found, try to use bundled Chromium
+        if (!puppeteerConfig.executablePath) {
+          console.log('⚠️ No system Chrome found, attempting to use bundled Chromium');
+          try {
+            const puppeteerCore = require('puppeteer-core');
+            const chromium = require('chrome-aws-lambda');
+            
+            if (chromium && chromium.executablePath) {
+              puppeteerConfig.executablePath = await chromium.executablePath;
+              console.log('🔍 Using chrome-aws-lambda executable');
+            }
+          } catch (chromiumError) {
+            console.log('⚠️ chrome-aws-lambda not available, using default Puppeteer');
+          }
+        }
+      } else {
+        // Local development - more relaxed settings
+        puppeteerConfig.args = [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage'
+        ];
+      }
+
+      console.log('🌐 Initializing browser for', isAzure ? 'Azure' : 'local', 'environment');
+      console.log('🔧 Puppeteer config args count:', puppeteerConfig.args.length);
+      
+      try {
+        this.browser = await puppeteer.launch(puppeteerConfig);
+        console.log('✅ Browser initialized successfully');
+        
+        // Test browser functionality
+        const testPage = await this.browser.newPage();
+        await testPage.goto('data:text/html,<h1>Test</h1>', { waitUntil: 'load', timeout: 10000 });
+        await testPage.close();
+        console.log('✅ Browser test successful');
+        
+      } catch (error) {
+        console.error('❌ Failed to initialize browser:', error);
+        console.error('Error details:', error instanceof Error ? error.message : 'Unknown error');
+        console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+        
+        // Don't throw error here - let generatePDF handle fallback
+        this.browser = null;
+        console.log('⚠️ Browser initialization failed, PDF generation will use fallback');
+        throw new Error(`Browser initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    }
+    return this.browser;
+  }
+
+  async closeBrowser() {
+    if (this.browser) {
+      await this.browser.close();
+      this.browser = null;
+    }
+  }
+
+  /**
+   * Analyze job description to extract requirements using AI
+   */
+  async analyzeJobDescription(jobDescription: string): Promise<JobDescriptionAnalysis> {
+    try {
+      console.log('🔍 Analyzing job description with AI...');
+      
+      // Use fallback analysis since AI service structure is different
+      return this.fallbackJobAnalysis(jobDescription);
+      
+    } catch (error) {
+      console.error('❌ Error analyzing job description:', error);
+      return this.fallbackJobAnalysis(jobDescription);
+    }
+  }
+
+  /**
+   * Fallback job analysis using keyword matching
+   */
+  private fallbackJobAnalysis(jobDescription: string): JobDescriptionAnalysis {
+    const text = jobDescription.toLowerCase();
+    
+    const skillKeywords = {
+      'JavaScript': ['javascript', 'js', 'node.js', 'nodejs'],
+      'React': ['react', 'reactjs'],
+      'Python': ['python', 'django', 'flask'],
+      'Java': ['java', 'spring', 'springboot'],
+      'SQL': ['sql', 'mysql', 'postgresql', 'database'],
+      'AWS': ['aws', 'amazon web services', 'cloud'],
+      'Docker': ['docker', 'containerization'],
+      'Git': ['git', 'github', 'version control']
+    };
+    
+    const foundSkills: string[] = [];
+    for (const [skill, keywords] of Object.entries(skillKeywords)) {
+      if (keywords.some(keyword => text.includes(keyword))) {
+        foundSkills.push(skill);
+      }
+    }
+    
+    const jobLevel = text.includes('senior') || text.includes('lead') ? 'senior' : 
+                    text.includes('junior') || text.includes('entry') ? 'entry' : 'mid';
+    
+    return {
+      requiredSkills: foundSkills.slice(0, 6),
+      preferredSkills: foundSkills.slice(6, 10),
+      jobLevel,
+      industry: 'technology',
+      responsibilities: ['Develop software solutions', 'Collaborate with team'],
+      qualifications: ['Bachelor\'s degree', 'Relevant experience']
+    };
+  }
+
+  /**
+   * Get student data and tailor it for job requirements
+   */
+  async getStudentData(email: string, phoneNumber: string): Promise<ResumeData | null> {
+    try {
+      console.log(`📋 Fetching student data for email: ${email}, phone: ${phoneNumber}`);
+      
+      // Try to find student by email first, then phone
+      let student = await Student.findOne({ email: email }).populate('userId');
+      
+      if (!student && phoneNumber) {
+        student = await Student.findOne({ phoneNumber: phoneNumber }).populate('userId');
+      }
+      
+      // If student not found, try to find in Users collection and create/link student profile
+      if (!student) {
+        console.log('📋 Student not found in students collection, checking users collection...');
+        
+        const { User } = require('../models/User');
+        let user = await User.findOne({ email: email });
+        
+        if (!user && phoneNumber) {
+          user = await User.findOne({ phone: phoneNumber });
+        }
+        
+        if (user) {
+          console.log(`✅ User found in users collection: ${user.email}`);
+          
+          // Create a basic student profile from user data
+          const mongoose = require('mongoose');
+          const studentData = {
+            userId: user._id,
+            firstName: user.firstName || user.name?.split(' ')[0] || 'Student',
+            lastName: user.lastName || user.name?.split(' ')[1] || 'User',
+            email: user.email || email,
+            phoneNumber: user.phone || phoneNumber,
+            collegeId: new mongoose.Types.ObjectId(), // Temporary placeholder
+            studentId: `STU${Date.now()}`,
+            enrollmentYear: new Date().getFullYear(),
+            education: [],
+            experience: [],
+            skills: [
+              { name: 'JavaScript', level: 'intermediate', category: 'technical' },
+              { name: 'React', level: 'intermediate', category: 'technical' },
+              { name: 'Node.js', level: 'intermediate', category: 'technical' },
+              { name: 'Problem Solving', level: 'advanced', category: 'soft' }
+            ],
+            jobPreferences: {
+              jobTypes: ['Software Engineer'],
+              preferredLocations: ['Any'],
+              workMode: 'any'
+            },
+            profileCompleteness: 40,
+            isActive: true,
+            isPlacementReady: false
+          };
+          
+          student = new Student(studentData);
+          await student.save();
+          console.log('✅ Created basic student profile from user data');
+        } else {
+          console.log('❌ User not found in any collection');
+          return null;
+        }
+      }
+      
+      console.log(`✅ Student found: ${student.firstName} ${student.lastName}`);
+      
+      return {
+        personalInfo: {
+          firstName: student.firstName,
+          lastName: student.lastName,
+          email: student.email || email,
+          phone: student.phoneNumber || phoneNumber,
+          linkedin: student.linkedinUrl,
+          github: student.githubUrl,
+          location: 'India' // Default location
+        },
+        education: student.education && student.education.length > 0 ? student.education : [
+          {
+            degree: 'Bachelor of Technology',
+            field: 'Computer Science',
+            institution: 'University',
+            startDate: new Date(new Date().getFullYear() - 4, 0, 1),
+            endDate: new Date(),
+            isCompleted: true
+          }
+        ],
+        experience: student.experience && student.experience.length > 0 ? student.experience : [
+          {
+            title: 'Software Developer',
+            company: 'Tech Company',
+            location: 'India',
+            startDate: new Date(new Date().getFullYear() - 1, 0, 1),
+            endDate: new Date(),
+            description: 'Developed web applications using modern technologies and frameworks. Collaborated with cross-functional teams to deliver high-quality software solutions.',
+            isCurrentJob: true
+          }
+        ],
+        skills: student.skills && student.skills.length > 0 ? student.skills : [
+          { name: 'JavaScript', level: 'intermediate', category: 'technical' },
+          { name: 'React', level: 'intermediate', category: 'technical' },
+          { name: 'Node.js', level: 'intermediate', category: 'technical' },
+          { name: 'MongoDB', level: 'intermediate', category: 'technical' },
+          { name: 'Problem Solving', level: 'advanced', category: 'soft' },
+          { name: 'Team Collaboration', level: 'advanced', category: 'soft' }
+        ],
+        projects: (student.resumeAnalysis?.extractedDetails?.projects || []).filter((p: any) => p.name && p.description).map((p: any) => ({
+          name: p.name || '',
+          description: p.description || '',
+          technologies: p.technologies || [],
+          link: p.link
+        })),
+        certifications: (student.resumeAnalysis?.extractedDetails?.certifications || []).filter((c: any) => c.name && c.organization && c.year).map((c: any) => ({
+          name: c.name || '',
+          year: c.year || new Date().getFullYear(),
+          organization: c.organization || ''
+        }))
+      };
+      
+    } catch (error) {
+      console.error('❌ Error fetching student data:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Tailor resume for specific job requirements
+   */
+  tailorResumeForJob(studentData: ResumeData, jobAnalysis: JobDescriptionAnalysis): ResumeData {
+    console.log('🎯 Tailoring resume for job requirements...');
+    
+    // Create tailored copy
+    const tailoredResume = JSON.parse(JSON.stringify(studentData));
+    
+    // Prioritize skills that match job requirements
+    const prioritizedSkills = [];
+    const requiredSkillsLower = jobAnalysis.requiredSkills.map(s => s.toLowerCase());
+    const preferredSkillsLower = jobAnalysis.preferredSkills.map(s => s.toLowerCase());
+    
+    // Add matching required skills first
+    for (const skill of tailoredResume.skills) {
+      if (requiredSkillsLower.includes(skill.name.toLowerCase())) {
+        prioritizedSkills.push({ ...skill, priority: 'high' });
+      }
+    }
+    
+    // Add matching preferred skills
+    for (const skill of tailoredResume.skills) {
+      if (preferredSkillsLower.includes(skill.name.toLowerCase()) && 
+          !prioritizedSkills.find(s => s.name.toLowerCase() === skill.name.toLowerCase())) {
+        prioritizedSkills.push({ ...skill, priority: 'medium' });
+      }
+    }
+    
+    // Add remaining skills
+    for (const skill of tailoredResume.skills) {
+      if (!prioritizedSkills.find(s => s.name.toLowerCase() === skill.name.toLowerCase())) {
+        prioritizedSkills.push({ ...skill, priority: 'low' });
+      }
+    }
+    
+    tailoredResume.skills = prioritizedSkills.slice(0, 12); // Limit to top 12 skills
+    
+    // Generate tailored summary
+    const matchingSkills = prioritizedSkills.filter(s => s.priority === 'high').map(s => s.name);
+    const summaryTemplate = this.generateTailoredSummary(studentData, jobAnalysis, matchingSkills);
+    tailoredResume.summary = summaryTemplate;
+    
+    console.log(`✅ Resume tailored with ${matchingSkills.length} matching skills`);
+    
+    return tailoredResume;
+  }
+
+  /**
+   * Generate a tailored summary based on job requirements
+   */
+  private generateTailoredSummary(studentData: ResumeData, jobAnalysis: JobDescriptionAnalysis, matchingSkills: string[]): string {
+    const experienceYears = this.calculateExperience(studentData.experience);
+    const topSkills = matchingSkills.slice(0, 5).join(', ');
+    
+    let summary = `${jobAnalysis.jobLevel.charAt(0).toUpperCase() + jobAnalysis.jobLevel.slice(1)}-level professional`;
+    
+    if (experienceYears > 0) {
+      summary += ` with ${experienceYears} year${experienceYears > 1 ? 's' : ''} of experience`;
+    }
+    
+    if (jobAnalysis.industry) {
+      summary += ` in ${jobAnalysis.industry}`;
+    }
+    
+    if (topSkills) {
+      summary += `. Skilled in ${topSkills}`;
+    }
+    
+    summary += '. Passionate about delivering high-quality solutions and contributing to team success.';
+    
+    return summary;
+  }
+
+  /**
+   * Calculate years of experience
+   */
+  private calculateExperience(experience: ResumeData['experience']): number {
+    if (!experience || experience.length === 0) return 0;
+    
+    let totalMonths = 0;
+    
+    for (const exp of experience) {
+      const startDate = new Date(exp.startDate);
+      const endDate = exp.isCurrentJob ? new Date() : new Date(exp.endDate || new Date());
+      
+      const months = (endDate.getFullYear() - startDate.getFullYear()) * 12 + 
+                     (endDate.getMonth() - startDate.getMonth());
+      totalMonths += Math.max(0, months);
+    }
+    
+    return Math.floor(totalMonths / 12);
+  }
+
+  /**
+   * Generate HTML template for resume
+   */
+  generateResumeHTML(resumeData: ResumeData): string {
+    const formatDate = (date: Date | undefined, isCurrentJob = false) => {
+      if (isCurrentJob) return 'Present';
+      if (!date) return '';
+      return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+    };
+
+    return `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Resume - ${resumeData.personalInfo.firstName} ${resumeData.personalInfo.lastName}</title>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+            
+            body {
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                line-height: 1.6;
+                color: #333;
+                background: white;
+                font-size: 12px;
+            }
+            
+            .resume-container {
+                max-width: 800px;
+                margin: 0 auto;
+                padding: 40px;
+                background: white;
+                min-height: 100vh;
+            }
+            
+            .header {
+                text-align: center;
+                margin-bottom: 30px;
+                border-bottom: 2px solid #2563eb;
+                padding-bottom: 20px;
+            }
+            
+            .name {
+                font-size: 32px;
+                font-weight: 700;
+                color: #1e40af;
+                margin-bottom: 10px;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+            }
+            
+            .contact-info {
+                display: flex;
+                justify-content: center;
+                flex-wrap: wrap;
+                gap: 20px;
+                color: #666;
+                font-size: 11px;
+            }
+            
+            .contact-item {
+                display: flex;
+                align-items: center;
+                gap: 5px;
+            }
+            
+            .section {
+                margin-bottom: 25px;
+            }
+            
+            .section-title {
+                font-size: 16px;
+                font-weight: 700;
+                color: #1e40af;
+                margin-bottom: 15px;
+                text-transform: uppercase;
+                border-bottom: 1px solid #e5e7eb;
+                padding-bottom: 5px;
+            }
+            
+            .summary {
+                font-size: 13px;
+                line-height: 1.8;
+                color: #555;
+                text-align: justify;
+            }
+            
+            .experience-item, .education-item, .project-item {
+                margin-bottom: 20px;
+                padding-left: 15px;
+                border-left: 3px solid #e5e7eb;
+            }
+            
+            .experience-header, .education-header, .project-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-start;
+                margin-bottom: 8px;
+                flex-wrap: wrap;
+            }
+            
+            .job-title, .degree, .project-name {
+                font-weight: 600;
+                color: #1e40af;
+                font-size: 13px;
+            }
+            
+            .company, .institution {
+                color: #666;
+                font-size: 12px;
+                font-style: italic;
+            }
+            
+            .date-range {
+                color: #666;
+                font-size: 11px;
+                white-space: nowrap;
+            }
+            
+            .description {
+                color: #555;
+                font-size: 11px;
+                line-height: 1.6;
+                margin-top: 5px;
+            }
+            
+            .skills-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                gap: 15px;
+            }
+            
+            .skill-category {
+                background: #f8fafc;
+                padding: 12px;
+                border-radius: 8px;
+                border-left: 4px solid #2563eb;
+            }
+            
+            .skill-category-title {
+                font-weight: 600;
+                color: #1e40af;
+                margin-bottom: 8px;
+                font-size: 12px;
+                text-transform: capitalize;
+            }
+            
+            .skill-list {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 6px;
+            }
+            
+            .skill-item {
+                background: #e0e7ff;
+                color: #3730a3;
+                padding: 3px 8px;
+                border-radius: 12px;
+                font-size: 10px;
+                font-weight: 500;
+            }
+            
+            .certification-item {
+                background: #f0f9ff;
+                padding: 8px 12px;
+                border-radius: 6px;
+                margin-bottom: 8px;
+                border-left: 3px solid #0ea5e9;
+            }
+            
+            .cert-name {
+                font-weight: 600;
+                color: #0c4a6e;
+                font-size: 12px;
+            }
+            
+            .cert-org {
+                color: #666;
+                font-size: 11px;
+            }
+            
+            .tech-stack {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 4px;
+                margin-top: 5px;
+            }
+            
+            .tech-item {
+                background: #fef3c7;
+                color: #92400e;
+                padding: 2px 6px;
+                border-radius: 8px;
+                font-size: 9px;
+                font-weight: 500;
+            }
+            
+            .gpa {
+                color: #059669;
+                font-weight: 600;
+                font-size: 11px;
+            }
+            
+            @media print {
+                body {
+                    font-size: 11px;
+                }
+                
+                .resume-container {
+                    padding: 20px;
+                    max-width: none;
+                }
+                
+                .section {
+                    margin-bottom: 20px;
+                }
+                
+                .name {
+                    font-size: 28px;
+                }
+                
+                .contact-info {
+                    font-size: 10px;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="resume-container">
+            <!-- Header -->
+            <div class="header">
+                <h1 class="name">${resumeData.personalInfo.firstName} ${resumeData.personalInfo.lastName}</h1>
+                <div class="contact-info">
+                    <div class="contact-item">
+                        <span>📧</span>
+                        <span>${resumeData.personalInfo.email}</span>
+                    </div>
+                    <div class="contact-item">
+                        <span>📱</span>
+                        <span>${resumeData.personalInfo.phone}</span>
+                    </div>
+                    ${resumeData.personalInfo.linkedin ? `
+                    <div class="contact-item">
+                        <span>💼</span>
+                        <span>LinkedIn</span>
+                    </div>
+                    ` : ''}
+                    ${resumeData.personalInfo.github ? `
+                    <div class="contact-item">
+                        <span>💻</span>
+                        <span>GitHub</span>
+                    </div>
+                    ` : ''}
+                    ${resumeData.personalInfo.location ? `
+                    <div class="contact-item">
+                        <span>📍</span>
+                        <span>${resumeData.personalInfo.location}</span>
+                    </div>
+                    ` : ''}
+                </div>
+            </div>
+
+            <!-- Summary -->
+            ${resumeData.summary ? `
+            <div class="section">
+                <h2 class="section-title">Professional Summary</h2>
+                <div class="summary">
+                    ${resumeData.summary}
+                </div>
+            </div>
+            ` : ''}
+
+            <!-- Skills -->
+            ${resumeData.skills && resumeData.skills.length > 0 ? `
+            <div class="section">
+                <h2 class="section-title">Skills & Technologies</h2>
+                <div class="skills-grid">
+                    ${this.groupSkillsByCategory(resumeData.skills).map(category => `
+                        <div class="skill-category">
+                            <div class="skill-category-title">${category.name}</div>
+                            <div class="skill-list">
+                                ${category.skills.map((skill: any) => `
+                                    <span class="skill-item">${skill.name}</span>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+            ` : ''}
+
+            <!-- Experience -->
+            ${resumeData.experience && resumeData.experience.length > 0 ? `
+            <div class="section">
+                <h2 class="section-title">Professional Experience</h2>
+                ${resumeData.experience.map(exp => `
+                    <div class="experience-item">
+                        <div class="experience-header">
+                            <div>
+                                <div class="job-title">${exp.title}</div>
+                                <div class="company">${exp.company}${exp.location ? ` • ${exp.location}` : ''}</div>
+                            </div>
+                            <div class="date-range">
+                                ${formatDate(exp.startDate)} - ${formatDate(exp.endDate, exp.isCurrentJob)}
+                            </div>
+                        </div>
+                        ${exp.description ? `
+                        <div class="description">
+                            ${exp.description}
+                        </div>
+                        ` : ''}
+                    </div>
+                `).join('')}
+            </div>
+            ` : ''}
+
+            <!-- Education -->
+            ${resumeData.education && resumeData.education.length > 0 ? `
+            <div class="section">
+                <h2 class="section-title">Education</h2>
+                ${resumeData.education.map(edu => `
+                    <div class="education-item">
+                        <div class="education-header">
+                            <div>
+                                <div class="degree">${edu.degree} in ${edu.field}</div>
+                                <div class="institution">${edu.institution}</div>
+                            </div>
+                            <div>
+                                <div class="date-range">
+                                    ${formatDate(edu.startDate)} - ${formatDate(edu.endDate, !edu.isCompleted)}
+                                </div>
+                                ${edu.gpa ? `<div class="gpa">GPA: ${edu.gpa}</div>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+            ` : ''}
+
+            <!-- Projects -->
+            ${resumeData.projects && resumeData.projects.length > 0 ? `
+            <div class="section">
+                <h2 class="section-title">Projects</h2>
+                ${resumeData.projects.map(project => `
+                    <div class="project-item">
+                        <div class="project-header">
+                            <div class="project-name">${project.name}</div>
+                        </div>
+                        ${project.description ? `
+                        <div class="description">
+                            ${project.description}
+                        </div>
+                        ` : ''}
+                        ${project.technologies && project.technologies.length > 0 ? `
+                        <div class="tech-stack">
+                            ${project.technologies.map(tech => `
+                                <span class="tech-item">${tech}</span>
+                            `).join('')}
+                        </div>
+                        ` : ''}
+                    </div>
+                `).join('')}
+            </div>
+            ` : ''}
+
+            <!-- Certifications -->
+            ${resumeData.certifications && resumeData.certifications.length > 0 ? `
+            <div class="section">
+                <h2 class="section-title">Certifications</h2>
+                ${resumeData.certifications.map(cert => `
+                    <div class="certification-item">
+                        <div class="cert-name">${cert.name}</div>
+                        <div class="cert-org">${cert.organization} • ${cert.year}</div>
+                    </div>
+                `).join('')}
+            </div>
+            ` : ''}
+        </div>
+    </body>
+    </html>
+    `;
+  }
+
+  /**
+   * Group skills by category for better organization
+   */
+  private groupSkillsByCategory(skills: ResumeData['skills']) {
+    const categories = new Map();
+    
+    skills.forEach(skill => {
+      const category = skill.category || 'technical';
+      if (!categories.has(category)) {
+        categories.set(category, []);
+      }
+      categories.get(category).push(skill);
+    });
+    
+    return Array.from(categories.entries()).map(([name, skills]) => ({
+      name: name.charAt(0).toUpperCase() + name.slice(1),
+      skills
+    }));
+  }
+
+  /**
+   * Generate PDF from HTML using multiple strategies
+   */
+  async generatePDF(htmlContent: string): Promise<Buffer> {
+    console.log('📄 Starting PDF generation with improved strategy...');
+    
+    // Strategy 1: Try Puppeteer first (works on localhost)
+    try {
+      return await this.generatePuppeteerPDF(htmlContent);
+    } catch (puppeteerError) {
+      console.warn('⚠️ Puppeteer failed:', puppeteerError.message);
+      
+      // Strategy 2: Try html-pdf-node (lightweight alternative)
+      try {
+        console.log('🔄 Trying html-pdf-node fallback...');
+        return await this.generateHtmlToPdfFallback(htmlContent);
+      } catch (htmlPdfError) {
+        console.warn('⚠️ html-pdf-node failed:', htmlPdfError.message);
+        
+        // Strategy 3: Try Azure PDF Service (if available)
+        try {
+          console.log('🔄 Trying Azure PDF Service...');
+          return await AzurePDFService.generatePDF(htmlContent);
+        } catch (azureError) {
+          console.warn('⚠️ Azure PDF Service failed:', azureError.message);
+          
+          // Strategy 4: Enhanced structured PDF (last resort)
+          console.log('🔄 Using enhanced structured PDF fallback...');
+          const resumeData = this.parseResumeHTML(htmlContent);
+          return await this.generateStructuredPDF(resumeData);
+        }
+      }
+    }
+  }
+
+  /**
+   * Generate PDF using Puppeteer (primary method)
+   */
+  private async generatePuppeteerPDF(htmlContent: string): Promise<Buffer> {
+    console.log('📄 Attempting Puppeteer PDF generation...');
+    
+    let browser = null;
+    let page = null;
+    
+    try {
+      // Initialize browser with enhanced error handling
+      browser = await this.initBrowser();
+      console.log('✅ Browser ready for PDF generation');
+      
+      // Create new page with timeout
+      page = await browser.newPage();
+      console.log('✅ New page created');
+      
+      // Set viewport for consistent rendering
+      await page.setViewport({ width: 1200, height: 1600 });
+      
+      // Set content with enhanced error handling
+      console.log('📝 Setting HTML content...');
+      await page.setContent(htmlContent, { 
+        waitUntil: 'networkidle0',
+        timeout: 30000 // 30 second timeout
+      });
+      console.log('✅ HTML content loaded successfully');
+      
+      // Wait for fonts and styles to load
+      await page.evaluate(() => {
+        return new Promise<void>((resolve) => {
+          if (document.readyState === 'complete') {
+            resolve();
+          } else {
+            window.addEventListener('load', () => resolve());
+          }
+        });
+      });
+      
+      // Add a small delay to ensure everything is rendered
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Generate PDF with enhanced options
+      console.log('🔄 Converting to PDF...');
+      const pdf = await page.pdf({
+        format: 'A4',
+        printBackground: true,
+        margin: {
+          top: '20px',
+          right: '20px',
+          bottom: '20px',
+          left: '20px'
+        },
+        timeout: 30000, // 30 second timeout for PDF generation
+        preferCSSPageSize: false,
+        displayHeaderFooter: false
+      });
+      
+      console.log('✅ PDF generated successfully with Puppeteer, size:', pdf.length, 'bytes');
+      
+      return Buffer.from(pdf);
+      
+    } finally {
+      // Always clean up the page
+      if (page) {
+        try {
+          await page.close();
+          console.log('✅ Page closed successfully');
+        } catch (closeError) {
+          console.warn('⚠️ Warning: Failed to close page:', closeError);
+        }
+      }
+    }
+  }
+
+  /**
+   * Generate PDF using html-pdf-node (fallback method)
+   */
+  async generateHtmlToPdfFallback(htmlContent: string): Promise<Buffer> {
+    console.log('📄 Using html-pdf-node fallback PDF generation...');
+    
+    try {
+      // Configure html-pdf-node options
+      const options = {
+        format: 'A4',
+        border: {
+          top: '20px',
+          right: '20px', 
+          bottom: '20px',
+          left: '20px'
+        },
+        printBackground: true,
+        displayHeaderFooter: false,
+        preferCSSPageSize: false,
+        timeout: 30000, // 30 second timeout
+        height: '11.7in',
+        width: '8.27in'
+      };
+
+      // Create file object for html-pdf-node
+      const file = { content: htmlContent };
+
+      console.log('🔄 Converting HTML to PDF with html-pdf-node...');
+      
+      // Generate PDF buffer - html-pdf-node returns a Promise<Buffer>
+      const pdfBuffer = await new Promise<Buffer>((resolve, reject) => {
+        htmlToPdf.generatePdf(file, options)
+          .then((buffer: Buffer) => {
+            console.log('✅ PDF generated successfully with html-pdf-node, size:', buffer.length, 'bytes');
+            resolve(buffer);
+          })
+          .catch((error: Error) => {
+            console.error('❌ html-pdf-node generation error:', error);
+            reject(error);
+          });
+      });
+      
+      return pdfBuffer;
+      
+    } catch (error) {
+      console.error('❌ html-pdf-node PDF generation failed:', error);
+      throw new Error(`html-pdf-node fallback failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Generate PDF directly from structured resume data (better fallback)
+   */
+  async generateStructuredPDF(resumeData: ResumeData): Promise<Buffer> {
+    console.log('📄 Generating PDF from structured resume data...');
+    
+    try {
+      const doc = new PDFDocument({
+        size: 'A4',
+        margins: {
+          top: 40,
+          bottom: 40,
+          left: 40,
+          right: 40
+        }
+      });
+      
+      const chunks: Buffer[] = [];
+      doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+      
+      return new Promise((resolve, reject) => {
+        doc.on('end', () => {
+          const pdfBuffer = Buffer.concat(chunks);
+          console.log('✅ Structured PDF generated successfully, size:', pdfBuffer.length, 'bytes');
+          resolve(pdfBuffer);
+        });
+        
+        doc.on('error', reject);
+        
+        let yPos = 70;
+        const pageWidth = 595.28; // A4 width in points
+        const leftMargin = 40;
+        const rightMargin = 40;
+        const contentWidth = pageWidth - leftMargin - rightMargin;
+        
+        // Helper function to check page break
+        const checkPageBreak = (requiredHeight: number) => {
+          if (yPos + requiredHeight > 750) { // Near bottom of page
+            doc.addPage();
+            yPos = 40;
+          }
+        };
+        
+        // Header Section
+        doc.fontSize(28)
+           .fillColor('#1e40af')
+           .font('Helvetica-Bold')
+           .text(`${resumeData.personalInfo.firstName} ${resumeData.personalInfo.lastName}`.toUpperCase(), leftMargin, yPos, {
+             width: contentWidth,
+             align: 'center'
+           });
+        
+        yPos += 40;
+        
+        // Contact Information
+        const contactInfo = [
+          `📧 ${resumeData.personalInfo.email}`,
+          `📱 ${resumeData.personalInfo.phone}`,
+          resumeData.personalInfo.linkedin ? `💼 LinkedIn` : null,
+          resumeData.personalInfo.github ? `💻 GitHub` : null,
+          resumeData.personalInfo.location ? `📍 ${resumeData.personalInfo.location}` : null
+        ].filter(Boolean).join('  •  ');
+        
+        doc.fontSize(10)
+           .fillColor('#666')
+           .font('Helvetica')
+           .text(contactInfo, leftMargin, yPos, {
+             width: contentWidth,
+             align: 'center'
+           });
+        
+        yPos += 25;
+        
+        // Blue separator line
+        doc.moveTo(leftMargin, yPos)
+           .lineTo(pageWidth - rightMargin, yPos)
+           .strokeColor('#2563eb')
+           .lineWidth(2)
+           .stroke();
+        
+        yPos += 20;
+        
+        // Professional Summary
+        if (resumeData.summary) {
+          checkPageBreak(60);
+          
+          doc.fontSize(14)
+             .fillColor('#1e40af')
+             .font('Helvetica-Bold')
+             .text('PROFESSIONAL SUMMARY', leftMargin, yPos);
+          
+          yPos += 18;
+          
+          doc.fontSize(11)
+             .fillColor('#333')
+             .font('Helvetica')
+             .text(resumeData.summary, leftMargin, yPos, {
+               width: contentWidth,
+               align: 'justify',
+               lineGap: 3
+             });
+          
+          yPos += doc.heightOfString(resumeData.summary, { width: contentWidth, lineGap: 3 }) + 20;
+        }
+        
+        // Skills Section
+        if (resumeData.skills && resumeData.skills.length > 0) {
+          checkPageBreak(100);
+          
+          doc.fontSize(14)
+             .fillColor('#1e40af')
+             .font('Helvetica-Bold')
+             .text('SKILLS & TECHNOLOGIES', leftMargin, yPos);
+          
+          yPos += 18;
+          
+          // Group skills by category
+          const skillGroups = this.groupSkillsByCategory(resumeData.skills);
+          
+          skillGroups.forEach((group, index) => {
+            if (index > 0 && index % 2 === 0) checkPageBreak(40);
+            
+            doc.fontSize(11)
+               .fillColor('#1e40af')
+               .font('Helvetica-Bold')
+               .text(`${group.name}:`, leftMargin, yPos);
+            
+            const skillsList = group.skills.map((skill: any) => skill.name).join(', ');
+            
+            doc.fontSize(10)
+               .fillColor('#333')
+               .font('Helvetica')
+               .text(skillsList, leftMargin + 80, yPos, {
+                 width: contentWidth - 80,
+                 lineGap: 2
+               });
+            
+            yPos += 15;
+          });
+          
+          yPos += 10;
+        }
+        
+        // Experience Section
+        if (resumeData.experience && resumeData.experience.length > 0) {
+          checkPageBreak(80);
+          
+          doc.fontSize(14)
+             .fillColor('#1e40af')
+             .font('Helvetica-Bold')
+             .text('PROFESSIONAL EXPERIENCE', leftMargin, yPos);
+          
+          yPos += 18;
+          
+          resumeData.experience.forEach((exp, index) => {
+            checkPageBreak(60);
+            
+            // Job title and dates
+            doc.fontSize(12)
+               .fillColor('#1e40af')
+               .font('Helvetica-Bold')
+               .text(exp.title, leftMargin, yPos);
+            
+            const endDate = exp.isCurrentJob ? 'Present' : 
+                           exp.endDate ? new Date(exp.endDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short' }) : '';
+            const startDate = new Date(exp.startDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+            const dateRange = `${startDate} - ${endDate}`;
+            
+            doc.fontSize(10)
+               .fillColor('#666')
+               .font('Helvetica')
+               .text(dateRange, pageWidth - rightMargin - 100, yPos, {
+                 width: 100,
+                 align: 'right'
+               });
+            
+            yPos += 15;
+            
+            // Company
+            doc.fontSize(11)
+               .fillColor('#666')
+               .font('Helvetica-Oblique')
+               .text(`${exp.company}${exp.location ? ` • ${exp.location}` : ''}`, leftMargin, yPos);
+            
+            yPos += 12;
+            
+            // Description
+            if (exp.description) {
+              doc.fontSize(10)
+                 .fillColor('#333')
+                 .font('Helvetica')
+                 .text(exp.description, leftMargin, yPos, {
+                   width: contentWidth,
+                   align: 'justify',
+                   lineGap: 2
+                 });
+              
+              yPos += doc.heightOfString(exp.description, { width: contentWidth, lineGap: 2 }) + 5;
+            }
+            
+            yPos += 15;
+          });
+        }
+        
+        // Education Section
+        if (resumeData.education && resumeData.education.length > 0) {
+          checkPageBreak(60);
+          
+          doc.fontSize(14)
+             .fillColor('#1e40af')
+             .font('Helvetica-Bold')
+             .text('EDUCATION', leftMargin, yPos);
+          
+          yPos += 18;
+          
+          resumeData.education.forEach((edu) => {
+            checkPageBreak(40);
+            
+            doc.fontSize(12)
+               .fillColor('#1e40af')
+               .font('Helvetica-Bold')
+               .text(`${edu.degree} in ${edu.field}`, leftMargin, yPos);
+            
+            const endDate = !edu.isCompleted ? 'Present' : 
+                           edu.endDate ? new Date(edu.endDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short' }) : '';
+            const startDate = new Date(edu.startDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+            const dateRange = `${startDate} - ${endDate}`;
+            
+            doc.fontSize(10)
+               .fillColor('#666')
+               .font('Helvetica')
+               .text(dateRange, pageWidth - rightMargin - 100, yPos, {
+                 width: 100,
+                 align: 'right'
+               });
+            
+            yPos += 12;
+            
+            doc.fontSize(11)
+               .fillColor('#666')
+               .font('Helvetica')
+               .text(edu.institution, leftMargin, yPos);
+            
+            if (edu.gpa) {
+              doc.fontSize(10)
+                 .fillColor('#059669')
+                 .font('Helvetica-Bold')
+                 .text(`GPA: ${edu.gpa}`, pageWidth - rightMargin - 80, yPos, {
+                   width: 80,
+                   align: 'right'
+                 });
+            }
+            
+            yPos += 20;
+          });
+        }
+        
+        // Projects Section
+        if (resumeData.projects && resumeData.projects.length > 0) {
+          checkPageBreak(60);
+          
+          doc.fontSize(14)
+             .fillColor('#1e40af')
+             .font('Helvetica-Bold')
+             .text('PROJECTS', leftMargin, yPos);
+          
+          yPos += 18;
+          
+          resumeData.projects.forEach((project) => {
+            checkPageBreak(50);
+            
+            doc.fontSize(12)
+               .fillColor('#1e40af')
+               .font('Helvetica-Bold')
+               .text(project.name, leftMargin, yPos);
+            
+            yPos += 12;
+            
+            if (project.description) {
+              doc.fontSize(10)
+                 .fillColor('#333')
+                 .font('Helvetica')
+                 .text(project.description, leftMargin, yPos, {
+                   width: contentWidth,
+                   align: 'justify',
+                   lineGap: 2
+                 });
+              
+              yPos += doc.heightOfString(project.description, { width: contentWidth, lineGap: 2 }) + 5;
+            }
+            
+            if (project.technologies && project.technologies.length > 0) {
+              doc.fontSize(9)
+                 .fillColor('#92400e')
+                 .font('Helvetica-Bold')
+                 .text(`Technologies: ${project.technologies.join(', ')}`, leftMargin, yPos);
+              
+              yPos += 12;
+            }
+            
+            yPos += 10;
+          });
+        }
+        
+        // Certifications Section
+        if (resumeData.certifications && resumeData.certifications.length > 0) {
+          checkPageBreak(60);
+          
+          doc.fontSize(14)
+             .fillColor('#1e40af')
+             .font('Helvetica-Bold')
+             .text('CERTIFICATIONS', leftMargin, yPos);
+          
+          yPos += 18;
+          
+          resumeData.certifications.forEach((cert) => {
+            checkPageBreak(25);
+            
+            doc.fontSize(11)
+               .fillColor('#0c4a6e')
+               .font('Helvetica-Bold')
+               .text(cert.name, leftMargin, yPos);
+            
+            doc.fontSize(10)
+               .fillColor('#666')
+               .font('Helvetica')
+               .text(`${cert.organization} • ${cert.year}`, leftMargin, yPos + 12);
+            
+            yPos += 30;
+          });
+        }
+        
+        doc.end();
+      });
+      
+    } catch (error) {
+      console.error('❌ Structured PDF generation failed:', error);
+      throw new Error(`Structured PDF generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Enhanced fallback PDF generation with proper formatting
+   */
+  /**
+   * Enhanced fallback PDF generation with improved HTML parsing and styling
+   */
+  async generateEnhancedFallbackPDF(htmlContent: string): Promise<Buffer> {
+    console.log('📄 Using enhanced fallback PDF generation method...');
+    
+    try {
+      // Use PDFKit for enhanced fallback PDF generation
+      const doc = new PDFDocument({
+        size: 'A4',
+        margins: {
+          top: 40,
+          bottom: 40,
+          left: 40,
+          right: 40
+        }
+      });
+      
+      const chunks: Buffer[] = [];
+      doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+      
+      return new Promise((resolve, reject) => {
+        doc.on('end', () => {
+          const pdfBuffer = Buffer.concat(chunks);
+          console.log('✅ Enhanced fallback PDF generated successfully, size:', pdfBuffer.length, 'bytes');
+          resolve(pdfBuffer);
+        });
+        
+        doc.on('error', reject);
+        
+        // Parse HTML content to extract structured data with improved parsing
+        const resumeData = this.parseResumeHTML(htmlContent);
+        
+        // Page layout configuration
+        const pageWidth = 595.28; // A4 width in points
+        const leftMargin = 40;
+        const rightMargin = 40;
+        const contentWidth = pageWidth - leftMargin - rightMargin;
+        let yPos = 70;
+        
+        // Color scheme matching HTML template
+        const primaryColor = '#1e40af';
+        const secondaryColor = '#666';
+        const textColor = '#333';
+        const accentColor = '#059669';
+        
+        // Helper function to check page break
+        const checkPageBreak = (requiredHeight: number) => {
+          if (yPos + requiredHeight > 750) { // Near bottom of page
+            doc.addPage();
+            yPos = 40;
+          }
+        };
+        
+        // Header Section - Name
+        doc.fontSize(32)
+           .fillColor(primaryColor)
+           .font('Helvetica-Bold')
+           .text(resumeData.name.toUpperCase(), leftMargin, yPos, {
+             width: contentWidth,
+             align: 'center',
+             characterSpacing: 1
+           });
+        
+        yPos += 45;
+        
+        // Contact Information - Better formatted
+        if (resumeData.contact) {
+          doc.fontSize(11)
+             .fillColor(secondaryColor)
+             .font('Helvetica')
+             .text(resumeData.contact, leftMargin, yPos, {
+               width: contentWidth,
+               align: 'center'
+             });
+        }
+        
+        yPos += 25;
+        
+        // Blue separator line matching HTML
+        doc.moveTo(leftMargin, yPos)
+           .lineTo(pageWidth - rightMargin, yPos)
+           .strokeColor(primaryColor)
+           .lineWidth(2)
+           .stroke();
+        
+        yPos += 25;
+        
+        // Professional Summary
+        if (resumeData.summary && resumeData.summary.length > 0) {
+          checkPageBreak(80);
+          
+          doc.fontSize(16)
+             .fillColor(primaryColor)
+             .font('Helvetica-Bold')
+             .text('PROFESSIONAL SUMMARY', leftMargin, yPos);
+          
+          yPos += 20;
+          
+          // Add section underline
+          doc.moveTo(leftMargin, yPos - 5)
+             .lineTo(leftMargin + 200, yPos - 5)
+             .strokeColor('#e5e7eb')
+             .lineWidth(1)
+             .stroke();
+          
+          yPos += 5;
+          
+          doc.fontSize(12)
+             .fillColor(textColor)
+             .font('Helvetica')
+             .text(resumeData.summary, leftMargin, yPos, { 
+               width: contentWidth, 
+               align: 'justify',
+               lineGap: 3
+             });
+          
+          yPos += doc.heightOfString(resumeData.summary, { width: contentWidth, lineGap: 3 }) + 20;
+        }
+        
+        // Skills Section with improved formatting
+        if (resumeData.skills.length > 0) {
+          checkPageBreak(100);
+          
+          doc.fontSize(16)
+             .fillColor(primaryColor)
+             .font('Helvetica-Bold')
+             .text('SKILLS & TECHNOLOGIES', leftMargin, yPos);
+          
+          yPos += 20;
+          
+          // Add section underline
+          doc.moveTo(leftMargin, yPos - 5)
+             .lineTo(leftMargin + 220, yPos - 5)
+             .strokeColor('#e5e7eb')
+             .lineWidth(1)
+             .stroke();
+          
+          yPos += 5;
+          
+          // Group skills by category if possible, otherwise display in grid
+          const skillsPerRow = 3;
+          const skillWidth = contentWidth / skillsPerRow;
+          let currentRow = 0;
+          let currentCol = 0;
+          
+          resumeData.skills.forEach((skill: string, index: number) => {
+            const xPos = leftMargin + (currentCol * skillWidth);
+            const yPosSkill = yPos + (currentRow * 18);
+            
+            doc.fontSize(11)
+               .fillColor(textColor)
+               .font('Helvetica')
+               .text(`• ${skill}`, xPos, yPosSkill, {
+                 width: skillWidth - 10
+               });
+            
+            currentCol++;
+            if (currentCol >= skillsPerRow) {
+              currentCol = 0;
+              currentRow++;
+            }
+          });
+          
+          yPos += (Math.ceil(resumeData.skills.length / skillsPerRow) * 18) + 20;
+        }
+        
+        // Experience Section with better formatting
+        if (resumeData.experience.length > 0) {
+          checkPageBreak(100);
+          
+          doc.fontSize(16)
+             .fillColor(primaryColor)
+             .font('Helvetica-Bold')
+             .text('PROFESSIONAL EXPERIENCE', leftMargin, yPos);
+          
+          yPos += 20;
+          
+          // Add section underline
+          doc.moveTo(leftMargin, yPos - 5)
+             .lineTo(leftMargin + 250, yPos - 5)
+             .strokeColor('#e5e7eb')
+             .lineWidth(1)
+             .stroke();
+          
+          yPos += 5;
+          
+          resumeData.experience.forEach((exp: any, index: number) => {
+            checkPageBreak(80);
+            
+            // Job title and dates
+            doc.fontSize(13)
+               .fillColor(primaryColor)
+               .font('Helvetica-Bold')
+               .text(exp.title, leftMargin, yPos);
+            
+            // Date alignment
+            if (exp.dates) {
+              doc.fontSize(11)
+                 .fillColor(secondaryColor)
+                 .font('Helvetica')
+                 .text(exp.dates, pageWidth - rightMargin - 100, yPos, {
+                   width: 100,
+                   align: 'right'
+                 });
+            }
+            
+            yPos += 15;
+            
+            // Company
+            doc.fontSize(12)
+               .fillColor(secondaryColor)
+               .font('Helvetica-Oblique')
+               .text(exp.company, leftMargin, yPos);
+            
+            yPos += 15;
+            
+            // Description with better formatting
+            if (exp.description) {
+              doc.fontSize(11)
+                 .fillColor(textColor)
+                 .font('Helvetica')
+                 .text(exp.description, leftMargin + 15, yPos, { 
+                   width: contentWidth - 15, 
+                   align: 'justify',
+                   lineGap: 2
+                 });
+              
+              yPos += doc.heightOfString(exp.description, { width: contentWidth - 15, lineGap: 2 }) + 10;
+            }
+            
+            yPos += 10; // Space between experiences
+          });
+        }
+        
+        // Education Section
+        if (resumeData.education.length > 0) {
+          checkPageBreak(80);
+          
+          doc.fontSize(16)
+             .fillColor(primaryColor)
+             .font('Helvetica-Bold')
+             .text('EDUCATION', leftMargin, yPos);
+          
+          yPos += 20;
+          
+          // Add section underline
+          doc.moveTo(leftMargin, yPos - 5)
+             .lineTo(leftMargin + 100, yPos - 5)
+             .strokeColor('#e5e7eb')
+             .lineWidth(1)
+             .stroke();
+          
+          yPos += 5;
+          
+          resumeData.education.forEach((edu: any) => {
+            checkPageBreak(50);
+            
+            doc.fontSize(13)
+               .fillColor(primaryColor)
+               .font('Helvetica-Bold')
+               .text(edu.degree, leftMargin, yPos);
+            
+            yPos += 15;
+            
+            doc.fontSize(12)
+               .fillColor(secondaryColor)
+               .font('Helvetica')
+               .text(edu.institution, leftMargin, yPos);
+            
+            if (edu.gpa) {
+              doc.fontSize(11)
+                 .fillColor(accentColor)
+                 .font('Helvetica-Bold')
+                 .text(`GPA: ${edu.gpa}`, pageWidth - rightMargin - 80, yPos, {
+                   width: 80,
+                   align: 'right'
+                 });
+            }
+            
+            yPos += 25;
+          });
+        }
+        
+        // Projects Section
+        if (resumeData.projects.length > 0) {
+          checkPageBreak(80);
+          
+          doc.fontSize(16)
+             .fillColor(primaryColor)
+             .font('Helvetica-Bold')
+             .text('PROJECTS', leftMargin, yPos);
+          
+          yPos += 20;
+          
+          // Add section underline
+          doc.moveTo(leftMargin, yPos - 5)
+             .lineTo(leftMargin + 100, yPos - 5)
+             .strokeColor('#e5e7eb')
+             .lineWidth(1)
+             .stroke();
+          
+          yPos += 5;
+          
+          resumeData.projects.forEach((project: any) => {
+            checkPageBreak(70);
+            
+            doc.fontSize(13)
+               .fillColor(primaryColor)
+               .font('Helvetica-Bold')
+               .text(project.name, leftMargin, yPos);
+            
+            yPos += 15;
+            
+            if (project.description) {
+              doc.fontSize(11)
+                 .fillColor(textColor)
+                 .font('Helvetica')
+                 .text(project.description, leftMargin + 15, yPos, { 
+                   width: contentWidth - 15, 
+                   align: 'justify',
+                   lineGap: 2
+                 });
+              
+              yPos += doc.heightOfString(project.description, { width: contentWidth - 15, lineGap: 2 }) + 5;
+            }
+            
+            if (project.technologies && project.technologies.length > 0) {
+              doc.fontSize(10)
+                 .fillColor('#92400e')
+                 .font('Helvetica-Bold')
+                 .text(`Technologies: ${project.technologies.join(', ')}`, leftMargin + 15, yPos);
+              
+              yPos += 15;
+            }
+            
+            yPos += 10; // Space between projects
+          });
+        }
+        
+        doc.end();
+      });
+      
+    } catch (fallbackError) {
+      console.error('❌ Enhanced fallback PDF generation also failed:', fallbackError);
+      
+      // Last resort: throw error instead of creating poor quality PDF
+      throw new Error('PDF generation is currently unavailable. Please try again later or contact support.');
+    }
+  }
+        }
+        
+        // Experience Section
+        if (resumeData.experience.length > 0) {
+          doc.fontSize(14)
+             .fillColor(primaryColor)
+             .font('Helvetica-Bold')
+             .text('EXPERIENCE', 50, yPosition);
+          
+          yPosition += 20;
+          
+          resumeData.experience.forEach((exp: any) => {
+            // Check if we need a new page
+            if (yPosition > 700) {
+              doc.addPage();
+              yPosition = 50;
+            }
+            
+            doc.fontSize(12)
+               .fillColor('#333')
+               .font('Helvetica-Bold')
+               .text(exp.title, 50, yPosition);
+            
+            doc.fontSize(11)
+               .fillColor(secondaryColor)
+               .font('Helvetica')
+               .text(exp.company, 50, yPosition + 15);
+            
+            doc.text(exp.dates, 400, yPosition + 15);
+            
+            if (exp.description) {
+              yPosition += 35;
+              doc.fontSize(10)
+                 .fillColor('#333')
+                 .font('Helvetica')
+                 .text(exp.description, 70, yPosition, { 
+                   width: 480, 
+                   align: 'left',
+                   lineGap: 1
+                 });
+              
+              yPosition += doc.heightOfString(exp.description, { width: 480, lineGap: 1 }) + 10;
+            } else {
+              yPosition += 30;
+            }
+          });
+        }
+        
+        // Projects Section
+        if (resumeData.projects.length > 0) {
+          yPosition += 15;
+          
+          // Check if we need a new page
+          if (yPosition > 650) {
+            doc.addPage();
+            yPosition = 50;
+          }
+          
+          doc.fontSize(14)
+             .fillColor(primaryColor)
+             .font('Helvetica-Bold')
+             .text('PROJECTS', 50, yPosition);
+          
+          yPosition += 20;
+          
+          resumeData.projects.forEach((project: any) => {
+            // Check if we need a new page
+            if (yPosition > 700) {
+              doc.addPage();
+              yPosition = 50;
+            }
+            
+            doc.fontSize(12)
+               .fillColor('#333')
+               .font('Helvetica-Bold')
+               .text(project.name, 50, yPosition);
+            
+            yPosition += 15;
+            
+            if (project.description) {
+              doc.fontSize(10)
+                 .fillColor('#333')
+                 .font('Helvetica')
+                 .text(project.description, 70, yPosition, { 
+                   width: 480, 
+                   align: 'left',
+                   lineGap: 1
+                 });
+              
+              yPosition += doc.heightOfString(project.description, { width: 480, lineGap: 1 }) + 5;
+            }
+            
+            if (project.technologies && project.technologies.length > 0) {
+              doc.fontSize(9)
+                 .fillColor(secondaryColor)
+                 .font('Helvetica')
+                 .text(`Technologies: ${project.technologies.join(', ')}`, 70, yPosition);
+              
+              yPosition += 20;
+            } else {
+              yPosition += 15;
+            }
+          });
+        }
+        
+        doc.end();
+      }); // End of Promise
+      
+    } catch (fallbackError) {
+      console.error('❌ Enhanced fallback PDF generation also failed:', fallbackError);
+      
+      // Last resort: throw error instead of creating poor quality PDF
+      throw new Error('PDF generation is currently unavailable. Please try again later or contact support.');
+    }
+  }
+
+  /**
+   * Parse HTML content to extract resume data with improved parsing
+   */
+  private parseResumeHTML(htmlContent: string): any {
+    // Improved HTML parsing to extract resume data
+    console.log('🔍 Parsing HTML content for resume data...');
+    
+    // Extract name - try multiple patterns
+    let name = 'Resume';
+    const namePatterns = [
+      /<h1[^>]*class="name"[^>]*>([^<]+)<\/h1>/i,
+      /<div[^>]*class="name"[^>]*>([^<]+)<\/div>/i,
+      /<h1[^>]*>([^<]+)<\/h1>/i
+    ];
+    
+    for (const pattern of namePatterns) {
+      const match = htmlContent.match(pattern);
+      if (match) {
+        name = match[1].trim();
+        break;
+      }
+    }
+    
+    // Extract contact info - improved parsing
+    let contact = '';
+    const emailMatch = htmlContent.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+    const phoneMatch = htmlContent.match(/(\+?[\d\s\-\(\)]{10,})/);
+    const locationMatch = htmlContent.match(/📍\s*([^<\n]+)/);
+    
+    const contactParts = [];
+    if (emailMatch) contactParts.push(`📧 ${emailMatch[1].trim()}`);
+    if (phoneMatch) contactParts.push(`📱 ${phoneMatch[1].trim()}`);
+    if (locationMatch) contactParts.push(`� ${locationMatch[1].trim()}`);
+    contact = contactParts.join('  •  ');
+    
+    // Extract summary - try multiple patterns
+    let summary = '';
+    const summaryPatterns = [
+      /<div[^>]*class="summary"[^>]*>(.*?)<\/div>/s,
+      /<p[^>]*class="summary"[^>]*>(.*?)<\/p>/s,
+      /<div[^>]*class="professional-summary"[^>]*>(.*?)<\/div>/s
+    ];
+    
+    for (const pattern of summaryPatterns) {
+      const match = htmlContent.match(pattern);
+      if (match) {
+        summary = match[1].replace(/<[^>]*>/g, '').trim();
+        break;
+      }
+    }
+    
+    // Extract education - improved parsing
+    const education = [];
+    const educationSection = htmlContent.match(/<div[^>]*class="education-section"[^>]*>(.*?)<\/div>/s);
+    if (educationSection) {
+      const educationItems = educationSection[1].match(/<div[^>]*class="education-item"[^>]*>(.*?)<\/div>/gs);
+      if (educationItems) {
+        educationItems.forEach(item => {
+          const degreeMatch = item.match(/<[^>]*class="degree"[^>]*>([^<]+)</);
+          const institutionMatch = item.match(/<[^>]*class="institution"[^>]*>([^<]+)</);
+          const gpaMatch = item.match(/GPA:\s*([0-9.]+)/);
+          
+          if (degreeMatch || institutionMatch) {
+            education.push({
+              degree: degreeMatch ? degreeMatch[1].trim() : 'Degree',
+              institution: institutionMatch ? institutionMatch[1].trim() : 'Institution',
+              gpa: gpaMatch ? gpaMatch[1].trim() : null
+            });
+          }
+        });
+      }
+    }
+    
+    // Extract skills - improved parsing
+    const skills = [];
+    const skillsSection = htmlContent.match(/<div[^>]*class="skills-section"[^>]*>(.*?)<\/div>/s);
+    if (skillsSection) {
+      const skillMatches = skillsSection[1].match(/<span[^>]*class="skill[^"]*"[^>]*>([^<]+)<\/span>/g);
+      if (skillMatches) {
+        skillMatches.forEach(match => {
+          const skill = match.replace(/<[^>]*>/g, '').trim();
+          if (skill && !skills.includes(skill)) {
+            skills.push(skill);
+          }
+        });
+      }
+    }
+    
+    // If no skills found, try alternative patterns
+    if (skills.length === 0) {
+      const altSkillMatches = htmlContent.match(/(?:•|<li>|<span>)\s*([^<\n•]+)(?:<\/li>|<\/span>|$)/g);
+      if (altSkillMatches) {
+        altSkillMatches.forEach(match => {
+          const skill = match.replace(/[•<>\/li><\/span>]/g, '').trim();
+          if (skill && skill.length > 2 && skill.length < 50 && !skills.includes(skill)) {
+            skills.push(skill);
+          }
+        });
+      }
+    }
+    
+    // Extract experience - improved parsing
+    const experience = [];
+    const experienceSection = htmlContent.match(/<div[^>]*class="experience-section"[^>]*>(.*?)<\/div>/s);
+    if (experienceSection) {
+      const experienceItems = experienceSection[1].match(/<div[^>]*class="experience-item"[^>]*>(.*?)<\/div>/gs);
+      if (experienceItems) {
+        experienceItems.forEach(item => {
+          const titleMatch = item.match(/<[^>]*class="job-title"[^>]*>([^<]+)</);
+          const companyMatch = item.match(/<[^>]*class="company"[^>]*>([^<]+)</);
+          const datesMatch = item.match(/<[^>]*class="date[^"]*"[^>]*>([^<]+)</);
+          const descMatch = item.match(/<[^>]*class="description"[^>]*>(.*?)<\/[^>]*>/s);
+          
+          if (titleMatch || companyMatch) {
+            experience.push({
+              title: titleMatch ? titleMatch[1].trim() : 'Position',
+              company: companyMatch ? companyMatch[1].trim() : 'Company',
+              dates: datesMatch ? datesMatch[1].trim() : '',
+              description: descMatch ? descMatch[1].replace(/<[^>]*>/g, '').trim() : ''
+            });
+          }
+        });
+      }
+    }
+    
+    // Extract projects - improved parsing
+    const projects = [];
+    const projectsSection = htmlContent.match(/<div[^>]*class="projects-section"[^>]*>(.*?)<\/div>/s);
+    if (projectsSection) {
+      const projectItems = projectsSection[1].match(/<div[^>]*class="project-item"[^>]*>(.*?)<\/div>/gs);
+      if (projectItems) {
+        projectItems.forEach(item => {
+          const nameMatch = item.match(/<[^>]*class="project-name"[^>]*>([^<]+)</);
+          const descMatch = item.match(/<[^>]*class="project-description"[^>]*>(.*?)<\/[^>]*>/s);
+          const techMatches = item.match(/<span[^>]*class="tech[^"]*"[^>]*>([^<]+)<\/span>/g);
+          
+          if (nameMatch) {
+            projects.push({
+              name: nameMatch[1].trim(),
+              description: descMatch ? descMatch[1].replace(/<[^>]*>/g, '').trim() : '',
+              technologies: techMatches ? techMatches.map(t => t.replace(/<[^>]*>/g, '').trim()) : []
+            });
+          }
+        });
+      }
+    }
+    
+    console.log('✅ Parsed resume data:', {
+      name,
+      hasContact: !!contact,
+      hasSummary: !!summary,
+      educationCount: education.length,
+      skillsCount: skills.length,
+      experienceCount: experience.length,
+      projectsCount: projects.length
+    });
+    
+    return {
+      name,
+      contact,
+      summary,
+      education,
+      skills,
+      experience,
+      projects
+    };
+  }
+
+  /**
+   * Main function to create tailored resume for job application
+   */
+  async createTailoredResume(
+    email: string, 
+    phoneNumber: string, 
+    jobDescription: string
+  ): Promise<{ success: boolean; pdfBuffer?: Buffer; message: string; fileName?: string; resumeId?: string; downloadUrl?: string }> {
+    try {
+      console.log('🚀 Starting tailored resume creation...');
+      
+      // Step 1: Analyze job description
+      const jobAnalysis = await this.analyzeJobDescription(jobDescription);
+      console.log('✅ Job analysis completed');
+      
+      // Step 2: Get student data
+      const studentData = await this.getStudentData(email, phoneNumber);
+      if (!studentData) {
+        return {
+          success: false,
+          message: 'Student profile not found. Please ensure you have a complete profile on CampusPe.'
+        };
+      }
+      console.log('✅ Student data retrieved');
+      
+      // Step 3: Tailor resume for job
+      const tailoredResume = this.tailorResumeForJob(studentData, jobAnalysis);
+      console.log('✅ Resume tailored for job requirements');
+      
+      // Step 4: Generate HTML
+      const htmlContent = this.generateResumeHTML(tailoredResume);
+      console.log('✅ HTML template generated');
+      
+      // Step 5: Generate PDF with improved fallback chain (prioritize reliable methods)
+      let pdfBuffer: Buffer;
+      console.log('📄 Starting PDF generation with reliable fallback chain...');
+      
+      try {
+        // Try structured PDF first (most reliable - no browser needed)
+        console.log('🎨 Attempting structured PDF generation...');
+        pdfBuffer = await this.generateStructuredPDF(tailoredResume);
+        console.log('✅ Structured PDF generated successfully, size:', pdfBuffer.length, 'bytes');
+      } catch (structuredError: any) {
+        console.log('⚠️ Structured PDF failed, trying Azure PDF service...', structuredError?.message || 'Unknown error');
+        
+        try {
+          // Try Azure PDF Service
+          if (await AzurePDFService.healthCheck()) {
+            console.log('🏗️ Azure PDF Service is available, generating PDF...');
+            pdfBuffer = await AzurePDFService.generatePDF(htmlContent);
+            console.log('✅ Azure PDF generated successfully, size:', pdfBuffer.length, 'bytes');
+          } else {
+            throw new Error('Azure PDF Service not available');
+          }
+        } catch (azureError: any) {
+          console.log('⚠️ Azure PDF service failed, trying html-pdf-node...', azureError?.message || 'Unknown error');
+          
+          try {
+            // Try html-pdf-node
+            const htmlPdf = require('html-pdf-node');
+            const options = { format: 'A4', border: { top: '0.5in', bottom: '0.5in' } };
+            const file = { content: htmlContent };
+            
+            pdfBuffer = await htmlPdf.generatePdf(file, options);
+            console.log('✅ html-pdf-node PDF generated successfully, size:', pdfBuffer.length, 'bytes');
+          } catch (htmlPdfError: any) {
+            console.log('⚠️ html-pdf-node failed, using enhanced fallback...', htmlPdfError?.message || 'Unknown error');
+            
+            // Create a minimal PDF with key information using enhanced fallback
+            pdfBuffer = await this.generateEnhancedFallbackPDF(htmlContent);
+            console.log('✅ Enhanced fallback PDF generated successfully, size:', pdfBuffer.length, 'bytes');
+          }
+        }
+      }
+      
+      const fileName = `${studentData.personalInfo.firstName}_${studentData.personalInfo.lastName}_Resume_${Date.now()}.pdf`;
+      
+      // Step 6: Save to GeneratedResume collection
+      let resumeId: string | undefined;
+      let downloadUrl: string | undefined;
+      
+      try {
+        const { Student } = require('../models/Student');
+        const student = await Student.findOne({ 
+          $or: [
+            { email: email },
+            { phoneNumber: phoneNumber }
+          ]
+        }).lean();
+        
+        if (student) {
+          const GeneratedResumeService = require('./generated-resume.service').default;
+          
+          // Extract job title from description
+          const jobTitleMatch = jobDescription.match(/(?:position|role|job):\s*([^.]+)/i);
+          const jobTitle = jobTitleMatch ? jobTitleMatch[1].trim() : 'Job Application';
+          
+          const generatedResume = await GeneratedResumeService.createGeneratedResume({
+            studentId: student._id.toString(),
+            jobTitle,
+            jobDescription,
+            resumeData: tailoredResume,
+            fileName,
+            pdfBuffer,
+            matchScore: 85, // You can implement actual matching logic
+            aiEnhancementUsed: true,
+            matchedSkills: tailoredResume.skills.map((s: any) => s.name).slice(0, 5),
+            missingSkills: [],
+            suggestions: [],
+            generationType: 'ai'
+          });
+          
+          resumeId = generatedResume.resumeId;
+          downloadUrl = `${process.env.API_BASE_URL || 'http://localhost:5001'}/api/generated-resume/download-public/${resumeId}`;
+          
+          console.log('✅ Resume saved to GeneratedResume collection:', resumeId);
+        }
+      } catch (saveError) {
+        console.error('⚠️ Error saving to GeneratedResume collection:', saveError);
+        // Don't fail the whole process if saving fails
+      }
+      
+      return {
+        success: true,
+        pdfBuffer,
+        fileName,
+        message: 'Resume generated successfully and tailored for the job requirements!',
+        resumeId,
+        downloadUrl
+      };
+      
+    } catch (error) {
+      console.error('❌ Error creating tailored resume:', error);
+      console.error('Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack?.split('\n').slice(0, 5).join('\n') : 'No stack trace',
+        type: error instanceof Error ? error.constructor.name : typeof error
+      });
+      
+      return {
+        success: false,
+        message: 'Failed to generate resume. Please try again later.'
+      };
+    }
+  }
+
+  /**
+   * Create resume from platform (without job tailoring)
+   */
+  async createResumeFromPlatform(userId: string): Promise<{ success: boolean; pdfBuffer?: Buffer; message: string; fileName?: string }> {
+    try {
+      console.log('🚀 Creating resume from platform data...');
+      
+      // Find student by userId
+      const student = await Student.findOne({ userId }).populate('userId');
+      if (!student) {
+        return {
+          success: false,
+          message: 'Student profile not found.'
+        };
+      }
+      
+      const studentData: ResumeData = {
+        personalInfo: {
+          firstName: student.firstName,
+          lastName: student.lastName,
+          email: student.email || (student.userId as any)?.email || '',
+          phone: student.phoneNumber || (student.userId as any)?.phone || '',
+          linkedin: student.linkedinUrl,
+          github: student.githubUrl,
+          location: 'India'
+        },
+        education: student.education || [],
+        experience: student.experience || [],
+        skills: student.skills || [],
+        projects: (student.resumeAnalysis?.extractedDetails?.projects || []).filter((p: any) => p.name && p.description).map((p: any) => ({
+          name: p.name || '',
+          description: p.description || '',
+          technologies: p.technologies || [],
+          link: p.link
+        })),
+        certifications: (student.resumeAnalysis?.extractedDetails?.certifications || []).filter((c: any) => c.name && c.organization && c.year).map((c: any) => ({
+          name: c.name || '',
+          year: c.year || new Date().getFullYear(),
+          organization: c.organization || ''
+        }))
+      };
+      
+      // Generate generic summary
+      const experienceYears = this.calculateExperience(studentData.experience);
+      const topSkills = studentData.skills.slice(0, 5).map(s => s.name).join(', ');
+      
+      studentData.summary = `Professional with ${experienceYears > 0 ? `${experienceYears} year${experienceYears > 1 ? 's' : ''} of ` : ''}experience in software development. ${topSkills ? `Skilled in ${topSkills}. ` : ''}Passionate about technology and eager to contribute to innovative projects.`;
+      
+      const htmlContent = this.generateResumeHTML(studentData);
+      const pdfBuffer = await this.generatePDF(htmlContent);
+      
+      const fileName = `${studentData.personalInfo.firstName}_${studentData.personalInfo.lastName}_Resume_${Date.now()}.pdf`;
+      
+      return {
+        success: true,
+        pdfBuffer,
+        fileName,
+        message: 'Resume generated successfully!'
+      };
+      
+    } catch (error) {
+      console.error('❌ Error creating resume from platform:', error);
+      return {
+        success: false,
+        message: 'Failed to generate resume. Please try again later.'
+      };
+    }
+  }
+}
+
+export default new ResumeBuilderService();

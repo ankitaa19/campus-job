@@ -1,0 +1,36 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "lib": ["es2020", "dom"],
+    "strict": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "outDir": "./apps/api/dist",
+    "rootDir": "./apps/api/src",
+    "sourceMap": false,
+    "declaration": false,
+    "removeComments": true,
+    "noEmitOnError": false,
+    "resolveJsonModule": true,
+    "allowJs": false,
+    "checkJs": false,
+    "moduleResolution": "node"
+  },
+  "include": [
+    "apps/api/src/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "apps/api/dist",
+    "apps/web",
+    "**/*.spec.ts",
+    "**/*.test.ts",
+    "./apps/api/src/app-test.ts",
+    "./apps/api/src/app_fixed.ts",
+    "./apps/api/src/app.ts.backup2",
+    "./apps/api/src/tests/**/*"
+  ]
+}

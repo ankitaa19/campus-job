@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WABB Integration Test</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+      }
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
+      }
+      .test-section {
+        margin: 20px 0;
+        padding: 15px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+      }
+      .success {
+        background-color: #d4edda;
+        border-color: #c3e6cb;
+      }
+      .error {
+        background-color: #f8d7da;
+        border-color: #f5c6cb;
+      }
+      .info {
+        background-color: #d1ecf1;
+        border-color: #bee5eb;
+      }
+      button {
+        padding: 10px 20px;
+        margin: 5px;
+        background: #007bff;
+        color: white;
+        border: none;
+        border-radius: 3px;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #0056b3;
+      }
+      .url-input {
+        width: 100%;
+        padding: 10px;
+        margin: 10px 0;
+      }
+      pre {
+        background: #f8f9fa;
+        padding: 10px;
+        border-radius: 3px;
+        overflow-x: auto;
+      }
+      .status {
+        font-weight: bold;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>🤖 WABB WhatsApp Resume Integration - Test Panel</h1>
+
+      <div class="test-section info">
+        <h3>📋 Current Test Status</h3>
+        <div id="test-status">
+          <p>🔍 <span class="status" id="api-status">Checking API...</span></p>
+          <p>
+            🌐
+            <span class="status" id="frontend-status"
+              >Checking Frontend...</span
+            >
+          </p>
+          <p>
+            🤖
+            <span class="status" id="ai-status">Checking AI Generation...</span>
+          </p>
+        </div>
+      </div>
+
+      <div class="test-section">
+        <h3>🚀 Direct Frontend Test (Recommended for WABB)</h3>
+        <p>This is the URL that WABB should call directly:</p>
+        <input
+          type="text"
+          id="frontend-url"
+          class="url-input"
+          readonly
+          value="https://campuspe-web-staging-erd8dvb3ewcjc5g2.southindia-01.azurewebsites.net/wabb-resume-generator?email=premthakare@gmail.com&phone=+919156621088&name=Prem%20Thakare&jobDescription=Software%20Engineer%20with%20JavaScript%20React%20Node.js"
+        />
+        <br />
+        <button onclick="testFrontendURL()">🧪 Test Frontend URL</button>
+        <button onclick="copyFrontendURL()">📋 Copy URL</button>
+      </div>
+
+      <div class="test-section">
+        <h3>📡 API Test (Alternative)</h3>
+        <p>API Endpoint: <code>POST /api/wabb/generate-and-share</code></p>
+        <button onclick="testAPIEndpoint()">🧪 Test API Endpoint</button>
+        <pre id="api-result">Click test to see results...</pre>
+      </div>
+
+      <div class="test-section">
+        <h3>🎯 WABB Integration Instructions</h3>
+        <h4>Method 1: Direct Frontend Call (Recommended)</h4>
+        <pre>
+URL Template:
+https://campuspe-web-staging-erd8dvb3ewcjc5g2.southindia-01.azurewebsites.net/wabb-resume-generator?email={EMAIL}&phone={PHONE}&name={NAME}&jobDescription={JOB_DESCRIPTION}
+
+Example:
+https://campuspe-web-staging-erd8dvb3ewcjc5g2.southindia-01.azurewebsites.net/wabb-resume-generator?email=user@example.com&phone=+919876543210&name=John%20Doe&jobDescription=Software%20Developer</pre
+        >
+
+        <h4>Method 2: API Call</h4>
+        <pre>
+POST https://campuspe-api-staging-hmfjgud5c6a7exe9.southindia-01.azurewebsites.net/api/wabb/generate-and-share
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "phone": "+919876543210", 
+  "name": "John Doe",
+  "jobDescription": "Software Developer with React experience"
+}</pre
+        >
+
+        <h4>📱 WhatsApp Webhooks</h4>
+        <pre>
+Success Webhook: ORlQYXvg8qk9
+Error Webhook: HJGMsTitkl8a
+Base URL: https://api.wabb.in/api/v1/webhooks-automation/catch/220/</pre
+        >
+      </div>
+
+      <div class="test-section">
+        <h3>✅ Expected Flow</h3>
+        <ol>
+          <li>🔗 WABB calls the frontend URL with user parameters</li>
+          <li>📄 Page loads and automatically starts resume generation</li>
+          <li>
+            🤖 AI generates personalized resume based on user's CampusPe profile
+          </li>
+          <li>👁️ User sees preview of generated resume</li>
+          <li>💾 Resume automatically saved to database and BunnyNet CDN</li>
+          <li>📱 Resume automatically sent to user's WhatsApp number</li>
+          <li>✅ Success webhook sent to WABB (ORlQYXvg8qk9)</li>
+        </ol>
+      </div>
+    </div>
+
+    <script>
+      const API_BASE =
+        "https://campuspe-api-staging-hmfjgud5c6a7exe9.southindia-01.azurewebsites.net";
+      const WEB_BASE =
+        "https://campuspe-web-staging-erd8dvb3ewcjc5g2.southindia-01.azurewebsites.net";
+
+      async function checkSystemStatus() {
+        // Check API Health
+        try {
+          const response = await fetch(`${API_BASE}/health`);
+          const data = await response.json();
+          document.getElementById(
+            "api-status"
+          ).innerHTML = `✅ API Online (DB: ${data.database})`;
+          document.getElementById("api-status").style.color = "green";
+        } catch (error) {
+          document.getElementById("api-status").innerHTML = `❌ API Offline`;
+          document.getElementById("api-status").style.color = "red";
+        }
+
+        // Check Frontend
+        try {
+          const response = await fetch(`${WEB_BASE}/wabb-resume-generator`);
+          if (response.ok) {
+            document.getElementById(
+              "frontend-status"
+            ).innerHTML = `✅ Frontend Online`;
+            document.getElementById("frontend-status").style.color = "green";
+          } else {
+            throw new Error("Not accessible");
+          }
+        } catch (error) {
+          document.getElementById(
+            "frontend-status"
+          ).innerHTML = `❌ Frontend Offline`;
+          document.getElementById("frontend-status").style.color = "red";
+        }
+
+        // Check AI Generation
+        try {
+          const response = await fetch(
+            `${API_BASE}/api/ai-resume/debug-no-auth`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                email: "premthakare@gmail.com",
+                jobDescription: "Test job",
+              }),
+            }
+          );
+          const data = await response.json();
+          if (data.success) {
+            document.getElementById(
+              "ai-status"
+            ).innerHTML = `✅ AI Generation Working`;
+            document.getElementById("ai-status").style.color = "green";
+          } else {
+            throw new Error(data.message);
+          }
+        } catch (error) {
+          document.getElementById(
+            "ai-status"
+          ).innerHTML = `❌ AI Generation Issue`;
+          document.getElementById("ai-status").style.color = "red";
+        }
+      }
+
+      function testFrontendURL() {
+        const url = document.getElementById("frontend-url").value;
+        window.open(url, "_blank");
+      }
+
+      function copyFrontendURL() {
+        const url = document.getElementById("frontend-url");
+        url.select();
+        document.execCommand("copy");
+        alert("URL copied to clipboard!");
+      }
+
+      async function testAPIEndpoint() {
+        const resultElement = document.getElementById("api-result");
+        resultElement.textContent = "Testing API endpoint...";
+
+        try {
+          const response = await fetch(
+            `${API_BASE}/api/wabb/generate-and-share`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                email: "premthakare@gmail.com",
+                phone: "+919156621088",
+                name: "Prem Thakare",
+                jobDescription:
+                  "Software Engineer with JavaScript, React, Node.js experience",
+              }),
+            }
+          );
+
+          const data = await response.json();
+          resultElement.textContent = JSON.stringify(data, null, 2);
+
+          if (data.success) {
+            resultElement.parentElement.className = "test-section success";
+          } else {
+            resultElement.parentElement.className = "test-section error";
+          }
+        } catch (error) {
+          resultElement.textContent = `Error: ${error.message}`;
+          resultElement.parentElement.className = "test-section error";
+        }
+      }
+
+      // Run status check on page load
+      window.onload = checkSystemStatus;
+    </script>
+  </body>
+</html>

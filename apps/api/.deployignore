@@ -1,0 +1,29 @@
+# Ignore large binary files during deployment
+node_modules/html-pdf-node/node_modules/puppeteer/.local-chromium/
+node_modules/puppeteer/.local-chromium/
+node_modules/**/chrome-*
+node_modules/**/*chromium*
+node_modules/**/Chromium.app/
+
+# Ignore other large unnecessary files
+*.log
+.DS_Store
+.git/
+.gitignore
+README.md
+*.md
+
+# Development dependencies (if any remain)
+node_modules/@types/
+node_modules/typescript/
+node_modules/ts-node/
+node_modules/nodemon/
+node_modules/eslint/
+node_modules/jest/
+node_modules/@typescript-eslint/
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
