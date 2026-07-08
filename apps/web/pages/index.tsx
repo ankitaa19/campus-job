@@ -4,22 +4,25 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 import axios from 'axios';
-import { 
-  Star, 
-  ArrowRight, 
-  PlayCircle, 
-  Users, 
-  Building2, 
+import {
+  Star,
+  ArrowRight,
+  PlayCircle,
+  Users,
+  Building2,
   GraduationCap,
   TrendingUp,
   Plus,
   Search,
   Briefcase,
   FileText,
+  ShieldCheck,
+  Sparkles,
   CheckCircle,
   Phone,
   Mail,
   Calendar,
+  CalendarDays,
   ChevronDown,
   CreditCard
 } from 'lucide-react';
@@ -30,12 +33,12 @@ import CompanyRegistrationNavbar from '../components/CompanyRegistrationNavbar';
 import Footer from '../components/Footer';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
-import { 
-  MotionCard, 
-  FloatingElement, 
-  FadeInView, 
-  StaggerContainer, 
-  StaggerItem 
+import {
+  MotionCard,
+  FloatingElement,
+  FadeInView,
+  StaggerContainer,
+  StaggerItem
 } from '../components/ui/MotionComponents';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
@@ -50,7 +53,7 @@ export default function Home() {
   useEffect(() => {
     const token = localStorage.getItem('token');
     setIsLoggedIn(!!token);
-    
+
     if (token) {
       try {
         const base64Url = token.split('.')[1];
@@ -63,7 +66,7 @@ export default function Home() {
         );
         const payload = JSON.parse(jsonPayload);
         setUserRole(payload.role || null);
-        
+
         // Fetch student info if role is student
         if (payload.role === 'student') {
           fetchStudentInfo(token);
@@ -220,7 +223,7 @@ export default function Home() {
 
   const testimonials = [
     {
-name: 'Angelina',
+      name: 'Angelina',
       role: 'American Girl Chief',
       avatar: '/88e21d9821e24bd22f3f4cd331e57683038b99c6.png',
       quote: 'Lorem ipsum lorem, calendar, timeline, kanban, and more! The easy-to-use, visual interface lets any team member jump in and get started, no training required.',
@@ -238,7 +241,7 @@ name: 'Angelina',
   const faqItems = [
     "What makes CampusPe different from other learning platforms?",
     "CampusPe focuses on project-based learning with real-world applications. Our courses are taught by industry experts currently working at top companies, and we provide comprehensive career support including resume reviews, interview prep, and job placement assistance.",
-    "Do I get lifetime access to the courses?", 
+    "Do I get lifetime access to the courses?",
     "What level of support do I get as a student?",
     "Are the certificates recognized by employers?",
     "Can I get a refund if I'm not satisfied?",
@@ -250,252 +253,284 @@ name: 'Angelina',
   return (<>
     <div className="overflow-x-hidden">
       {isLoggedIn && userRole === 'student' ? (
-        <CollegeRegistrationNavbar 
-          status="approved" 
+        <CollegeRegistrationNavbar
+          status="approved"
           collegeName={studentName}
           userRole="student"
         />
       ) : isLoggedIn && userRole === 'recruiter' ? (
-        <CompanyRegistrationNavbar 
-          status="approved" 
+        <CompanyRegistrationNavbar
+          status="approved"
           companyName={companyName}
         />
       ) : (
         <Navbar />
       )}
-      
-<section className="hero-section relative min-h-auto bg-white overflow-hidden w-full">
-  <div 
-    className="floating-elements absolute inset-0 overflow-hidden w-full h-full max-w-[100vw] max-h-[100%] sm:max-h-[90%] lg:max-h-[100%] pointer-events-none z-0"
-  >
 
-          <FloatingElement className="absolute top-32 left-20" duration={6}>
-            <div className="w-4 h-4 bg-teal-400 rounded-full opacity-80"></div>
-          </FloatingElement>
-          <FloatingElement className="absolute top-48 right-32" duration={8}>
-            <div className="w-3 h-3 bg-blue-500 rounded-full opacity-80"></div>
-          </FloatingElement>
-          <FloatingElement className="absolute bottom-48 left-32" duration={7}>
-            <div className="w-4 h-4 bg-purple-500 rounded-full opacity-80"></div>
-          </FloatingElement>
-          <FloatingElement className="absolute bottom-32 right-24" duration={9}>
-            <div className="w-3 h-3 bg-yellow-500 rounded-full opacity-80"></div>
-          </FloatingElement>
-          <FloatingElement className="absolute top-1/2 left-1/4" duration={5}>
-            <div className="w-2 h-2 bg-green-400 rounded-full opacity-80"></div>
-          </FloatingElement>
-          <FloatingElement className="absolute top-1/3 right-1/3" duration={6}>
-            <div className="w-3 h-3 bg-pink-500 rounded-full opacity-80"></div>
-          </FloatingElement>
-          <FloatingElement className="absolute bottom-1/3 left-1/3" duration={4}>
-            <div className="w-2 h-2 bg-orange-400 rounded-full opacity-80"></div>
-          </FloatingElement>
-          <FloatingElement className="absolute top-2/3 right-1/4" duration={7}>
-            <div className="w-4 h-4 bg-indigo-400 rounded-full opacity-80"></div>
-          </FloatingElement>
+      {/* ================= NEW HERO SECTION ================= */}
+
+      <div className="relative z-20 flex flex-col items-center text-center max-w-6xl mx-auto pt-6 pb-8 lg:min-h-[calc(100vh-4rem)] lg:pt-1 lg:pb-1">
+
+        {/* Heading */}
+
+        <motion.h1
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-3xl md:text-4xl lg:text-5xl font-bold leading-[1.1]"
+        >
+          <span className="text-[#2492FF]">
+            College Admissions
+          </span>{" "}
+          & Placements
+          <br />
+          Made Simple-
+          <span className="text-[#2492FF]">
+            On WhatsApp
+          </span>
+        </motion.h1>
+
+        {/* Description */}
+
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="mt-4 lg:mt-2 text-lg text-gray-600 max-w-3xl lg:max-w-5xl leading-relaxed"
+        >
+          Discover colleges, apply once, find internships and jobs —
+          all powered by AI and WhatsApp automation.
+        </motion.p>
+
+        {/* What would you like */}
+
+        <motion.h2
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="mt-6 lg:mt-3 flex items-center justify-center gap-3 text-3xl font-bold text-[#2492FF]"
+        >
+          <Sparkles className="w-7 h-7 text-[#2492FF]" />
+
+          <span>What would you like to do today?</span>
+
+          <Sparkles className="w-7 h-7 text-[#2492FF]" />
+        </motion.h2>
+
+        {/* Cards */}
+
+        <div className="grid md:grid-cols-3 gap-6 mt-10 lg:mt-4 w-full">
+
+          {/* College */}
+
+          <motion.div
+            whileHover={{ y: -6 }}
+            className="bg-white border border-blue-300 rounded-2xl p-5 text-left shadow-sm hover:shadow-xl transition"
+          >
+
+            <div className="w-14 h-14 rounded-xl bg-purple-100 flex items-center justify-center mb-5">
+              <GraduationCap className="text-purple-600 w-7 h-7" />
+            </div>
+
+            <h3 className="font-bold text-2xl">
+              Colleges
+            </h3>
+
+            <p className="text-gray-500 mt-3">
+              Explore colleges, courses,
+              fees, placements & more
+            </p>
+
+            <button className="mt-6 font-semibold text-purple-600">
+              Search Colleges →
+            </button>
+
+          </motion.div>
+
+          {/* Jobs */}
+
+          <motion.div
+            whileHover={{ y: -6 }}
+            className="bg-white border border-blue-300 rounded-2xl p-5 text-left shadow-sm hover:shadow-xl transition"
+          >
+
+            <div className="w-14 h-14 rounded-xl bg-green-100 flex items-center justify-center mb-5">
+              <Briefcase className="text-green-600 w-7 h-7" />
+            </div>
+
+            <h3 className="font-bold text-2xl">
+              Jobs
+            </h3>
+
+            <p className="text-gray-500 mt-3">
+              Find full-time, internships,
+              part-time & gig opportunities
+            </p>
+
+            <button className="mt-6 font-semibold text-green-600">
+              Search Jobs →
+            </button>
+
+          </motion.div>
+
+          {/* Events */}
+
+          <motion.div
+            whileHover={{ y: -6 }}
+            className="bg-white border border-blue-300 rounded-2xl p-5 text-left shadow-sm hover:shadow-xl transition"
+          >
+
+            <div className="w-14 h-14 rounded-xl bg-blue-100 flex items-center justify-center mb-5">
+              <CalendarDays className="text-blue-600 w-7 h-7" />
+            </div>
+
+            <h3 className="font-bold text-2xl">
+              Events
+            </h3>
+
+            <p className="text-gray-500 mt-3">
+              Hackathons, webinars,
+              job fairs and workshops
+            </p>
+
+            <button className="mt-6 font-semibold text-blue-600">
+              Search Events →
+            </button>
+
+          </motion.div>
+
         </div>
 
-<div className="max-w-7xl mx-auto px-6 sm:px-8 md:px-12 lg:px-16 xl:px-20 2xl:px-24 py-8 sm:py-16 sm:pt-20 relative">
+        {/* ================= Stats Section ================= */}
 
-<div className="floating-images absolute inset-0 pointer-events-none hidden lg:block">
-  {/* Top Left - Student in green striped shirt */}
-  <FloatingElement duration={5} className="floating-image absolute top-12 left-12 z-0">
-    <motion.div
-      whileHover={{ scale: 1.1, rotate: 5 }}
-      className="overflow-hidden shadow-2xl transition-all duration-500 cursor-pointer"
-      style={{ borderRadius: '110px / 130px', width: 200, height: 300 }}
-    >
-      <Image
-        src="/c31e00fa1e3a6aa0b76326f5b4b6c78555c1e960.png"
-        alt="Student in green striped shirt"
-        width={200}
-        height={280}
-        className="w-full h-full object-cover"
-        style={{ borderRadius: '110px / 130px' }}
-      />
-    </motion.div>
-  </FloatingElement>
+        <div className="w-full mt-14 mb-6 lg:mt-3 lg:mb-0">
 
-  {/* Bottom Left - Female Student with Green Background */}
-  <FloatingElement duration={7} className="floating-image absolute bottom-12 left-20 z-0">
-    <motion.div
-      whileHover={{ scale: 1.1, rotate: -5 }}
-      className="overflow-hidden shadow-2xl transition-all duration-500 cursor-pointer"
-      style={{ borderRadius: '110px / 130px', width: 200, height: 290 }}
-    >
-      <Image
-        src="/07d8c7576ff7b5bcd8eccf277fb5e24bffa55244.png"
-        alt="Female Student with laptop"
-        width={200}
-        height={290}
-        className="w-full h-full object-cover"
-        style={{ borderRadius: '110px / 130px' }}
-      />
-    </motion.div>
-  </FloatingElement>
+          <div className="grid grid-cols-2 lg:grid-cols-4">
 
-  {/* Top Right - Student in dark sweater */}
-  <FloatingElement duration={6} className="floating-image absolute top-12 right-12 z-0">
-    <motion.div
-      whileHover={{ scale: 1.1, rotate: -5 }}
-      className="overflow-hidden shadow-2xl transition-all duration-500 cursor-pointer"
-      style={{ borderRadius: '110px / 130px', width: 200, height: 300 }}
-    >
-      <Image
-        src="/59097144faeb455019e32469d7d11758d5fdaed4.png"
-        alt="Student in dark sweater"
-        width={200}
-        height={300}
-        className="w-full h-full object-cover"
-        style={{ borderRadius: '110px / 130px' }}
-      />
-    </motion.div>
-  </FloatingElement>
+            {/* Students */}
 
-  {/* Bottom Right - Female Student with backpack */}
-  <FloatingElement duration={4.5} className="floating-image absolute bottom-12 right-20 z-0">
-    <motion.div
-      whileHover={{ scale: 1.1, rotate: 5 }}
-      className="overflow-hidden shadow-2xl transition-all duration-500 cursor-pointer"
-      style={{ borderRadius: '110px / 130px', width: 200, height: 290 }}
-    >
-      <Image
-        src="/3b4d5529440969da813eeb7824f7dd1c42a63f19.png"
-        alt="Female student with backpack"
-        width={200}
-        height={290}
-        className="w-full h-full object-cover"
-        style={{ borderRadius: '110px / 130px' }}
-      />
-    </motion.div>
-  </FloatingElement>
-</div>
+            <div className="flex items-center justify-center gap-4 py-4 lg:py-2 border-b lg:border-b-0 lg:border-r border-gray-300">
 
+              <div className="w-14 h-14 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
+                <Users className="w-6 h-6 text-purple-600" />
+              </div>
 
-          {/* Centered Content */}
-         <div className="hero-content text-center min-h-[30vh] sm:min-h-[70vh] flex flex-col justify-start items-center relative z-20 mx-auto max-w-6xl pt-8 sm:pt-16">
+              <div>
+                <h3 className="text-[30px] font-bold leading-none text-gray-900">
+                  800+
+                </h3>
 
-           <motion.div 
-  initial={{ opacity: 0, y: 20 }}
-  animate={{ opacity: 1, y: 0 }}
-  className="hero-subtitle inline-flex items-center space-x-2 text-blue-700 px-3 py-1.5 sm:px-4 sm:py-2 lg:px-6 lg:py-3 rounded-full text-xs sm:text-sm lg:text-base xl:text-lg font-medium hover:transition-colors cursor-pointer mb-6 sm:mb-8 -mt-10"
->
-  <Star className="w-4 h-4 sm:w-4 sm:h-6 lg:w-5 lg:h-5 xl:w-6 xl:h-6" />
-  <span>Your AI-Powered Education Journey</span>
-</motion.div>
+                <p className="mt-1 text-[16px] text-gray-700">
+                  Students
+                </p>
+              </div>
 
-<motion.h1 
-  initial={{ opacity: 0, y: 30 }}
-  animate={{ opacity: 1, y: 0 }}
-  className="hero-title text-xl sm:text-2xl md:text-3xl lg:text-4xl xl:text-4xl 2xl:text-5xl font-bold text-gray-900 mb-8 sm:mb-12 lg:mb-16 max-w-4xl px-2 sm:px-0 text-center leading-[1.3]"
-  style={{ fontFamily: 'Inter, sans-serif' }}
->
-  <span className="block lg:inline">College <span className="text-[#2463EB]">Admissions</span> & Placements</span>
-  <span className="block mt-2 lg:mt-0">
-    Made Simple-On <span className="text-[#2463EB]">WhatsApp</span>
-  </span>
-</motion.h1>
+            </div>
 
+            {/* Colleges */}
 
-            <motion.div 
-  initial={{ opacity: 0, y: 20 }}
-  animate={{ opacity: 1, y: 0 }}
-  className="hero-cards grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 lg:gap-8 max-w-sm sm:max-w-lg md:max-w-3xl lg:max-w-4xl mx-auto px-4 sm:px-6"
->
-  {/* Jobs Card */}
-  <motion.div 
-    whileHover={{ scale: 1.02, y: -5 }}
-    className="hero-card
-      bg-white 
-      w-full sm:w-[348px] 
-      aspect-auto sm:aspect-[348/309] 
-      p-4 sm:p-5 lg:p-6 
-      rounded-xl sm:rounded-2xl 
-      border border-blue-400 
-      hover:border-blue-400 
-      hover:bg-white 
-      hover:shadow-[0_0_20px_rgba(236,72,153,0.4)] 
-      shadow-md sm:shadow-lg 
-      transition-all duration-300 
-      cursor-pointer 
-      relative z-20 
-      flex flex-col 
-    "
-  >
-<div className="flex items-center justify-between space-x-3 sm:space-x-4 mb-3 sm:mb-4">
-  {/* Text on the left */}
-  <div className="text-left">
-    <div className="inline-block text-xs sm:text-sm text-gray-600 font-medium bg-[#F3F4F6] rounded-full px-2 py-[2px]">
-      15,000+ Opportunities
-    </div>
-    <div className="text-lg sm:text-xl font-bold text-gray-900 mt-1">
-      Jobs
-    </div>
-  </div>
+            <div className="flex items-center justify-center gap-4 py-4 lg:py-2 border-b lg:border-b-0 lg:border-r border-gray-300">
 
-  {/* Icon on the right */}
-<div className="w-12 h-12 sm:w-14 sm:h-14 lg:w-16 lg:h-16 rounded-xl sm:rounded-2xl flex items-center justify-center border border-white bg-gradient-to-br from-[#AD46FF] to-[#F6339A]">
-  <Briefcase className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-white" />
-</div>
-</div>
+              <div className="w-14 h-14 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                <Building2 className="w-6 h-6 text-blue-600" />
+              </div>
 
-    <p className="text-gray-600 sm:mt-4 text-[18px] sm:text-base text-left mb-1 sm:mb-2 font-medium">
-      Find diverse career opportunities
-    </p>
-    <div className="text-xs sm:mt-4 sm:text-[16px] text-gray-500 text-left leading-snug ">
-      Explore jobs, internships, and placements with AI-powered matching based on your skills and goals.
-    </div>
-  </motion.div>
+              <div>
+                <h3 className="text-[30px] font-bold leading-none text-gray-900">
+                  130+
+                </h3>
 
-  {/* Colleges Card */}
-  <motion.div 
-    whileHover={{ scale: 1.02, y: -5 }}
-    className="hero-card
-      bg-white 
-      w-full sm:w-[348px] 
-      aspect-auto sm:aspect-[348/309] 
-      p-4 sm:p-5 lg:p-6 
-      rounded-xl sm:rounded-2xl 
-      border border-blue-400 
-      hover:border-blue-400  
-      hover:bg-white 
-      hover:shadow-[0_0_20px_rgba(59,130,246,0.4)] 
-      shadow-md sm:shadow-lg 
-      transition-all duration-300 
-      cursor-pointer 
-      relative z-20 
-      flex flex-col 
-    "
-  >
-<div className="flex items-center justify-between space-x-3 sm:space-x-4 mb-3 sm:mb-4">
-  {/* Text on the left */}
-  <div className="text-left">
-    <div className="inline-block text-xs sm:text-sm text-gray-600 font-medium bg-[#F3F4F6] rounded-full px-2 py-[2px]">
-      1200+ Colleges
-    </div>
-    <div className="text-lg sm:text-xl font-bold text-gray-900 mt-1">
-      Colleges
-    </div>
-  </div>
+                <p className="mt-1 text-[16px] text-gray-700">
+                  Colleges
+                </p>
+              </div>
 
-  {/* Icon on the right */}
-<div className="w-12 h-12 sm:w-14 sm:h-14 lg:w-16 lg:h-16 rounded-xl sm:rounded-2xl flex items-center justify-center border border-white bg-gradient-to-br from-[#337BFF] to-[#5D62FF]">
-  <Building2 className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-white" />
-</div>
-</div>
+            </div>
 
-    <p className="text-gray-600 sm:mt-4 text-[18px] sm:text-base text-left mb-1 sm:mb-2 font-medium">
-      Simplify your college admissions
-    </p>
-    <div className="text-xs sm:mt-4 sm:text-[16px] text-gray-500 text-left leading-snug">
-      Explore top colleges and programs, apply once, pay fees instantly, and grab spot admission offers.
-    </div>
-  </motion.div>
-</motion.div>
+            {/* Jobs */}
+
+            <div className="flex items-center justify-center gap-4 py-4 lg:py-2 border-b lg:border-b-0 lg:border-r border-gray-300">
+
+              <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                <Briefcase className="w-6 h-6 text-green-600" />
+              </div>
+
+              <div>
+                <h3 className="text-[30px] font-bold leading-none text-gray-900">
+                  100+
+                </h3>
+
+                <p className="mt-1 text-[16px] text-gray-700">
+                  Jobs & Internships
+                </p>
+              </div>
+
+            </div>
+
+            {/* Safe */}
+
+            <div className="flex items-center justify-center gap-4 py-4 lg:py-2">
+
+              <div className="w-14 h-14 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+                <ShieldCheck className="w-6 h-6 text-orange-500" />
+              </div>
+
+              <div>
+                <h3 className="text-[30px] font-bold leading-none text-gray-900">
+                  100%
+                </h3>
+
+                <p className="mt-1 text-[16px] text-gray-700">
+                  Safe & Trusted
+                </p>
+              </div>
+
+            </div>
 
           </div>
+
         </div>
-      </section>
+        {/* Partners */}
+
+        <div className="mt-16 lg:mt-1 w-full">
+
+          <p className="text-center text-gray-500 text-xl font-medium mb-12 lg:mb-3">
+            Trusted by partners across India
+          </p>
+
+          <div className="max-w-6xl mx-auto flex items-center justify-between px-10 lg:px-20">
+
+            <Image
+              src="/image 15142.png"
+              alt="Ginserv"
+              width={220}
+              height={70}
+              className="object-contain lg:w-[220px] lg:h-[70px]"
+            />
+
+            <Image
+              src="/image 15144.png"
+              alt="Startup Karnataka"
+              width={260}
+              height={75}
+              className="object-contain lg:w-[260px] lg:h-[75px]"
+            />
+
+            <Image
+              src="/image 15143.png"
+              alt="Government"
+              width={110}
+              height={110}
+              className="object-contain lg:w-[110px] lg:h-[110px]"
+            />
+
+
+          </div>
+
+        </div>
+
+      </div>
+
+      {/* ================= END HERO ================= */}
+
+
 
       {/* Who It's For Section */}
       <section className="pt-4 sm:pt-8 lg:pt-6 pb-4 sm:pb-8 lg:pb-6 bg-white">
@@ -513,147 +548,147 @@ name: 'Angelina',
             </h1>
           </motion.div>
 
-        {/* For Students - Content Left, Image Right */}
-<div className="mb-12 sm:mb-16 lg:mb-20">
-  <div className="grid lg:grid-cols-2 gap-8 lg:gap-16 items-center">
-    
-    {/* Left side - Content */}
-    <div className="space-y-4 sm:space-y-6 relative order-last lg:order-first">
-      {/* Title */}
-      <motion.div
-        initial={{ opacity: 0, y: 30 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        className="mb-6 sm:mb-8 text-center"
-      >
-        <h3 className="text-2xl sm:text-3xl font-bold text-[#2463EB]">
-          For Students
-        </h3>
-      </motion.div>      {/* Feature 1 */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        className="bg-[#FEFBFB] p-4 sm:p-6 rounded-2xl border border-blue-100 
-                   hover:shadow-2xl hover:scale-[1.02] hover:border-blue-200 
+          {/* For Students - Content Left, Image Right */}
+          <div className="mb-12 sm:mb-16 lg:mb-20">
+            <div className="grid lg:grid-cols-2 gap-8 lg:gap-16 items-center">
+
+              {/* Left side - Content */}
+              <div className="space-y-4 sm:space-y-6 relative order-last lg:order-first">
+                {/* Title */}
+                <motion.div
+                  initial={{ opacity: 0, y: 30 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  className="mb-6 sm:mb-8 text-center"
+                >
+                  <h3 className="text-2xl sm:text-3xl font-bold text-[#2463EB]">
+                    For Students
+                  </h3>
+                </motion.div>      {/* Feature 1 */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  className="bg-[#FEFBFB] p-4 sm:p-6 rounded-2xl border border-blue-100
+                   hover:shadow-2xl hover:scale-[1.02] hover:border-blue-200
                    transition-all duration-300 cursor-pointer lg:ml-8"
-      >
-        <div className="flex items-start space-x-3 sm:space-x-4">
-          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#2463EB] rounded-xl flex items-center justify-center flex-shrink-0 hover:scale-110 transition-transform duration-300">
-            <Search className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-          </div>
-          <div className="flex-1">
-            <h4 className="font-bold text-gray-900 mb-1 text-base sm:text-lg">
-              Search hundreds <span className="text-[#2463EB]">of colleges</span>
-            </h4>
-            <p className="text-gray-600 text-sm leading-relaxed">
-              Find and compare colleges easily, all in one place.
-            </p>
-          </div>
-        </div>
-      </motion.div>
+                >
+                  <div className="flex items-start space-x-3 sm:space-x-4">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#2463EB] rounded-xl flex items-center justify-center flex-shrink-0 hover:scale-110 transition-transform duration-300">
+                      <Search className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-bold text-gray-900 mb-1 text-base sm:text-lg">
+                        Search hundreds <span className="text-[#2463EB]">of colleges</span>
+                      </h4>
+                      <p className="text-gray-600 text-sm leading-relaxed">
+                        Find and compare colleges easily, all in one place.
+                      </p>
+                    </div>
+                  </div>
+                </motion.div>
 
-      {/* Feature 2 */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        className="bg-[#FEFBFB] p-4 sm:p-6 rounded-2xl border border-blue-100 
-                   hover:shadow-2xl hover:scale-[1.02] hover:border-blue-200 
+                {/* Feature 2 */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  className="bg-[#FEFBFB] p-4 sm:p-6 rounded-2xl border border-blue-100
+                   hover:shadow-2xl hover:scale-[1.02] hover:border-blue-200
                    transition-all duration-300 lg:ml-auto cursor-pointer lg:mr-8"
-      >
-        <div className="flex items-start space-x-3 sm:space-x-4">
-          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#2463EB] rounded-xl flex items-center justify-center flex-shrink-0 hover:scale-110 transition-transform duration-300">
-            <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-          </div>
-          <div className="flex-1">
-            <h4 className="font-bold text-gray-900 mb-2 text-base sm:text-lg">
-              <span className="text-blue-600">One form,</span> many colleges
-            </h4>
-            <p className="text-gray-600 text-sm leading-relaxed">
-              Apply to multiple colleges with one simple form — faster, easier, stress-free.
-            </p>
-          </div>
-        </div>
-      </motion.div>
+                >
+                  <div className="flex items-start space-x-3 sm:space-x-4">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#2463EB] rounded-xl flex items-center justify-center flex-shrink-0 hover:scale-110 transition-transform duration-300">
+                      <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-bold text-gray-900 mb-2 text-base sm:text-lg">
+                        <span className="text-blue-600">One form,</span> many colleges
+                      </h4>
+                      <p className="text-gray-600 text-sm leading-relaxed">
+                        Apply to multiple colleges with one simple form — faster, easier, stress-free.
+                      </p>
+                    </div>
+                  </div>
+                </motion.div>
 
-      {/* Feature 3 */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        className="bg-[#FEFBFB] p-4 sm:p-6 rounded-2xl border border-blue-100 
-                   hover:shadow-2xl hover:scale-[1.02] hover:border-blue-200 
+                {/* Feature 3 */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  className="bg-[#FEFBFB] p-4 sm:p-6 rounded-2xl border border-blue-100
+                   hover:shadow-2xl hover:scale-[1.02] hover:border-blue-200
                    transition-all duration-300 cursor-pointer lg:ml-8"
-      >
-        <div className="flex items-start space-x-3 sm:space-x-4">
-          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#2463EB] rounded-xl flex items-center justify-center flex-shrink-0 hover:scale-110 transition-transform duration-300">
-            <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-          </div>
-          <div className="flex-1">
-            <h4 className="font-bold text-gray-900 mb-2 text-base sm:text-lg">
-              Start <span className="text-[#2463EB]">your career early</span>
-            </h4>
-            <p className="text-gray-600 text-sm leading-relaxed">
-              Explore and apply to part-time jobs, internships, and full-time roles with real-time alerts.
-            </p>
-          </div>
-        </div>
-      </motion.div>
+                >
+                  <div className="flex items-start space-x-3 sm:space-x-4">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#2463EB] rounded-xl flex items-center justify-center flex-shrink-0 hover:scale-110 transition-transform duration-300">
+                      <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-bold text-gray-900 mb-2 text-base sm:text-lg">
+                        Start <span className="text-[#2463EB]">your career early</span>
+                      </h4>
+                      <p className="text-gray-600 text-sm leading-relaxed">
+                        Explore and apply to part-time jobs, internships, and full-time roles with real-time alerts.
+                      </p>
+                    </div>
+                  </div>
+                </motion.div>
 
-      {/* Feature 4 */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        className="bg-[#FEFBFB] p-4 sm:p-6 rounded-2xl border border-blue-100 
-                   hover:shadow-2xl hover:scale-[1.02] hover:border-blue-200 
+                {/* Feature 4 */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  className="bg-[#FEFBFB] p-4 sm:p-6 rounded-2xl border border-blue-100
+                   hover:shadow-2xl hover:scale-[1.02] hover:border-blue-200
                    transition-all duration-300 lg:ml-auto cursor-pointer lg:mr-8"
-      >
-        <div className="flex items-start space-x-3 sm:space-x-4">
-          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#2463EB] rounded-xl flex items-center justify-center flex-shrink-0 hover:scale-110 transition-transform duration-300">
-            <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-          </div>
-          <div className="flex-1">
-            <h4 className="font-bold text-gray-900 mb-2 text-base sm:text-lg">
-              <span className="text-[#2463EB]">Hassle-free</span> fee payments
-            </h4>
-            <p className="text-gray-600 text-sm leading-relaxed">
-              Pay securely, save bank slips, get instant updates, and access student loans.
-            </p>
-          </div>
-        </div>
-      </motion.div>
+                >
+                  <div className="flex items-start space-x-3 sm:space-x-4">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#2463EB] rounded-xl flex items-center justify-center flex-shrink-0 hover:scale-110 transition-transform duration-300">
+                      <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-bold text-gray-900 mb-2 text-base sm:text-lg">
+                        <span className="text-[#2463EB]">Hassle-free</span> fee payments
+                      </h4>
+                      <p className="text-gray-600 text-sm leading-relaxed">
+                        Pay securely, save bank slips, get instant updates, and access student loans.
+                      </p>
+                    </div>
+                  </div>
+                </motion.div>
 
-      {/* Button */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        className="pt-4 sm:pt-6 text-center"
-      >
-        <button className="bg-gradient-to-r from-[#2463EB] to-[#064BB3] text-white px-6 sm:px-8 py-3 sm:py-4 rounded-xl hover:from-[#064BB3] hover:to-[#2463EB] hover:scale-105 hover:shadow-2xl transition-all duration-300 font-semibold text-base sm:text-lg shadow-lg w-full sm:w-auto">
-          Explore Colleges & Jobs
-        </button>
-      </motion.div>
-    </div>
+                {/* Button */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  className="pt-4 sm:pt-6 text-center"
+                >
+                  <button className="bg-gradient-to-r from-[#2463EB] to-[#064BB3] text-white px-6 sm:px-8 py-3 sm:py-4 rounded-xl hover:from-[#064BB3] hover:to-[#2463EB] hover:scale-105 hover:shadow-2xl transition-all duration-300 font-semibold text-base sm:text-lg shadow-lg w-full sm:w-auto">
+                    Explore Colleges & Jobs
+                  </button>
+                </motion.div>
+              </div>
 
-   {/* Right side - Image */}
-<motion.div 
-  initial={{ opacity: 0, x: 50 }}
-  whileInView={{ opacity: 1, x: 0 }}
-  transition={{ duration: 0.6 }}
-  className="relative flex items-center justify-center h-full order-first lg:order-last"
->
-  <div className="w-full h-[320px] sm:h-[420px] lg:h-[520px] rounded-2xl overflow-hidden shadow-2xl">
-    <Image
-      src="/hwdiuweh77.png"
-      alt="Students sitting together"
-      width={1500}
-      height={1600}
-      className="w-full h-full object-cover"
-      priority
-    />
-  </div>
-</motion.div>
+              {/* Right side - Image */}
+              <motion.div
+                initial={{ opacity: 0, x: 50 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.6 }}
+                className="relative flex items-center justify-center h-full order-first lg:order-last"
+              >
+                <div className="w-full h-[320px] sm:h-[420px] lg:h-[520px] rounded-2xl overflow-hidden shadow-2xl">
+                  <Image
+                    src="/hwdiuweh77.png"
+                    alt="Students sitting together"
+                    width={1500}
+                    height={1600}
+                    className="w-full h-full object-cover"
+                    priority
+                  />
+                </div>
+              </motion.div>
 
-          {/* Close Students grid and section wrappers */}
+              {/* Close Students grid and section wrappers */}
+            </div>
           </div>
-        </div>
 
           {/* For Colleges - Images Left, Content Right */}
           <div className="mb-16 sm:mb-20 lg:mb-24">
@@ -662,50 +697,50 @@ name: 'Angelina',
               <div className="relative order-first"> {/* Images grid fixed to match Students/Companies height */}
                 <div className="w-full h-[320px] sm:h-[420px] lg:h-[520px]">
                   <div className="grid grid-cols-2 grid-rows-2 gap-3 sm:gap-4 h-full">
-                  {/* Top left */}
-                 <motion.div
-  initial={{ opacity: 0, y: 20 }}
-  whileInView={{ opacity: 1, y: 0 }}
-  className="rounded-2xl overflow-hidden shadow-2xl hover:shadow-2xl transition-all duration-300 cursor-pointer h-[150px] sm:h-[200px] lg:h-[250px]"
->
-                    <Image
-                      src="/9b8314d0fa4d8e29be5d546499a9494a0c5b8dc7.jpg"
-                      alt="College building"
-                      width={200}
-                      height={150}
-                      className="w-full h-full object-cover"
-                    />
-                  </motion.div>
+                    {/* Top left */}
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      className="rounded-2xl overflow-hidden shadow-2xl hover:shadow-2xl transition-all duration-300 cursor-pointer h-[150px] sm:h-[200px] lg:h-[250px]"
+                    >
+                      <Image
+                        src="/9b8314d0fa4d8e29be5d546499a9494a0c5b8dc7.jpg"
+                        alt="College building"
+                        width={200}
+                        height={150}
+                        className="w-full h-full object-cover"
+                      />
+                    </motion.div>
 
-                  {/* Top right */}
-                 <motion.div
-  initial={{ opacity: 0, y: 20 }}
-  whileInView={{ opacity: 1, y: 0 }}
-  className="rounded-2xl overflow-hidden shadow-2xl hover:shadow-2xl transition-all duration-300 cursor-pointer h-[150px] sm:h-[200px] lg:h-[250px]"
->
-                    <Image
-                      src="/59a78b0511f4680d63e4da78954e55d310d7f67b.jpg"
-                      alt="College campus"
-                      width={200}
-                      height={150}
-                      className="w-full h-full object-cover"
-                    />
-                  </motion.div>
+                    {/* Top right */}
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      className="rounded-2xl overflow-hidden shadow-2xl hover:shadow-2xl transition-all duration-300 cursor-pointer h-[150px] sm:h-[200px] lg:h-[250px]"
+                    >
+                      <Image
+                        src="/59a78b0511f4680d63e4da78954e55d310d7f67b.jpg"
+                        alt="College campus"
+                        width={200}
+                        height={150}
+                        className="w-full h-full object-cover"
+                      />
+                    </motion.div>
 
-                  {/* Bottom - Full width */}
-                <motion.div
-  initial={{ opacity: 0, y: 20 }}
-  whileInView={{ opacity: 1, y: 0 }}
-  className="rounded-2xl overflow-hidden shadow-2xl hover:shadow-2xl transition-all duration-300 cursor-pointer col-span-2 h-[150px] sm:h-[200px] lg:h-[250px]"
->
-                    <Image
-                      src="/c5b0a7b4156f17ba1a6a8a2ad3549156ff210e7f.jpg"
-                      alt="Students in college"
-                      width={400}
-                      height={200}
-                      className="w-full h-full object-cover"
-                    />
-                  </motion.div>
+                    {/* Bottom - Full width */}
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      className="rounded-2xl overflow-hidden shadow-2xl hover:shadow-2xl transition-all duration-300 cursor-pointer col-span-2 h-[150px] sm:h-[200px] lg:h-[250px]"
+                    >
+                      <Image
+                        src="/c5b0a7b4156f17ba1a6a8a2ad3549156ff210e7f.jpg"
+                        alt="Students in college"
+                        width={400}
+                        height={200}
+                        className="w-full h-full object-cover"
+                      />
+                    </motion.div>
                   </div>
                 </div>
               </div>
@@ -745,10 +780,10 @@ name: 'Angelina',
 
                 {/* Feature 2 - Struggling to Bring Companies - Left positioned */}
                 <motion.div
-  initial={{ opacity: 0, y: 20 }}
-  whileInView={{ opacity: 1, y: 0 }}
-  className="bg-[#FEFBFB] p-4 sm:p-6 rounded-2xl border border-blue-100 hover:shadow-2xl hover:scale-[1.02] hover:border-blue-200 transition-all duration-300 lg:ml-auto cursor-pointer lg:mr-8"
->
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  className="bg-[#FEFBFB] p-4 sm:p-6 rounded-2xl border border-blue-100 hover:shadow-2xl hover:scale-[1.02] hover:border-blue-200 transition-all duration-300 lg:ml-auto cursor-pointer lg:mr-8"
+                >
                   <div className="flex items-start space-x-3 sm:space-x-4">
                     <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#2463EB] rounded-xl flex items-center justify-center flex-shrink-0">
                       <Users className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
@@ -765,11 +800,11 @@ name: 'Angelina',
                 </motion.div>
 
                 {/* Feature 3 - Missing Out on Student Leads - Right positioned */}
-               <motion.div
-  initial={{ opacity: 0, y: 20 }}
-  whileInView={{ opacity: 1, y: 0 }}
-  className="bg-[#FEFBFB] p-4 sm:p-6 rounded-2xl border border-blue-100 hover:shadow-2xl hover:scale-[1.02] hover:border-blue-200 transition-all duration-300 lg:ml-8 cursor-pointer"
->
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  className="bg-[#FEFBFB] p-4 sm:p-6 rounded-2xl border border-blue-100 hover:shadow-2xl hover:scale-[1.02] hover:border-blue-200 transition-all duration-300 lg:ml-8 cursor-pointer"
+                >
                   <div className="flex items-start space-x-3 sm:space-x-4">
                     <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#2463EB] rounded-xl flex items-center justify-center flex-shrink-0">
                       <Users className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
@@ -786,11 +821,11 @@ name: 'Angelina',
                 </motion.div>
 
                 {/* Feature 4 - Messy Fee Collections - Left positioned */}
-               <motion.div
-  initial={{ opacity: 0, y: 20 }}
-  whileInView={{ opacity: 1, y: 0 }}
-  className="bg-[#FEFBFB] p-4 sm:p-6 rounded-2xl border border-blue-100 hover:shadow-2xl hover:scale-[1.02] hover:border-blue-200 transition-all duration-300 lg:ml-auto cursor-pointer lg:mr-8"
->
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  className="bg-[#FEFBFB] p-4 sm:p-6 rounded-2xl border border-blue-100 hover:shadow-2xl hover:scale-[1.02] hover:border-blue-200 transition-all duration-300 lg:ml-auto cursor-pointer lg:mr-8"
+                >
                   <div className="flex items-start space-x-3 sm:space-x-4">
                     <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#2463EB] rounded-xl flex items-center justify-center flex-shrink-0">
                       <CreditCard className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
@@ -836,11 +871,11 @@ name: 'Angelina',
                 </motion.div>
 
                 {/* Feature 1 - Struggling to Hire from Right Colleges - Right positioned */}
-              <motion.div
-  initial={{ opacity: 0, y: 20 }}
-  whileInView={{ opacity: 1, y: 0 }}
-  className="bg-[#FEFBFB] p-4 sm:p-6 rounded-2xl border border-blue-100 hover:shadow-2xl hover:scale-[1.02] hover:border-blue-200 transition-all duration-300 lg:ml-8 cursor-pointer"
->
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  className="bg-[#FEFBFB] p-4 sm:p-6 rounded-2xl border border-blue-100 hover:shadow-2xl hover:scale-[1.02] hover:border-blue-200 transition-all duration-300 lg:ml-8 cursor-pointer"
+                >
                   <div className="flex items-start space-x-3 sm:space-x-4">
                     <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#2463EB] rounded-xl flex items-center justify-center flex-shrink-0">
                       <Building2 className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
@@ -858,10 +893,10 @@ name: 'Angelina',
 
                 {/* Feature 2 - Posting jobs One by One - Left positioned */}
                 <motion.div
-  initial={{ opacity: 0, y: 20 }}
-  whileInView={{ opacity: 1, y: 0 }}
-  className="bg-[#FEFBFB] p-4 sm:p-6 rounded-2xl border border-blue-100 hover:shadow-2xl hover:scale-[1.02] hover:border-blue-200 transition-all duration-300 lg:ml-auto cursor-pointer lg:mr-8"
->
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  className="bg-[#FEFBFB] p-4 sm:p-6 rounded-2xl border border-blue-100 hover:shadow-2xl hover:scale-[1.02] hover:border-blue-200 transition-all duration-300 lg:ml-auto cursor-pointer lg:mr-8"
+                >
                   <div className="flex items-start space-x-3 sm:space-x-4">
                     <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#2463EB] rounded-xl flex items-center justify-center flex-shrink-0">
                       <Briefcase className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
@@ -878,11 +913,11 @@ name: 'Angelina',
                 </motion.div>
 
                 {/* Feature 3 - Messy Hiring Process - Right positioned */}
-               <motion.div
-  initial={{ opacity: 0, y: 20 }}
-  whileInView={{ opacity: 1, y: 0 }}
-  className="bg-[#FEFBFB] p-4 sm:p-6 rounded-2xl border border-blue-100 hover:shadow-2xl hover:scale-[1.02] hover:border-blue-200 transition-all duration-300 lg:ml-8 cursor-pointer"
->
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  className="bg-[#FEFBFB] p-4 sm:p-6 rounded-2xl border border-blue-100 hover:shadow-2xl hover:scale-[1.02] hover:border-blue-200 transition-all duration-300 lg:ml-8 cursor-pointer"
+                >
                   <div className="flex items-start space-x-3 sm:space-x-4">
                     <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#2463EB] rounded-xl flex items-center justify-center flex-shrink-0">
                       <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
@@ -899,11 +934,11 @@ name: 'Angelina',
                 </motion.div>
 
                 {/* Feature 4 - Hiring Taking Too Much Time & Cost - Left positioned */}
-               <motion.div
-  initial={{ opacity: 0, y: 20 }}
-  whileInView={{ opacity: 1, y: 0 }}
-  className="bg-[#FEFBFB] p-4 sm:p-6 rounded-2xl border border-blue-100 hover:shadow-2xl hover:scale-[1.02] hover:border-blue-200 transition-all duration-300 lg:ml-auto cursor-pointer lg:mr-8"
->
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  className="bg-[#FEFBFB] p-4 sm:p-6 rounded-2xl border border-blue-100 hover:shadow-2xl hover:scale-[1.02] hover:border-blue-200 transition-all duration-300 lg:ml-auto cursor-pointer lg:mr-8"
+                >
                   <div className="flex items-start space-x-3 sm:space-x-4">
                     <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#2463EB] rounded-xl flex items-center justify-center flex-shrink-0">
                       <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
@@ -974,117 +1009,117 @@ name: 'Angelina',
           </motion.div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
-<motion.div
-  initial={{ opacity: 0, y: 30 }}
-  whileInView={{ opacity: 1, y: 0 }}
-  whileHover={{ scale: 1.03 }}
-  className="bg-[#FEFBFB] p-8 rounded-3xl shadow-lg border border-gray-100 
-             hover:border-transparent hover:bg-[#FEFBFB] 
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              whileHover={{ scale: 1.03 }}
+              className="bg-[#FEFBFB] p-8 rounded-3xl shadow-lg border border-gray-100
+             hover:border-transparent hover:bg-[#FEFBFB]
              hover:shadow-[0_0_20px_rgba(59,130,246,0.4)] hover:z-10 transform-gpu
              transition-all duration-300 text-center relative cursor-pointer z-0"
-             
->
-  <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
-    <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center">
-      <CheckCircle className="w-6 h-6 text-white" />
-    </div>
-  </div>
-  <h3 className="text-xl font-bold text-gray-900 mb-3">Choose Your Path</h3>
-  <p className="text-gray-600 text-sm leading-relaxed">
-    Select whether you're a student, college, or company
-  </p>
-  
-  {/* Step indicator */}
-  <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 ">
-    <div className="bg-blue-500 text-white text-xs font-bold px-3 py-1 rounded-full">
-      Step 01
-    </div>
-  </div>
-</motion.div>
 
-{/* Step 2 */}
-<motion.div
-  initial={{ opacity: 0, y: 30 }}
-  whileInView={{ opacity: 1, y: 0 }}
-  whileHover={{ scale: 1.03 }}
-  className="bg-[#FEFBFB] p-8 rounded-3xl shadow-lg border border-gray-100 
-             hover:border-transparent hover:bg-[#FEFBFB] 
+            >
+              <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center">
+                  <CheckCircle className="w-6 h-6 text-white" />
+                </div>
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-3">Choose Your Path</h3>
+              <p className="text-gray-600 text-sm leading-relaxed">
+                Select whether you're a student, college, or company
+              </p>
+
+              {/* Step indicator */}
+              <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 ">
+                <div className="bg-blue-500 text-white text-xs font-bold px-3 py-1 rounded-full">
+                  Step 01
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Step 2 */}
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              whileHover={{ scale: 1.03 }}
+              className="bg-[#FEFBFB] p-8 rounded-3xl shadow-lg border border-gray-100
+             hover:border-transparent hover:bg-[#FEFBFB]
              hover:shadow-[0_0_20px_rgba(34,197,94,0.4)] hover:z-10 transform-gpu
              transition-all duration-300 cursor-pointer relative text-center z-0"
->
-  <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
-    <div className="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center">
-      <FileText className="w-6 h-6 text-white" />
-    </div>
-  </div>
-  <h3 className="text-xl font-bold text-gray-900 mb-3">Complete Profile</h3>
-  <p className="text-gray-600 text-sm leading-relaxed">
-    Build your comprehensive profile with all relevant details
-  </p>
-  
-  {/* Step indicator */}
-  <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-    <div className="bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full">
-      Step 02
-    </div>
-  </div>
-</motion.div>
+            >
+              <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                <div className="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center">
+                  <FileText className="w-6 h-6 text-white" />
+                </div>
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-3">Complete Profile</h3>
+              <p className="text-gray-600 text-sm leading-relaxed">
+                Build your comprehensive profile with all relevant details
+              </p>
 
-{/* Step 3 */}
-<motion.div
-  initial={{ opacity: 0, y: 30 }}
-  whileInView={{ opacity: 1, y: 0 }}
-  whileHover={{ scale: 1.03 }}
-  className="bg-[#FEFBFB] p-8 rounded-3xl shadow-lg border border-gray-100 
-             hover:border-transparent hover:bg-[#FEFBFB] 
+              {/* Step indicator */}
+              <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                <div className="bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full">
+                  Step 02
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Step 3 */}
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              whileHover={{ scale: 1.03 }}
+              className="bg-[#FEFBFB] p-8 rounded-3xl shadow-lg border border-gray-100
+             hover:border-transparent hover:bg-[#FEFBFB]
              hover:shadow-[0_0_20px_rgba(139,92,246,0.4)] hover:z-10 transform-gpu
              transition-all duration-300 text-center relative cursor-pointer z-0"
->
-  <div className="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
-    <div className="w-12 h-12 bg-purple-500 rounded-xl flex items-center justify-center">
-      <Users className="w-6 h-6 text-white" />
-    </div>
-  </div>
-  <h3 className="text-xl font-bold text-gray-900 mb-3">Smart Matching</h3>
-  <p className="text-gray-600 text-sm leading-relaxed">
-    Our AI connects you with the best opportunities
-  </p>
-  
-  {/* Step indicator */}
-  <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-    <div className="bg-purple-500 text-white text-xs font-bold px-3 py-1 rounded-full">
-      Step 03
-    </div>
-  </div>
-</motion.div>
+            >
+              <div className="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                <div className="w-12 h-12 bg-purple-500 rounded-xl flex items-center justify-center">
+                  <Users className="w-6 h-6 text-white" />
+                </div>
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-3">Smart Matching</h3>
+              <p className="text-gray-600 text-sm leading-relaxed">
+                Our AI connects you with the best opportunities
+              </p>
 
-{/* Step 4 */}
-<motion.div
-  initial={{ opacity: 0, y: 30 }}
-  whileInView={{ opacity: 1, y: 0 }}
-  whileHover={{ scale: 1.03 }}
-  className="bg-[#FEFBFB] p-8 rounded-3xl shadow-lg border border-gray-100 
-             hover:border-transparent hover:bg-[#FEFBFB] 
+              {/* Step indicator */}
+              <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                <div className="bg-purple-500 text-white text-xs font-bold px-3 py-1 rounded-full">
+                  Step 03
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Step 4 */}
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              whileHover={{ scale: 1.03 }}
+              className="bg-[#FEFBFB] p-8 rounded-3xl shadow-lg border border-gray-100
+             hover:border-transparent hover:bg-[#FEFBFB]
              hover:shadow-[0_0_20px_rgba(239,68,68,0.4)] hover:z-10 transform-gpu
              transition-all duration-300 text-center relative cursor-pointer z-0"
->
-  <div className="w-16 h-16 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
-    <div className="w-12 h-12 bg-red-500 rounded-xl flex items-center justify-center">
-      <TrendingUp className="w-6 h-6 text-white" />
-    </div>
-  </div>
-  <h3 className="text-xl font-bold text-gray-900 mb-3">Achieve Success</h3>
-  <p className="text-gray-600 text-sm leading-relaxed">
-    Land your dream job, find perfect students, or build partnerships
-  </p>
-  
-  {/* Step indicator */}
-  <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-    <div className="bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-full">
-      Step 04
-    </div>
-  </div>
-</motion.div>
+            >
+              <div className="w-16 h-16 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                <div className="w-12 h-12 bg-red-500 rounded-xl flex items-center justify-center">
+                  <TrendingUp className="w-6 h-6 text-white" />
+                </div>
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-3">Achieve Success</h3>
+              <p className="text-gray-600 text-sm leading-relaxed">
+                Land your dream job, find perfect students, or build partnerships
+              </p>
+
+              {/* Step indicator */}
+              <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                <div className="bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-full">
+                  Step 04
+                </div>
+              </div>
+            </motion.div>
           </div>
         </div>
       </section>
@@ -1102,15 +1137,15 @@ name: 'Angelina',
                 className="mb-6 sm:mb-8"
               >
                 <div className="flex items-center space-x-2 mb-4">
-                 <div className="w-3 h-3 bg-blue-600 rounded-full"></div>
-                <span className="text-blue-600 hover:text-blue-700 font-medium text-sm sm:text-base"> Got Questions?
-                 </span>
+                  <div className="w-3 h-3 bg-blue-600 rounded-full"></div>
+                  <span className="text-blue-600 hover:text-blue-700 font-medium text-sm sm:text-base"> Got Questions?
+                  </span>
                 </div>
-                
+
                 <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-4 sm:mb-6">
                   Save Time With <span className="text-blue-600">Automation</span>
                 </h2>
-                
+
                 <div className="w-12 sm:w-16 h-1 bg-orange-400 rounded-full mb-6 sm:mb-8"></div>
 
                 <div className="space-y-4 sm:space-y-6">
@@ -1177,7 +1212,7 @@ name: 'Angelina',
               >
                 {/* Outer dashed circle - responsive sizing */}
                 <div className="absolute inset-0 w-56 h-56 sm:w-80 sm:h-80 lg:w-96 lg:h-96 rounded-full border-2 border-gray-300 border-dashed mx-auto"></div>
-                
+
                 {/* Inner gradient circle with image - responsive sizing */}
                 <div className="relative w-48 h-48 sm:w-72 sm:h-72 lg:w-80 lg:h-80 flex items-center justify-center">
                   <div className="w-full h-full rounded-full bg-gradient-to-br from-orange-400 via-pink-400 to-purple-500 p-1 shadow-2xl">
@@ -1199,11 +1234,11 @@ name: 'Angelina',
                 <FloatingElement duration={4} className="absolute top-8 sm:top-12 left-8 sm:left-12">
                   <div className="w-3 h-3 sm:w-4 sm:h-4 bg-blue-500 rounded-full opacity-90 shadow-lg"></div>
                 </FloatingElement>
-                
+
                 <FloatingElement duration={5} className="absolute top-10 sm:top-16 right-6 sm:right-8">
                   <div className="w-2 h-2 sm:w-3 sm:h-3 bg-pink-500 rounded-full opacity-90 shadow-lg"></div>
                 </FloatingElement>
-                
+
                 <FloatingElement duration={6} className="absolute bottom-10 sm:bottom-16 left-6 sm:left-8">
                   <div className="w-3 h-3 sm:w-4 sm:h-4 bg-orange-500 rounded-full opacity-90 shadow-lg"></div>
                 </FloatingElement>
@@ -1253,63 +1288,63 @@ name: 'Angelina',
             className="mb-12"
           >
             {/* Trust indicator */}
-          <div className="flex items-center justify-center space-x-2 mb-4">
-  <div className="flex items-center space-x-1">
-    {[...Array(5)].map((_, i) => (
-      <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-    ))}
-  </div>
-  <span className="text-gray-600 text-sm">Trusted by 50,000+ users</span>
-</div>
+            <div className="flex items-center justify-center space-x-2 mb-4">
+              <div className="flex items-center space-x-1">
+                {[...Array(5)].map((_, i) => (
+                  <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                ))}
+              </div>
+              <span className="text-gray-600 text-sm">Trusted by 50,000+ users</span>
+            </div>
 
             {/* Main heading */}
             <h2 className="text-2xl md:text-4xl font-bold text-gray-900 mb-6">
               Your Career Starts Here  <span className="text-blue-600">Don't Wait</span>
             </h2>
-            
+
             <p className="text-gray-600 text-auto max-w-3xl mx-auto mb-8">
-              Whether you're a student aiming for your dream job, a college looking to empower placements, or a 
+              Whether you're a student aiming for your dream job, a college looking to empower placements, or a
               company hiring the next big talent — we've built the perfect platform for you.
             </p>
 
             {/* Action buttons */}
-         <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
-  {/* Student */}
-  <motion.button
-    whileHover={{ scale: 1.05 }}
-    whileTap={{ scale: 0.95 }}
-    className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-xl font-semibold 
+            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
+              {/* Student */}
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-xl font-semibold
                flex items-center justify-center space-x-2 transition-colors duration-300"
-  >
-    <GraduationCap className="w-5 h-5" />
-    <span>Join as a Student</span>
-    <ArrowRight className="w-4 h-4" />
-  </motion.button>
-  
-  {/* College */}
-  <motion.button
-    whileHover={{ scale: 1.05 }}
-    whileTap={{ scale: 0.95 }}
-    className="border-2 border-blue-600 text-blue-600 hover:bg-blue-50 px-8 py-4 rounded-xl 
+              >
+                <GraduationCap className="w-5 h-5" />
+                <span>Join as a Student</span>
+                <ArrowRight className="w-4 h-4" />
+              </motion.button>
+
+              {/* College */}
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="border-2 border-blue-600 text-blue-600 hover:bg-blue-50 px-8 py-4 rounded-xl
                font-semibold flex items-center justify-center space-x-2 transition-colors duration-300"
-  >
-    <Building2 className="w-5 h-5" />
-    <span>Join as a College</span>
-    <ArrowRight className="w-4 h-4" />
-  </motion.button>
-  
-  {/* Employer */}
-  <motion.button
-    whileHover={{ scale: 1.05 }}
-    whileTap={{ scale: 0.95 }}
-    className="border-2 border-blue-600 text-blue-600 hover:bg-blue-50 px-8 py-4 rounded-xl 
+              >
+                <Building2 className="w-5 h-5" />
+                <span>Join as a College</span>
+                <ArrowRight className="w-4 h-4" />
+              </motion.button>
+
+              {/* Employer */}
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="border-2 border-blue-600 text-blue-600 hover:bg-blue-50 px-8 py-4 rounded-xl
                font-semibold flex items-center justify-center space-x-2 transition-colors duration-300"
-  >
-    <Briefcase className="w-5 h-5" />
-    <span>Join as an Employer</span>
-    <ArrowRight className="w-4 h-4" />
-  </motion.button>
-</div>
+              >
+                <Briefcase className="w-5 h-5" />
+                <span>Join as an Employer</span>
+                <ArrowRight className="w-4 h-4" />
+              </motion.button>
+            </div>
 
             {/* Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
@@ -1321,7 +1356,7 @@ name: 'Angelina',
                 <div className="text-3xl md:text-4xl font-bold text-blue-600 mb-2">2K+</div>
                 <div className="text-gray-600 text-sm font-medium">Students Placed</div>
               </motion.div>
-              
+
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
@@ -1330,7 +1365,7 @@ name: 'Angelina',
                 <div className="text-3xl md:text-4xl font-bold text-blue-600 mb-2">150+</div>
                 <div className="text-gray-600 text-sm font-medium">Partner Colleges</div>
               </motion.div>
-              
+
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
@@ -1339,7 +1374,7 @@ name: 'Angelina',
                 <div className="text-3xl md:text-4xl font-bold text-blue-600 mb-2">100+</div>
                 <div className="text-gray-600 text-sm font-medium">Hiring Companies</div>
               </motion.div>
-              
+
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
