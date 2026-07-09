@@ -269,14 +269,16 @@ export default function Home() {
 
       {/* ================= NEW HERO SECTION ================= */}
 
-      <div className="relative z-20 flex flex-col items-center text-center max-w-6xl mx-auto pt-6 pb-8 lg:min-h-[calc(100vh-4rem)] lg:pt-1 lg:pb-1">
+      <div
+        className="relative z-10 flex flex-col items-center justify-center text-center w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 lg:py-20 min-h-[calc(100vh-5rem)] lg:min-h-[calc(100vh-4rem)]"
+      >
 
         {/* Heading */}
 
         <motion.h1
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-3xl md:text-4xl lg:text-5xl font-bold leading-[1.1]"
+          className="text-3xl sm:text-4xl lg:text-[40px] font-bold leading-tight lg:leading-[1.2]"
         >
           <span className="text-[#2492FF]">
             College Admissions
@@ -294,7 +296,7 @@ export default function Home() {
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="mt-4 lg:mt-2 text-lg text-gray-600 max-w-3xl lg:max-w-5xl leading-relaxed"
+          className="mt-6 sm:mt-8 lg:mt-6 text-base sm:text-lg text-gray-600 max-w-xl leading-relaxed px-2 sm:px-0"
         >
           Discover colleges, apply once, find internships and jobs —
           all powered by AI and WhatsApp automation.
@@ -305,7 +307,7 @@ export default function Home() {
         <motion.h2
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="mt-6 lg:mt-3 flex items-center justify-center gap-3 text-3xl font-bold text-[#2492FF]"
+          className="mt-6 lg:mt-3 flex items-center justify-center gap-2 sm:gap-3 text-xl sm:text-2xl lg:text-[30px] font-bold text-[#2492FF] px-2"
         >
           <Sparkles className="w-7 h-7 text-[#2492FF]" />
 
@@ -316,24 +318,24 @@ export default function Home() {
 
         {/* Cards */}
 
-        <div className="grid md:grid-cols-3 gap-6 mt-10 lg:mt-4 w-full">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mt-10 lg:mt-4 w-full max-w-6xl">
 
           {/* College */}
 
           <motion.div
             whileHover={{ y: -6 }}
-            className="bg-white border border-blue-300 rounded-2xl p-5 text-left shadow-sm hover:shadow-xl transition"
+            className="bg-white border border-blue-300 rounded-2xl p-5 text-left shadow-sm hover:shadow-xl transition w-full"
           >
 
             <div className="w-14 h-14 rounded-xl bg-purple-100 flex items-center justify-center mb-5">
               <GraduationCap className="text-purple-600 w-7 h-7" />
             </div>
 
-            <h3 className="font-bold text-2xl">
+            <h3 className="font-bold text-xl sm:text-2xl">
               Colleges
             </h3>
 
-            <p className="text-gray-500 mt-3">
+            <p className="text-sm sm:text-base text-gray-500 mt-3">
               Explore colleges, courses,
               fees, placements & more
             </p>
@@ -348,18 +350,18 @@ export default function Home() {
 
           <motion.div
             whileHover={{ y: -6 }}
-            className="bg-white border border-blue-300 rounded-2xl p-5 text-left shadow-sm hover:shadow-xl transition"
+            className="bg-white border border-blue-300 rounded-2xl p-5 text-left shadow-sm hover:shadow-xl transition w-full"
           >
 
             <div className="w-14 h-14 rounded-xl bg-green-100 flex items-center justify-center mb-5">
               <Briefcase className="text-green-600 w-7 h-7" />
             </div>
 
-            <h3 className="font-bold text-2xl">
+            <h3 className="font-bold text-xl sm:text-2xl">
               Jobs
             </h3>
 
-            <p className="text-gray-500 mt-3">
+            <p className="text-sm sm:text-base text-gray-500 mt-3">
               Find full-time, internships,
               part-time & gig opportunities
             </p>
@@ -374,18 +376,18 @@ export default function Home() {
 
           <motion.div
             whileHover={{ y: -6 }}
-            className="bg-white border border-blue-300 rounded-2xl p-5 text-left shadow-sm hover:shadow-xl transition"
+            className="bg-white border border-blue-300 rounded-2xl p-5 text-left shadow-sm hover:shadow-xl transition w-full"
           >
 
             <div className="w-14 h-14 rounded-xl bg-blue-100 flex items-center justify-center mb-5">
               <CalendarDays className="text-blue-600 w-7 h-7" />
             </div>
 
-            <h3 className="font-bold text-2xl">
+            <h3 className="font-bold text-xl sm:text-2xl">
               Events
             </h3>
 
-            <p className="text-gray-500 mt-3">
+            <p className="text-sm sm:text-base text-gray-500 mt-3">
               Hackathons, webinars,
               job fairs and workshops
             </p>
@@ -400,24 +402,24 @@ export default function Home() {
 
         {/* ================= Stats Section ================= */}
 
-        <div className="w-full mt-14 mb-6 lg:mt-3 lg:mb-0">
+        <div className="mt-16 sm:mt-20 lg:mt-11 mb-14 lg:mb-0 w-full max-w-[1500px]">
 
-          <div className="grid grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-0">
 
             {/* Students */}
 
-            <div className="flex items-center justify-center gap-4 py-4 lg:py-2 border-b lg:border-b-0 lg:border-r border-gray-300">
+            <div className="flex items-center justify-center gap-4 py-4 sm:py-0 border-b sm:border-b-0 lg:border-r border-gray-300">
 
               <div className="w-14 h-14 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
                 <Users className="w-6 h-6 text-purple-600" />
               </div>
 
               <div>
-                <h3 className="text-[30px] font-bold leading-none text-gray-900">
+                <h3 className="text-2xl sm:text-[30px] font-bold leading-none text-gray-900">
                   800+
                 </h3>
 
-                <p className="mt-1 text-[16px] text-gray-700">
+                <p className="mt-1 text-sm sm:text-[16px] text-gray-700">
                   Students
                 </p>
               </div>
@@ -426,18 +428,18 @@ export default function Home() {
 
             {/* Colleges */}
 
-            <div className="flex items-center justify-center gap-4 py-4 lg:py-2 border-b lg:border-b-0 lg:border-r border-gray-300">
+            <div className="flex items-center justify-center gap-4 py-4 sm:py-0 border-b sm:border-b-0 lg:border-r border-gray-300">
 
               <div className="w-14 h-14 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
                 <Building2 className="w-6 h-6 text-blue-600" />
               </div>
 
               <div>
-                <h3 className="text-[30px] font-bold leading-none text-gray-900">
+                <h3 className="text-2xl sm:text-[30px] font-bold leading-none text-gray-900">
                   130+
                 </h3>
 
-                <p className="mt-1 text-[16px] text-gray-700">
+                <p className="mt-1 text-sm sm:text-[16px] text-gray-700">
                   Colleges
                 </p>
               </div>
@@ -446,18 +448,18 @@ export default function Home() {
 
             {/* Jobs */}
 
-            <div className="flex items-center justify-center gap-4 py-4 lg:py-2 border-b lg:border-b-0 lg:border-r border-gray-300">
+            <div className="flex items-center justify-center gap-4 py-4 sm:py-0 border-b sm:border-b-0 lg:border-r border-gray-300">
 
               <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
                 <Briefcase className="w-6 h-6 text-green-600" />
               </div>
 
               <div>
-                <h3 className="text-[30px] font-bold leading-none text-gray-900">
+                <h3 className="text-2xl sm:text-[30px] font-bold leading-none text-gray-900">
                   100+
                 </h3>
 
-                <p className="mt-1 text-[16px] text-gray-700">
+                <p className="mt-1 text-sm sm:text-[16px] text-gray-700">
                   Jobs & Internships
                 </p>
               </div>
@@ -466,18 +468,18 @@ export default function Home() {
 
             {/* Safe */}
 
-            <div className="flex items-center justify-center gap-4 py-4 lg:py-2">
+            <div className="flex items-center justify-center gap-4 py-4 sm:py-0">
 
               <div className="w-14 h-14 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
                 <ShieldCheck className="w-6 h-6 text-orange-500" />
               </div>
 
               <div>
-                <h3 className="text-[30px] font-bold leading-none text-gray-900">
+                <h3 className="text-2xl sm:text-[30px] font-bold leading-none text-gray-900">
                   100%
                 </h3>
 
-                <p className="mt-1 text-[16px] text-gray-700">
+                <p className="mt-1 text-sm sm:text-[16px] text-gray-700">
                   Safe & Trusted
                 </p>
               </div>
@@ -489,13 +491,13 @@ export default function Home() {
         </div>
         {/* Partners */}
 
-        <div className="mt-16 lg:mt-1 w-full">
+        <div className="mt-20 sm:mt-24 lg:mt-14 w-full">
 
-          <p className="text-center text-gray-500 text-xl font-medium mb-12 lg:mb-3">
+          <p className="text-center text-gray-500 text-base sm:text-xl font-medium mb-8 sm:mb-12 lg:mb-3 px-4">
             Trusted by partners across India
           </p>
 
-          <div className="max-w-6xl mx-auto flex items-center justify-between px-10 lg:px-20">
+          <div className="max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-8 sm:gap-6 items-center justify-items-center px-4 sm:px-10 lg:px-20">
 
             <Image
               src="/image 15142.png"

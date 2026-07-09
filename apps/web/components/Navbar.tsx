@@ -264,33 +264,32 @@ export default function Navbar() {
         initial={{ y: -100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.5, ease: 'easeOut' }}
-        className="sticky top-0 z-50 border-b border-gray-200 bg-white shadow-sm"
+        className="sticky top-0 z-50 bg-white border-b border-gray-100 shadow-[0_1px_6px_rgba(0,0,0,0.05)]"
         role="navigation"
         aria-label="Primary"
       >
-        <div className="w-full px-6">
-          <div className="flex h-16 items-center justify-between">
+        <div className="max-w-7xl mx-auto px-5 sm:px-6 lg:px-8 xl:px-12">
+          <div className="flex h-20 items-center justify-between">
             {/* Left: Logo */}
             <div className="flex items-center flex-shrink-0">
               <Link
                 href="/"
                 className="flex items-center gap-2 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               >
-                <Image 
-                  src="/logo1.svg" 
-                  alt="CampusPe" 
-                  width={112} 
-                  height={32} 
-                  className="h-8 w-auto" 
-                  priority 
-                />
+                <Image
+  src="/logo1.svg"
+  alt="CampusPe"
+  width={170}
+  height={50}
+  className="h-12 w-auto"
+/>
               </Link>
             </div>
 
             {/* Center: Navigation Items (Desktop) */}
-            <div className="hidden lg:flex items-center gap-8 absolute left-1/2 -translate-x-1/2">
+            <div className="hidden lg:flex items-center gap-14 absolute left-1/2 -translate-x-1/2">
               {/* Colleges Dropdown */}
-              {navConfig.showColleges && (
+                {navConfig.showColleges && ( 
                 <div className="relative" ref={collegesDropdownRef}>
                   <Link
                     href="/search-colleges"
@@ -415,7 +414,7 @@ export default function Navbar() {
                   <Link
                     key={item.href}
                     href={item.href}
-                    className="text-[15px] font-medium text-gray-700 hover:text-blue-600 transition-colors py-2"
+                    className="text-[18px] font-medium text-gray-800 hover:text-[#1976FF] transition-colors"
                   >
                     {item.label}
                   </Link>
@@ -424,7 +423,7 @@ export default function Navbar() {
             </div>
 
             {/* Right: User Actions */}
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-6">
               {/* Desktop Actions - Hidden on mobile */}
               {!isHydrated ? (
                 <div className="hidden lg:flex items-center gap-2 xl:gap-3">
@@ -435,10 +434,13 @@ export default function Navbar() {
                       <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[11px] text-red-600 font-semibold animate-pulse whitespace-nowrap">Exclusive</span>
                     </span>
                   </div>
-                  <Button variant="ghost" className="px-3 py-2 text-sm" disabled>
+                  <Button
+  variant="ghost"
+  className="px-5 text-[17px] font-medium text-gray-900 hover:bg-transparent hover:text-[#1976FF]"
+>
                     Login
                   </Button>
-                  <Button className="px-3 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-700" disabled>
+                  <Button className="rounded-full bg-[#1976FF] px-7 py-3 text-[17px] font-semibold shadow-none hover:bg-[#1565E8]" disabled>
                     Get Started
                   </Button>
                 </div>
@@ -446,7 +448,7 @@ export default function Navbar() {
                 <div className="hidden lg:flex items-center gap-2 xl:gap-3">
                   <button 
                     onClick={() => openRegisterModal('college')}
-                    className="text-sm font-medium text-blue-700 hover:text-blue-600 transition-colors px-2 py-2"
+                    className="text-[17px] font-medium text-[#1976FF] hover:text-blue-700 transition-colors"
                   >
                     Register{' '}
                     <span className="relative inline-block">
@@ -463,7 +465,7 @@ export default function Navbar() {
                   </Button>
                   <Button 
                     onClick={() => openRegisterModal('student')} 
-                    className="px-3 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-700"
+                    className="rounded-full bg-[#1976FF] px-7 py-3 text-[17px] font-semibold shadow-none hover:bg-[#1565E8]"
                   >
                     Get Started
                   </Button>
