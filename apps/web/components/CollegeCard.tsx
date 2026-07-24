@@ -1,104 +1,107 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import { MapPin, GraduationCap, IndianRupee, Flame } from 'lucide-react';
+import { CalendarDays, GraduationCap, MapPin } from 'lucide-react';
 
 interface CollegeCardProps {
   college: {
-    id: number;
+    id: string | number;
     name: string;
     location: string;
-    image: string;
-    accreditation: string;
-    approvals: string;
-    spotAdmission: boolean;
-    annualFees: number;
-    courses: string[];
+    image?: string;
+    accreditation?: string;
+    approvalBadges?: string[];
+    approvals?: string;
+    courses?: string[];
+    averagePackage?: string | number;
+    placementRate?: string | number;
+    establishedYear?: string | number;
   };
   onEnquireNow?: () => void;
 }
 
-export default function CollegeCard({ college, onEnquireNow }: CollegeCardProps) {
-  return (
-    <div className="group bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 border border-gray-200 h-full flex flex-col">
-      {/* College Image */}
-      <div className="relative h-[240px] overflow-hidden bg-gradient-to-br from-blue-50 to-sky-50 flex-shrink-0">
-        <Image
-          src={college.image}
-          alt={college.name}
-          fill
-          className="object-cover group-hover:scale-105 transition-transform duration-500"
-        />
-        
-        {/* Badges Overlay - Top Left */}
-        <div className="absolute top-4 left-4 flex flex-col gap-2">
-          <span className="inline-flex items-center px-3 py-1.5 bg-white/95 rounded-full text-xs font-medium text-[#2463EB] shadow-sm">
-            {college.accreditation}
-          </span>
-          <span className="inline-flex items-center px-3 py-1.5 bg-white/95 rounded-full text-xs font-medium text-[#2463EB] shadow-sm">
-            {college.approvals}
-          </span>
-        </div>
+const displayValue = (value?: string | number, prefix = '') => {
+  if (value === undefined || value === null || value === '') return 'Not disclosed';
+  return typeof value === 'number' ? `${prefix}${value.toLocaleString('en-IN')}` : value;
+};
 
-        {/* Spot Admission - Top Right */}
-        {college.spotAdmission && (
-          <div className="absolute top-4 right-4 flex items-center gap-1.5 px-3 py-1.5 bg-white/95 rounded-full shadow-sm">
-            <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-            <span className="text-xs font-medium text-[#8B4BFF]">Spot Admission</span>
+const displayPlacement = (value?: string | number) => {
+  if (value === undefined || value === null || value === '') return 'Not disclosed';
+  return typeof value === 'number' ? `${value}%` : value;
+};
+
+export default function CollegeCard({ college, onEnquireNow }: CollegeCardProps) {
+  const approvalBadges = college.approvalBadges?.length
+    ? college.approvalBadges
+    : (college.approvals || '').split(',').map((item) => item.replace(' Approved', '').trim()).filter(Boolean);
+  const courses = college.courses || [];
+
+  return (
+    <article className="flex min-h-[584px] flex-col overflow-hidden rounded-[30px] border border-[#aebbd1] bg-white">
+      <div className="relative h-[200px] shrink-0 bg-[linear-gradient(108deg,#7056a6_0%,#d57ab8_56%,#fb87bd_100%)] px-[37px] pt-[45px] text-white">
+        <div className="flex items-start gap-4">
+          <div className="relative h-[86px] w-[86px] shrink-0 overflow-hidden rounded-[22px] bg-white/30">
+            {college.image ? (
+              <Image src={college.image} alt={college.name} fill className="object-cover" unoptimized />
+            ) : null}
           </div>
-        )}
+          <div className="min-w-0 pt-0.5">
+            <h3 className="text-[23px] font-semibold leading-[1.28]">{college.name}</h3>
+            <p className="mt-3 flex items-center gap-1.5 text-[15px] text-white/95">
+              <MapPin className="h-4 w-4" />
+              {college.location || 'Location not disclosed'}
+            </p>
+          </div>
+        </div>
       </div>
 
-      {/* Card Content */}
-      <div className="p-5 bg-white flex flex-col flex-1">
-        {/* College Name */}
-        <h3 className="text-lg font-bold text-gray-900 mb-2">
-          {college.name}
-        </h3>
-
-        {/* Location */}
-        <div className="flex items-center gap-1.5 text-gray-600 mb-3">
-          <MapPin className="w-4 h-4 flex-shrink-0" />
-          <span className="text-sm">{college.location}</span>
-        </div>
-
-        {/* Fees */}
-        <div className="flex items-center gap-1.5 mb-2.5">
-          <IndianRupee className="w-4 h-4 text-gray-600 flex-shrink-0" />
-          <div className="flex-1">
-            <span className="text-sm text-gray-600">Annual Fees: </span>
-            <span className="text-sm font-semibold text-gray-900">
-              ₹ {college.annualFees.toLocaleString('en-IN')}
-            </span>
+      <div className="flex flex-1 flex-col px-[37px] pb-[57px]">
+        <div className="relative -mt-11 grid min-h-[112px] grid-cols-2 divide-x divide-[#cbd2dd] overflow-hidden rounded-[26px] border border-[#d7dce7] bg-white shadow-sm">
+          <div className="flex flex-col items-center justify-center p-4 text-center">
+            <p className="text-sm font-medium uppercase text-slate-800">Avg Package</p>
+            <p className="mt-2 text-2xl font-semibold text-[#6d7081]">{displayValue(college.averagePackage, '₹')}</p>
+          </div>
+          <div className="flex flex-col items-center justify-center p-4 text-center">
+            <p className="text-sm font-medium uppercase text-slate-800">Placement</p>
+            <p className="mt-2 text-2xl font-semibold text-[#6d7081]">{displayPlacement(college.placementRate)}</p>
           </div>
         </div>
 
-        {/* Courses */}
-        <div className="flex items-start gap-1.5 mb-5">
-          <GraduationCap className="w-4 h-4 text-gray-600 mt-0.5 flex-shrink-0" />
-          <div className="flex-1">
-            <span className="text-sm text-gray-600">Courses: </span>
-            <span className="text-sm font-medium text-gray-900">
-              {college.courses.slice(0, 2).join(', ')}
-              {college.courses.length > 2 && ` +${college.courses.length - 2} more...`}
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-2">
+            {[college.accreditation, ...approvalBadges].filter(Boolean).map((badge) => (
+              <span key={badge} className="rounded-full border border-[#1484ff] px-3 py-1 text-xs font-medium text-[#0877ed]">
+                {badge}
+              </span>
+            ))}
+          </div>
+          {college.establishedYear ? (
+            <span className="flex items-center gap-1.5 text-sm text-[#6d7081]">
+              <CalendarDays className="h-4 w-4" /> Est: {college.establishedYear}
             </span>
+          ) : null}
+        </div>
+
+        <div className="mt-10">
+          <p className="flex items-center gap-2 text-xl text-[#6d7081]">
+            <GraduationCap className="h-5 w-5" /> Courses:
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {courses.slice(0, 4).map((course) => (
+              <span key={course} className="rounded-lg bg-[#f0eafe] px-5 py-2 text-sm font-medium text-[#0877ed]">{course}</span>
+            ))}
+            {courses.length > 4 ? <span className="rounded-lg bg-[#f0eafe] px-5 py-2 text-sm font-medium text-[#0877ed]">+ {courses.length - 4} more</span> : null}
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex gap-2.5 mt-auto">
-          <Link href={`/profile/college/${college.id}`} className="flex-1">
-            <button className="w-full py-2.5 bg-white border border-[#0D7FF0] text-[#0270DF] font-medium text-sm rounded-lg hover:bg-blue-50 transition-all">
-              View College
-            </button>
+        <div className="mt-auto grid grid-cols-2 gap-4 pt-12">
+          <Link href={`/profile/college/${college.id}`} className="rounded border border-[#cbd2dd] py-3 text-center text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
+            View College
           </Link>
-          <button 
-            onClick={onEnquireNow}
-            className="flex-1 py-2.5 bg-gradient-to-r from-[#2791FC] to-[#0377EB] text-white font-medium text-sm rounded-lg hover:opacity-90 transition-all"
-          >
+          <button type="button" onClick={onEnquireNow} className="rounded bg-[#087ceb] py-3 text-sm font-semibold text-white transition hover:bg-[#066bd0]">
             Enquire Now
           </button>
         </div>
       </div>
-    </div>
+    </article>
   );
 }

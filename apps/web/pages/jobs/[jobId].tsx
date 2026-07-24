@@ -34,6 +34,9 @@ interface JobDetails {
   compensationType: string;
   contractDuration?: string;
   paymentStructure?: string;
+  paymentAmount?: string;
+  stipend?: string;
+  hourlyRate?: string;
   numberOfOpenings: number;
   description: string;
   skills?: string[];
@@ -348,7 +351,7 @@ export default function JobDetailsPage() {
         // Try to fetch from API
         const response = await axios.get(`${API_BASE_URL}/api/jobs/${jobId}`);
         setJob(response.data);
-      } catch (error) {
+      } catch {
         // Fall back to dummy data
         const dummyJob = getDummyJobData(jobId as string);
         if (dummyJob) {
@@ -437,27 +440,84 @@ export default function JobDetailsPage() {
     }
   };
 
-  const infoFields = [
-    { label: 'Experience', value: job.experienceLevel },
-    { label: 'Educational Qualification', value: job.educationQualification },
-    { label: 'Job Type', value: getJobTypeLabel(job.jobType) },
-    { label: 'Work Mode', value: job.workMode },
-    { label: 'Internship Duration', value: job.internshipDuration },
-    { label: 'Certificate Provided', value: job.certificateProvided },
-    { label: 'Compensation Type', value: job.compensationType },
-    { label: 'Conversion Possibility', value: job.conversionPossibility },
-    { label: 'Contract Duration', value: job.contractDuration },
-    { label: 'Payment Structure', value: job.paymentStructure },
-    { label: 'Number of Openings', value: job.numberOfOpenings ? job.numberOfOpenings.toString() : '' },
-    { label: 'Daily Timings', value: job.dailyTimings },
-    { label: 'Work Schedule', value: job.workSchedule },
-    { label: 'Preferred Working Days', value: job.preferredWorkingDays && job.preferredWorkingDays.length > 0 ? job.preferredWorkingDays.join(', ') : '' },
-    { label: 'Hours Per Session', value: job.hoursPerSession },
-    { label: 'Gig Type', value: job.gigType },
-    { label: 'Commitment Level', value: job.commitmentLevel },
-    { label: 'Extension Possibility', value: job.extensionPossibility },
-    { label: 'Notice Period', value: job.noticePeriod },
-  ].filter((field) => field.value);
+  const formatCompensation = () => {
+    if (job.jobType === 'internship' && job.compensationType?.toLowerCase() === 'unpaid') {
+      return 'Unpaid internship';
+    }
+    if (!job.salary || (!job.salary.min && !job.salary.max)) {
+      return 'Not disclosed';
+    }
+    if (job.salary.max > 0) {
+      return `₹${job.salary.min.toLocaleString()} - ₹${job.salary.max.toLocaleString()}`;
+    }
+    return `₹${job.salary.min.toLocaleString()}/hour`;
+  };
+
+  const infoField = (label: string, value?: string | number) => ({
+    label,
+    value: value === undefined || value === null || value === '' ? '' : String(value)
+  });
+
+  const infoFields = (() => {
+    const common = [
+      infoField('Work Experience', job.experienceLevel),
+      infoField('Educational Qualification', job.educationQualification)
+    ];
+
+    switch (job.jobType) {
+      case 'internship': {
+        const paid = job.compensationType?.toLowerCase() === 'paid';
+        return [
+          ...common,
+          infoField('Internship Duration', job.internshipDuration),
+          infoField('Compensation Type', job.compensationType),
+          infoField('Stipend', paid ? job.stipend || formatCompensation() : 'Unpaid internship'),
+          infoField('Conversion Possibility', job.conversionPossibility),
+          infoField('Certificate Provided', job.certificateProvided),
+          infoField('Number of Openings', job.numberOfOpenings)
+        ];
+      }
+      case 'full-time':
+        return [
+          ...common,
+          infoField('Notice Period', job.noticePeriod),
+          infoField('Compensation Type', job.compensationType || 'Annual salary'),
+          infoField('Salary', formatCompensation()),
+          infoField('Number of Openings', job.numberOfOpenings)
+        ];
+      case 'part-time':
+        return [
+          ...common,
+          infoField('Daily Timings', job.dailyTimings),
+          infoField('Preferred Working Days', job.preferredWorkingDays?.join(', ')),
+          infoField('Payment Structure', job.compensationType),
+          infoField('Rate Amount', job.hourlyRate || formatCompensation()),
+          infoField('Number of Openings', job.numberOfOpenings)
+        ];
+      case 'freelance':
+        return [
+          ...common,
+          infoField('Contract Duration', job.contractDuration),
+          infoField('Payment Structure', job.paymentStructure),
+          infoField('Payment Amount', job.paymentAmount || formatCompensation()),
+          infoField('Extension Possibility', job.extensionPossibility),
+          infoField('Number of Openings', job.numberOfOpenings)
+        ];
+      case 'contract':
+        return [
+          ...common,
+          infoField('Daily Timings', job.dailyTimings || job.workSchedule),
+          infoField('Payment Structure', job.paymentStructure),
+          infoField('Hours Per Session', job.hoursPerSession),
+          infoField('Rate Amount', job.hourlyRate || formatCompensation()),
+          infoField('Gig Type', job.gigType),
+          infoField('Commitment Level', job.commitmentLevel),
+          infoField('Number of Openings', job.numberOfOpenings)
+        ];
+      default:
+        return [...common, infoField('Number of Openings', job.numberOfOpenings)];
+    }
+  })().filter((field) => field.value);
 
   return (
     <>
@@ -539,10 +599,7 @@ export default function JobDetailsPage() {
                     {formatDate(job.postedAt)}
                   </span>
                   <span className="flex items-center gap-1.5">
-                    <span className="text-[#1484F3] font-semibold">₹</span>
-                    <span className="text-gray-800">
-                      {job.salary.max > 0 ? `${job.salary.min.toLocaleString()} - ₹${job.salary.max.toLocaleString()}` : `${job.salary.min.toLocaleString()}/hour`}
-                    </span>
+                    <span className="text-gray-800">{formatCompensation()}</span>
                   </span>
                   <span className="flex items-center gap-1.5">
                     <MapPin className="w-5 h-5 text-[#1484F3]" />

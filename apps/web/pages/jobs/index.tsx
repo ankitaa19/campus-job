@@ -4,30 +4,12 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import Navbar from '../../components/Navbar';
 import Footer from '../../components/Footer';
-import { Briefcase, MapPin, Search, MapPinIcon, Building2, Share2, Users, GraduationCap, BadgeCheck, X, CalendarDays, Banknote, Upload, Gift } from 'lucide-react';
+import { Briefcase, MapPin, Search, MapPinIcon, Building2, Share2, Users, GraduationCap, BadgeCheck, X, CalendarDays, Upload, Gift, Clock } from 'lucide-react';
 import { API_BASE_URL } from '../../utils/api';
 import Image from 'next/image';
+import { JOB_SEEDS, type JobSeed } from '../../data/jobSeeds';
 
-interface Job {
-  _id: string;
-  title: string;
-  companyName: string;
-  companyLogo?: string;
-  locations: Array<{
-    city: string;
-    state: string;
-    country: string;
-  }>;
-  workMode: string;
-  jobType: string;
-  salary: {
-    min: number;
-    max: number;
-    currency: string;
-  };
-  postedAt: string;
-  experienceLevel: string;
-  description: string;
+type Job = Omit<JobSeed, 'skills' | 'benefits'> & {
   skills?: Array<string | { skill?: string; name?: string }>;
   applications?: number;
   applicants?: number;
@@ -36,99 +18,16 @@ interface Job {
   requiredSkills?: string[];
   minExperience?: number;
   maxExperience?: number;
-  totalPositions?: number;
   applicationDeadline?: string;
   educationRequirements?: Array<{ degree: string; field?: string }>;
   benefits?: Array<string | { text?: string; enabled?: boolean }>;
   interviewProcess?: { rounds?: string[]; duration?: string; mode?: string };
   department?: string;
-}
-
-// Dummy data for 6 different job types aligned with the mock
-const DUMMY_JOBS: Job[] = [
-  {
-    _id: '1',
-    title: 'Software Developer',
-    companyName: 'TechFront',
-    locations: [{ city: 'Karnataka', state: 'Bangalore', country: 'India' }],
-    workMode: 'Internship',
-    jobType: 'internship',
-    salary: { min: 2000, max: 15000, currency: 'INR' },
-    postedAt: new Date(Date.now() - 10 * 60 * 1000).toISOString(), // 10 mins ago
-    experienceLevel: 'Fresher',
-    skills: ['React', 'Node.js', 'AWS', 'TypeScript'],
-    description: 'Deal Jobs is Indonesia\'s largest job portal & mentoring platform. We help people easily find jobs to top Indonesian companies for internship and full-time roles.'
-  },
-  {
-    _id: '2',
-    title: 'Software Developer',
-    companyName: 'Wiseck',
-    locations: [{ city: 'New Delhi', state: 'Delhi', country: 'India' }],
-    workMode: 'Full-Time',
-    jobType: 'full-time',
-    salary: { min: 40000, max: 42000, currency: 'INR' },
-    postedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-    experienceLevel: '2 years',
-    skills: ['JavaScript', 'React', 'Node.js', 'MongoDB'],
-    description: 'Join our dynamic team as a Full-Time Software Developer working on cutting-edge technologies.'
-  },
-  {
-    _id: '3',
-    title: 'Software Developer',
-    companyName: 'Mind Inc.',
-    locations: [{ city: 'Mumbai', state: 'Maharashtra', country: 'India' }],
-    workMode: 'Freelance Jobs',
-    jobType: 'freelance',
-    salary: { min: 5000, max: 0, currency: 'INR' },
-    postedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-    experienceLevel: '0-2 years',
-    skills: ['React', 'Figma', 'CSS', 'JavaScript'],
-    description: 'Flexible freelance opportunity for experienced developers. Work on exciting projects remotely.'
-  },
-  {
-    _id: '4',
-    title: 'Software Developer',
-    companyName: 'Demo Company',
-    locations: [{ city: 'Noida', state: 'Uttar Pradesh', country: 'India' }],
-    workMode: 'Full-Time',
-    jobType: 'full-time',
-    salary: { min: 40000, max: 42000, currency: 'INR' },
-    postedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-    experienceLevel: '0-2 years',
-    skills: ['Java', 'Spring Boot', 'SQL', 'AWS'],
-    description: 'Entry-level position perfect for freshers looking to start their career in software development.'
-  },
-  {
-    _id: '5',
-    title: 'Software Developer',
-    companyName: 'Fintech',
-    locations: [{ city: 'Noida', state: 'Uttar Pradesh', country: 'India' }],
-    workMode: 'Part-Time',
-    jobType: 'part-time',
-    salary: { min: 8000, max: 15000, currency: 'INR' },
-    postedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-    experienceLevel: '5-7 years',
-    skills: ['React', 'Node.js', 'Fintech', 'APIs'],
-    description: 'Part-time opportunity for experienced developers looking for flexible work arrangements.'
-  },
-  {
-    _id: '6',
-    title: 'Software Developer',
-    companyName: 'Miller Group',
-    locations: [{ city: 'Karnataka', state: 'Bangalore', country: 'India' }],
-    workMode: 'Gig/Flexible',
-    jobType: 'contract',
-    salary: { min: 200, max: 0, currency: 'INR' },
-    postedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-    experienceLevel: '0-2 years',
-    skills: ['Python', 'Docker', 'AWS', 'Git'],
-    description: 'Flexible gig opportunities for developers. Work on your own schedule and choose projects that interest you.'
-  },
-];
+};
 
 export default function JobsPage() {
-  const [jobs, setJobs] = useState<Job[]>(DUMMY_JOBS);
-  const [filteredJobs, setFilteredJobs] = useState<Job[]>(DUMMY_JOBS);
+  const [jobs, setJobs] = useState<Job[]>(JOB_SEEDS);
+  const [filteredJobs, setFilteredJobs] = useState<Job[]>(JOB_SEEDS);
   const [searchQuery, setSearchQuery] = useState('');
   const [locationFilter, setLocationFilter] = useState('');
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
@@ -147,7 +46,7 @@ export default function JobsPage() {
   }, []);
 
   useEffect(() => {
-    // Try to fetch real jobs, fall back to dummy data
+    // Prefer live jobs, using the shared seed records if the API is unavailable.
     const fetchJobs = async () => {
       try {
         const response = await axios.get(`${API_BASE_URL}/api/jobs/public`);
@@ -155,16 +54,13 @@ export default function JobsPage() {
           setJobs(response.data);
           setFilteredJobs(response.data);
         } else {
-          // Use dummy data if API returns empty array
-          console.log('API returned empty, using dummy data');
-          setJobs(DUMMY_JOBS);
-          setFilteredJobs(DUMMY_JOBS);
+          setJobs(JOB_SEEDS);
+          setFilteredJobs(JOB_SEEDS);
         }
       } catch (error) {
-        console.log('API error, using dummy data:', error);
-        // Ensure dummy data is set on error
-        setJobs(DUMMY_JOBS);
-        setFilteredJobs(DUMMY_JOBS);
+        console.log('API error, using seeded jobs:', error);
+        setJobs(JOB_SEEDS);
+        setFilteredJobs(JOB_SEEDS);
       }
     };
 
@@ -298,6 +194,95 @@ export default function JobsPage() {
       default:
         return type;
     }
+  };
+
+  const formatPreferredDays = (days?: string[] | string) => {
+    if (!days) return '';
+    return Array.isArray(days) ? days.filter(Boolean).join(', ') : days;
+  };
+
+  const getJobTypeDetails = (job: Job) => {
+    const type = job.jobType.toLowerCase();
+    const detail = (label: string, value?: string | number) => ({
+      label,
+      value: value === undefined || value === null || value === '' ? '' : String(value)
+    });
+    const internship = job.internshipDetails;
+    const fullTime = job.fullTimeDetails;
+    const partTime = job.partTimeDetails;
+    const freelance = job.contractDetails;
+    const gig = job.gigDetails;
+    const experience = getExperience(job);
+    const openings = job.totalPositions || 1;
+
+    if (type.includes('intern')) {
+      const compensation = internship?.compensation || job.compensationType || 'Not specified';
+      const isPaid = compensation.toLowerCase() === 'paid';
+      return [
+        detail('Work Experience', experience),
+        detail('Internship Duration', internship?.duration),
+        detail('Compensation Type', compensation),
+        detail('Stipend', isPaid ? internship?.stipend || formatSalary(job.salary) : 'Unpaid internship'),
+        detail('Conversion Possibility', internship?.conversionPossibility),
+        detail('Certificate Provided', internship?.certificateProvided),
+        detail('Number of Openings', openings)
+      ].filter((item) => item.value);
+    }
+
+    if (type.includes('full')) {
+      const payRange = fullTime?.payRange;
+      const salaryRange = payRange?.min || payRange?.max
+        ? [payRange.min, payRange.max].filter(Boolean).join(' - ')
+        : formatSalary(job.salary);
+      return [
+        detail('Work Experience', experience),
+        detail('Notice Period', fullTime?.noticePeriod || job.noticePeriod || 'Not specified'),
+        detail('Compensation Type', fullTime?.compensationType || job.compensationType || 'Annual salary'),
+        detail('Salary', salaryRange),
+        detail('Number of Openings', openings)
+      ].filter((item) => item.value);
+    }
+
+    if (type.includes('part')) {
+      return [
+        detail('Work Experience', experience),
+        detail('Daily Timings', partTime?.dailyTimings || job.dailyTimings),
+        detail('Preferred Working Days', formatPreferredDays(partTime?.preferredWorkingDays || job.preferredWorkingDays)),
+        detail('Payment Structure', partTime?.compensationType || job.compensationType || 'Not specified'),
+        detail('Rate Amount', partTime?.hourlyRate || formatSalary(job.salary)),
+        detail('Number of Openings', openings)
+      ].filter((item) => item.value);
+    }
+
+    if (type.includes('freelance')) {
+      return [
+        detail('Work Experience', experience),
+        detail('Contract Duration', freelance?.duration || job.contractDuration),
+        detail('Payment Structure', freelance?.paymentStructure || job.paymentStructure),
+        detail('Payment Amount', freelance?.paymentAmount || job.paymentAmount || formatSalary(job.salary)),
+        detail('Extension Possibility', freelance?.extensionPossibility || job.extensionPossibility),
+        detail('Number of Openings', openings)
+      ].filter((item) => item.value);
+    }
+
+    if (type.includes('contract') || type.includes('gig') || type.includes('flexible')) {
+      return [
+        detail('Work Experience', experience),
+        detail('Daily Timings', gig?.workSchedule || job.dailyTimings),
+        detail('Payment Structure', gig?.paymentStructure || job.paymentStructure),
+        detail('Hours Per Session', gig?.hoursPerSession || job.hoursPerSession),
+        detail('Rate Amount', gig?.rateAmount || formatSalary(job.salary)),
+        detail('Gig Type', gig?.gigType || job.gigType),
+        detail('Commitment Level', gig?.commitmentLevel || job.commitmentLevel),
+        detail('Number of Openings', openings)
+      ].filter((item) => item.value);
+    }
+
+    return [
+      detail('Work Experience', experience),
+      detail('Compensation', formatSalary(job.salary)),
+      detail('Number of Openings', openings)
+    ];
   };
 
   const resetFilters = () => {
@@ -680,7 +665,7 @@ export default function JobsPage() {
                     </div>
                   </div>
 
-                  <div className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-500">
+                  <div className="mt-5 mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-500">
                     <GraduationCap className="h-5 w-5" />
                     <span>Posted {mounted ? getTimeAgo(job.postedAt) : ''}</span>
                     <span aria-hidden="true">•</span>
@@ -743,10 +728,10 @@ export default function JobsPage() {
                 </div>
 
                 <div className="mt-8 flex flex-wrap gap-x-5 gap-y-3 text-gray-600">
-                  <span className="flex items-center gap-2"><Briefcase className="h-5 w-5" />{getJobTypeLabel(selectedJob.jobType)}</span>
+                  <span className="flex items-center gap-2"><Clock className="h-5 w-5" />{getJobTypeLabel(selectedJob.jobType)}</span>
                   <span className="flex items-center gap-2"><MapPin className="h-5 w-5" />{selectedJob.locations?.[0]?.city}, {selectedJob.locations?.[0]?.state}</span>
                   <span className="flex items-center gap-2"><Building2 className="h-5 w-5" />{selectedJob.workMode}</span>
-                  <span className="flex items-center gap-2"><Banknote className="h-5 w-5" />{formatSalary(selectedJob.salary)}</span>
+                  {/* <span className="flex items-center gap-2"><Banknote className="h-5 w-5" />{formatSalary(selectedJob.salary)}</span> */}
                   <span className="flex items-center gap-2"><CalendarDays className="h-5 w-5" />Posted: {new Date(selectedJob.postedAt).toLocaleDateString('en-GB')}</span>
                 </div>
 
@@ -767,26 +752,54 @@ export default function JobsPage() {
                 ) : (
                   <div className="mt-10 flex flex-1 flex-col">
                     <section>
-                      <h3 className="text-xl font-bold text-gray-950">Job Overview</h3>
+                      <h3 className="text-xl font-bold text-gray-950">Job Description</h3>
                       <p className="mt-4 whitespace-pre-line leading-7 text-gray-600">{selectedJob.description}</p>
                     </section>
 
-                    <div className="mt-10 grid grid-cols-2 gap-6 border-b border-gray-200 pb-8 sm:grid-cols-3">
-                      <div><p className="font-semibold text-gray-800">Experience</p><p className="mt-3 text-gray-600">{getExperience(selectedJob)}</p></div>
-                      {selectedJob.educationRequirements?.length ? <div><p className="font-semibold text-gray-800">Qualification</p><p className="mt-3 text-gray-600">{selectedJob.educationRequirements.map((item) => [item.degree, item.field].filter(Boolean).join(' in ')).join(', ')}</p></div> : null}
-                      <div><p className="font-semibold text-gray-800">Application Deadline</p><p className="mt-3 text-gray-600">{selectedJob.applicationDeadline ? new Date(selectedJob.applicationDeadline).toLocaleDateString('en-GB') : 'Not specified'}</p></div>
-                    </div>
+                    <section className="mt-8 grid gap-x-8 gap-y-5 sm:grid-cols-2">
+                      {getJobTypeDetails(selectedJob).map((item) => (
+                        <div key={item.label}>
+                          <p className="font-semibold text-gray-800">{item.label}</p>
+                          <p className="mt-2 text-gray-600">{item.value}</p>
+                        </div>
+                      ))}
+                    </section>
 
-                    <div className="mt-8 grid gap-7 sm:grid-cols-2">
-                      <div><p className="font-semibold text-gray-800">Number of Openings</p><p className="mt-3 text-gray-600">{selectedJob.totalPositions || 1}</p></div>
-                      {selectedJob.department && <div><p className="font-semibold text-gray-800">Department</p><p className="mt-3 text-gray-600">{selectedJob.department}</p></div>}
-                    </div>
+                    {getSkills(selectedJob).length > 0 && (
+                      <section className="mt-8">
+                        <h3 className="font-semibold text-gray-800">Skills</h3>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {getSkills(selectedJob).map((skill) => (
+                            <span key={skill} className="rounded-lg bg-blue-100 px-5 py-2 text-[#7948ff]">
+                              {skill}
+                            </span>
+                          ))}
+                        </div>
+                      </section>
+                    )}
 
-                    {getSkills(selectedJob).length > 0 && <section className="mt-8"><h3 className="font-semibold text-gray-800">Skills</h3><div className="mt-3 flex flex-wrap gap-2">{getSkills(selectedJob).map((skill) => <span key={skill} className="rounded-lg bg-blue-100 px-5 py-2 text-[#7948ff]">{skill}</span>)}</div></section>}
+                    {selectedJob.benefits?.length ? (
+                      <section className="mt-8">
+                        <h3 className="font-semibold text-gray-800">Benefits &amp; Perks</h3>
+                        <div className="mt-3 flex flex-wrap gap-3">
+                          {selectedJob.benefits
+                            .filter((benefit) => typeof benefit === 'string' || benefit.enabled !== false)
+                            .map((benefit, index) => (
+                              <span key={index} className="flex items-center gap-2 rounded-full bg-blue-100 px-5 py-2 text-[#7948ff]">
+                                <Gift className="h-4 w-4" />
+                                {typeof benefit === 'string' ? benefit : benefit.text}
+                              </span>
+                            ))}
+                        </div>
+                      </section>
+                    ) : null}
 
-                    {selectedJob.benefits?.length ? <section className="mt-8"><h3 className="font-semibold text-gray-800">Benefits &amp; Perks</h3><div className="mt-3 flex flex-wrap gap-3">{selectedJob.benefits.filter((benefit) => typeof benefit === 'string' || benefit.enabled !== false).map((benefit, index) => <span key={index} className="flex items-center gap-2 rounded-full bg-blue-100 px-5 py-2 text-[#7948ff]"><Gift className="h-4 w-4" />{typeof benefit === 'string' ? benefit : benefit.text}</span>)}</div></section> : null}
-
-                    {selectedJob.interviewProcess && <section className="mt-8"><h3 className="font-semibold text-gray-800">Interview Process</h3><p className="mt-3 text-gray-600">{selectedJob.interviewProcess.rounds?.join(' → ')}{selectedJob.interviewProcess.duration ? ` · ${selectedJob.interviewProcess.duration}` : ''}{selectedJob.interviewProcess.mode ? ` · ${selectedJob.interviewProcess.mode}` : ''}</p></section>}
+                    <section className="mt-8">
+                      <h3 className="font-semibold text-gray-800">About Company</h3>
+                      <p className="mt-3 leading-7 text-gray-600">
+                        {selectedJob.companyAbout || `${selectedJob.companyName} is hiring talented candidates for this opportunity.`}
+                      </p>
+                    </section>
 
                     <button onClick={() => setShowResumeStep(true)} className="mt-12 w-full rounded-md bg-[#0d83f7] px-5 py-3 font-semibold text-white hover:bg-[#086fd4]">Continue Application</button>
                   </div>
