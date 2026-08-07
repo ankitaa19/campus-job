@@ -43,7 +43,7 @@ export const createInterviewSlots = async (req: Request, res: Response) => {
       });
     }
     
-    if (job.recruiterId.toString() !== recruiterId.toString()) {
+    if (!job.recruiterId || job.recruiterId.toString() !== recruiterId.toString()) {
       return res.status(403).json({
         success: false,
         message: 'Unauthorized to create interview slots for this job'

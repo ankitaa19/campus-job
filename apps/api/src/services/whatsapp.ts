@@ -214,6 +214,13 @@ export const sendWhatsAppOTP = async (phoneNumber: string, userType: 'student' |
 
         const savedOTP = await otpVerification.save();
 
+        // Make registration testing practical without exposing OTPs in normal
+        // production logs. Production logging can be enabled explicitly for a
+        // controlled debugging session with LOG_OTP_CODES=true.
+        if (process.env.NODE_ENV !== 'production' || process.env.LOG_OTP_CODES === 'true') {
+            console.log(`🔐 Student registration OTP for ${phoneNumber}: ${otp} (valid for 10 minutes)`);
+        }
+
         // Send OTP via WABB webhook automation
         const otpWebhookUrl = getWebhookUrl('otp');
         if (otpWebhookUrl) {

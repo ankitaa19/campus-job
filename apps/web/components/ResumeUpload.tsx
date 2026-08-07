@@ -5,8 +5,13 @@ interface ResumeAnalysis {
   [key: string]: unknown;
 }
 
+export interface ResumeUploadStatus {
+  aiCreditStatus?: 'available' | 'fallback' | 'exhausted';
+  aiWarnings?: string[];
+}
+
 interface UseResumeUploadProps {
-  onUploadSuccess: (analysis: ResumeAnalysis) => void;
+  onUploadSuccess: (analysis: ResumeAnalysis, status?: ResumeUploadStatus) => void;
   onUploadError: (error: string) => void;
   isUploading: boolean;
   setIsUploading: (uploading: boolean) => void;
@@ -74,7 +79,7 @@ export const useResumeUpload = ({
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'multipart/form-data'
           },
-          timeout: 30000 // 30 second timeout for file upload (reduced from 60s)
+          timeout: 45000
         }
       );
 
@@ -83,7 +88,10 @@ export const useResumeUpload = ({
       if (response.data.success) {
         console.log('Upload successful, calling onUploadSuccess');
         // New AI endpoint returns analysis data instead of data
-        onUploadSuccess(response.data.analysis || response.data.data);
+        onUploadSuccess(response.data.analysis || response.data.data, {
+          aiCreditStatus: response.data.aiCreditStatus,
+          aiWarnings: Array.isArray(response.data.aiWarnings) ? response.data.aiWarnings : []
+        });
       } else {
         console.log('Upload failed - server responded with success=false');
         onUploadError(response.data.error || 'Resume upload failed. Please try again.');
@@ -103,6 +111,8 @@ export const useResumeUpload = ({
           window.location.href = '/login';
         } else if (error.response.status === 400) {
           onUploadError(errorMessage.includes('PDF') ? errorMessage : 'Invalid file or request. Please ensure you\'re uploading a valid PDF file.');
+        } else if (error.response.status === 402 || error.response.status === 429 || error.response.data?.code === 'AI_CREDITS_EXHAUSTED') {
+          onUploadError('AI credits are exhausted. Please contact CampusPe support or try again after credits are renewed.');
         } else if (error.response.status === 413) {
           onUploadError('File too large. Please upload a smaller PDF file (max 5MB).');
         } else if (error.response.status === 500) {

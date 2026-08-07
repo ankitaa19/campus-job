@@ -13,6 +13,29 @@ export interface IResumeJobAnalysis extends Document {
   suggestions: string[];
   skillsMatched: string[];
   skillsGap: string[];
+  matchingModel?: 'hybrid-ai-v1' | 'hybrid-local-v1' | 'hybrid-ai-v2' | 'hybrid-local-v2';
+  displayMatchScore?: number;
+  behaviorAdjustment?: number;
+  ruleBasedScore?: number;
+  aiScore?: number;
+  scoreBreakdown?: Record<string, {
+    score: number;
+    weight: number;
+    matched: string[];
+    missing: string[];
+    evidence: string;
+  }>;
+  atsEvaluation?: {
+    hardSkillsScore: number;
+    seniorityScore: number;
+    domainScore: number;
+    finalMatchScore: number;
+    experienceYearsFound: number | null;
+    experienceMatchStatus: 'EXCEEDS' | 'MATCHES' | 'UNDERQUALIFIED';
+    matchedCoreSkills: string[];
+    missingCriticalSkills: string[];
+    conciseJustification: string;
+  };
   
   // Resume Version
   resumeText: string; // The resume text that was analyzed
@@ -80,6 +103,13 @@ const ResumeJobAnalysisSchema = new Schema({
   skillsGap: [{ 
     type: String 
   }],
+  matchingModel: { type: String, enum: ['hybrid-ai-v1', 'hybrid-local-v1', 'hybrid-ai-v2', 'hybrid-local-v2'] },
+  displayMatchScore: { type: Number, min: 70, max: 100 },
+  behaviorAdjustment: { type: Number, min: -8, max: 8, default: 0 },
+  ruleBasedScore: { type: Number, min: 0, max: 100 },
+  aiScore: { type: Number, min: 0, max: 100 },
+  scoreBreakdown: { type: Schema.Types.Mixed },
+  atsEvaluation: { type: Schema.Types.Mixed },
   
   // Resume Version
   resumeText: { 

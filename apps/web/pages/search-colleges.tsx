@@ -273,7 +273,7 @@ export default function SearchColleges() {
         </div>
       </main>
       <Footer />
-      {selectedCollege ? <EnquiryModal isOpen={enquiryModalOpen} onClose={() => { setEnquiryModalOpen(false); setSelectedCollege(null); }} collegeId={selectedCollege._id || selectedCollege.id} courses={selectedCollege.courses || []} /> : null}
+      {selectedCollege ? <EnquiryModal isOpen={enquiryModalOpen} onClose={() => { setEnquiryModalOpen(false); setSelectedCollege(null); }} collegeId={selectedCollege._id || selectedCollege.id} courses={(selectedCollege.courses || []).map((name) => ({ name }))} /> : null}
     </div>
   );
 }

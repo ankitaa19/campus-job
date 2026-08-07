@@ -2,6 +2,7 @@ import { Job } from '../models';
 import AIMatchingService from './ai-matching';
 import CareerAlertService from './career-alerts';
 import { Types } from 'mongoose';
+import { enrichJob } from './job-intelligence';
 
 interface JobPostingData {
     title: string;
@@ -33,6 +34,7 @@ class JobPostingService {
             // Step 1: Create the basic job record
             const job = new Job({
                 ...jobData,
+                ...enrichJob(jobData),
                 status: 'active', // Start as active for immediate matching
                 postedAt: new Date(),
                 lastModified: new Date(),

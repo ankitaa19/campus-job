@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { User, Mail, Phone, Calendar, MapPin, Briefcase, Award, ExternalLink, Edit2, GraduationCap, Trophy, FileText, Trash2, Link as LinkIcon, CheckCircle, Upload, X, PlusCircle, Search } from 'lucide-react';
 import axios from 'axios';
+import { API_ENDPOINTS } from '../../utils/api';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
 
@@ -36,13 +37,15 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ studentInfo, refreshDat
   
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedResume, setSelectedResume] = useState<File | null>(null);
+  const [resumeUploading, setResumeUploading] = useState(false);
+  const [resumeStatusMessage, setResumeStatusMessage] = useState<string>('');
   const [preferences, setPreferences] = useState({
-    roles: ['Backend Developer'],
-    workType: ['Full-Time'],
-    workMode: ['On-Site'],
-    locations: ['Delhi', 'Bangaluru']
+    roles: [] as string[],
+    workType: [] as string[],
+    workMode: [] as string[],
+    locations: [] as string[]
   });
-  const [summary, setSummary] = useState('Creating a concise and compelling message within a 1000-character limit requires careful planning and precision. A 1000-character text includes everything: letters, spaces, and punctuation. It is especially useful for social media posts, meta descriptions, or business communications where space is limited. To write effectively within this limit, start by outlining key points and ensuring each sentence serves a purpose. Be concise, use simple language, and edit thoroughly. Prioritize important information and avoid filler words. With practice, crafting impactful, concise texts becomes easier, helping you communicate clearly without exceeding character restrictions.');
+  const [summary, setSummary] = useState('');
   
   const [roleInput, setRoleInput] = useState('');
   const [locationInput, setLocationInput] = useState('');
@@ -59,13 +62,10 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ studentInfo, refreshDat
     write: false,
     speak: false
   });
-  const [languages, setLanguages] = useState<Array<{language: string, proficiency: string, skills: string[]}>>([
-    { language: 'English', proficiency: 'Proficient', skills: ['Read', 'Write', 'Speak'] },
-    { language: 'Hindi', proficiency: 'Expert', skills: ['Read', 'Write', 'Speak'] }
-  ]);
+  const [languages, setLanguages] = useState<Array<{language: string, proficiency: string, skills: string[]}>>([]);
 
-  const [phoneNumber, setPhoneNumber] = useState('+91 1011001010');
-  const [email, setEmail] = useState('amit.kumar@gmail.com');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [email, setEmail] = useState('');
   const [showPhoneOTP, setShowPhoneOTP] = useState(false);
   const [showEmailOTP, setShowEmailOTP] = useState(false);
   const [phoneOTP, setPhoneOTP] = useState('');
@@ -87,7 +87,7 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ studentInfo, refreshDat
 
   // Skills state
   const [skillInput, setSkillInput] = useState('');
-  const [skills, setSkills] = useState<string[]>(['JavaScript', 'React', 'Node.js']);
+  const [skills, setSkills] = useState<string[]>([]);
 
   // Social Links state
   const [socialLinks, setSocialLinks] = useState({
@@ -100,6 +100,7 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ studentInfo, refreshDat
   // Education state
   const [educationList, setEducationList] = useState<Array<{
     degree: string;
+    field: string;
     institution: string;
     startDate: string;
     endDate: string;
@@ -109,6 +110,7 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ studentInfo, refreshDat
   const [editingEducationIndex, setEditingEducationIndex] = useState<number | null>(null);
   const [educationForm, setEducationForm] = useState({
     degree: '',
+    field: '',
     institution: '',
     startDate: '',
     endDate: '',
@@ -186,8 +188,8 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ studentInfo, refreshDat
       console.log('Profile data received:', studentInfo);
       
       // Set contact info
-      const phone = studentInfo.phoneNumber || '+91 1011001010';
-      const userEmail = studentInfo.email || 'amit.kumar@gmail.com';
+      const phone = studentInfo.phoneNumber || '';
+      const userEmail = studentInfo.email || '';
       setPhoneNumber(phone);
       setEmail(userEmail);
       setOriginalPhone(phone);
@@ -198,6 +200,8 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ studentInfo, refreshDat
       const lastName = studentInfo.lastName || '';
       setFullName(`${firstName} ${lastName}`.trim());
       
+      setSelectedCollegeId('');
+      setCollegeName('');
       // Set college - handle both collegeId (object/string) and collegeName
       if (studentInfo.collegeId) {
         if (typeof studentInfo.collegeId === 'object' && studentInfo.collegeId._id) {
@@ -209,21 +213,20 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ studentInfo, refreshDat
       }
       
       // Also set collegeName if it exists directly
-      if (studentInfo.collegeName && !collegeName) {
+      if (studentInfo.collegeName && !studentInfo.collegeId) {
         setCollegeName(studentInfo.collegeName);
       }
       
       // Set gender and DOB
       setGender(studentInfo.gender || '');
+      setDateOfBirth('');
       if (studentInfo.dateOfBirth) {
         const dob = new Date(studentInfo.dateOfBirth);
         setDateOfBirth(dob.toISOString().split('T')[0]);
       }
 
       // Load profile image
-      if (studentInfo.profilePicture) {
-        setSelectedImage(studentInfo.profilePicture);
-      }
+      setSelectedImage(studentInfo.profilePicture || null);
 
       // Load social links
       setSocialLinks({
@@ -234,53 +237,53 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ studentInfo, refreshDat
       });
 
       // Load summary/bio
-      if (studentInfo.resumeAnalysis?.extractedDetails?.personalInfo?.summary) {
-        setSummary(studentInfo.resumeAnalysis.extractedDetails.personalInfo.summary);
-      }
+      const extractedSummary = studentInfo.resumeAnalysis?.extractedDetails?.personalInfo?.summary;
+      const analysisSummary = studentInfo.resumeAnalysis?.summary;
+      setSummary(extractedSummary || (/^Resume (uploaded|analyzed)/i.test(analysisSummary || '') ? '' : analysisSummary) || '');
 
       // Load preferences from jobPreferences
-      if (studentInfo.jobPreferences) {
-        setPreferences({
-          roles: studentInfo.jobPreferences.jobTypes || [],
-          workType: [], // Map from workMode
-          workMode: studentInfo.jobPreferences.workMode ? [studentInfo.jobPreferences.workMode] : [],
-          locations: studentInfo.jobPreferences.preferredLocations || []
-        });
-      }
+      setPreferences({
+        roles: studentInfo.jobPreferences?.jobTypes || [],
+        workType: [],
+        workMode: studentInfo.jobPreferences?.workMode && studentInfo.jobPreferences.workMode !== 'any' ? [studentInfo.jobPreferences.workMode] : [],
+        locations: studentInfo.jobPreferences?.preferredLocations || []
+      });
 
       // Load languages
-      if (studentInfo.resumeAnalysis?.extractedDetails?.languages) {
-        const loadedLanguages = studentInfo.resumeAnalysis.extractedDetails.languages.map((lang: any) => ({
-          language: lang.name || lang.language,
-          proficiency: lang.proficiency || 'Proficient',
-          skills: ['Read', 'Write', 'Speak'] // Default skills
-        }));
+      {
+        const loadedLanguages = (studentInfo.resumeAnalysis?.extractedDetails?.languages || []).map((lang: any) => ({
+          language: String(lang.name || lang.language || '').trim(),
+          proficiency: lang.proficiency || '',
+          skills: []
+        })).filter((lang: any, index: number, items: any[]) =>
+          lang.language &&
+          !/^languages?(?:\s+skills)?\s*:?$/i.test(lang.language) &&
+          items.findIndex(other => other.language.toLowerCase() === lang.language.toLowerCase()) === index
+        );
         setLanguages(loadedLanguages);
       }
 
       // Load education
-      if (studentInfo.education && studentInfo.education.length > 0) {
-        const loadedEducation = studentInfo.education.map((edu: any) => ({
+      {
+        const loadedEducation = (studentInfo.education || []).map((edu: any) => ({
           degree: edu.degree || '',
+          field: edu.field || edu.fieldOfStudy || '',
           institution: edu.institution || '',
           startDate: edu.year ? edu.year.toString() : (edu.startDate ? new Date(edu.startDate).getFullYear().toString() : ''),
           endDate: edu.year ? edu.year.toString() : (edu.endDate ? new Date(edu.endDate).getFullYear().toString() : ''),
-          grade: edu.grade || edu.gpa ? (edu.grade || edu.gpa).toString() : '',
-          gradingType: edu.gpa ? 'gpa' : 'percentage' // Determine from existing data
+          grade: edu.grade != null ? String(edu.grade) : (edu.gpa != null ? String(edu.gpa) : ''),
+          gradingType: edu.gradingType || (edu.gpa != null ? 'gpa' : 'percentage')
         }));
         setEducationList(loadedEducation);
       }
 
       // Load skills
-      if (studentInfo.skills && studentInfo.skills.length > 0) {
-        const loadedSkills = studentInfo.skills.map((skill: any) => skill.name || skill);
-        setSkills(loadedSkills);
-      }
+      setSkills((studentInfo.skills || []).map((skill: any) => skill.name || skill).filter(Boolean));
 
       // Load experience
-      if (studentInfo.experience && studentInfo.experience.length > 0) {
-        const loadedExperience = studentInfo.experience.map((exp: any) => ({
-          title: exp.title || '',
+      {
+        const loadedExperience = (studentInfo.experience || []).map((exp: any) => ({
+          title: exp.title || exp.position || '',
           company: exp.company || '',
           location: exp.location || '',
           startDate: exp.startDate ? new Date(exp.startDate).toISOString().substring(0, 7) : '', // YYYY-MM format for month input
@@ -291,18 +294,18 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ studentInfo, refreshDat
       }
 
       // Load achievements/certifications
-      if (studentInfo.resumeAnalysis?.extractedDetails?.certifications) {
-        const loadedAchievements = studentInfo.resumeAnalysis.extractedDetails.certifications.map((cert: any) => ({
-          title: cert.name || '',
+      {
+        const loadedAchievements = (studentInfo.resumeAnalysis?.extractedDetails?.certifications || []).map((cert: any) => ({
+          title: String(cert.name || '').trim(),
           description: cert.organization || '',
           year: cert.year ? cert.year.toString() : ''
-        }));
+        })).filter((achievement: any) => achievement.title && !/^(?:&|and)?\s*(?:achievements?|awards?|certifications?|certificates?|licenses?)\s*:?$/i.test(achievement.title));
         setAchievementList(loadedAchievements);
       }
 
       // Load projects
-      if (studentInfo.resumeAnalysis?.extractedDetails?.projects) {
-        const loadedProjects = studentInfo.resumeAnalysis.extractedDetails.projects.map((proj: any) => ({
+      {
+        const loadedProjects = (studentInfo.resumeAnalysis?.extractedDetails?.projects || []).map((proj: any) => ({
           title: proj.name || proj.title || '',
           description: proj.description || '',
           technologies: Array.isArray(proj.technologies) ? proj.technologies.join(', ') : '',
@@ -371,7 +374,68 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ studentInfo, refreshDat
   const handleResumeUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setResumeStatusMessage('');
       setSelectedResume(file);
+    }
+  };
+
+  const handleResumeSave = async () => {
+    if (!selectedResume) {
+      setResumeStatusMessage('Please upload a PDF resume first.');
+      return;
+    }
+
+    if (selectedResume.type !== 'application/pdf') {
+      setResumeStatusMessage('Please upload a PDF resume.');
+      return;
+    }
+
+    try {
+      setResumeUploading(true);
+      setResumeStatusMessage('Analyzing your resume and updating My Profile...');
+
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setResumeStatusMessage('Please sign in again to upload your resume.');
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('resume', selectedResume);
+
+      const response = await axios.post(
+        `${API_BASE_URL}${API_ENDPOINTS.STUDENT_ANALYZE_RESUME}`,
+        formData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'multipart/form-data'
+          }
+        }
+      );
+
+      if (response.data?.success) {
+        const creditWarning = Array.isArray(response.data?.aiWarnings) ? response.data.aiWarnings[0] : '';
+        setResumeStatusMessage(creditWarning
+          ? `Resume analyzed and profile updated. ${creditWarning}`
+          : 'Resume analyzed successfully. Refreshing your profile...');
+        setSelectedResume(null);
+        // Keep the modal visible when a provider ran out of credits so the
+        // student can actually see the fallback warning.
+        if (!creditWarning) setShowResumeModal(false);
+        refreshData();
+      } else {
+        setResumeStatusMessage(response.data?.error || 'Resume analysis failed.');
+      }
+    } catch (error: any) {
+      console.error('Resume analysis error:', error);
+      setResumeStatusMessage(
+        error.response?.data?.error ||
+        error.response?.data?.message ||
+        'Failed to analyze resume. Please try again.'
+      );
+    } finally {
+      setResumeUploading(false);
     }
   };
 
@@ -495,7 +559,7 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ studentInfo, refreshDat
       setEducationList(updatedEducationList);
     }
     
-    setEducationForm({ degree: '', institution: '', startDate: '', endDate: '', grade: '', gradingType: 'percentage' });
+    setEducationForm({ degree: '', field: '', institution: '', startDate: '', endDate: '', grade: '', gradingType: 'percentage' });
     
     // Save to backend
     try {
@@ -504,10 +568,10 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ studentInfo, refreshDat
         const gradeValue = parseFloat(edu.grade);
         return {
           degree: edu.degree,
-          field: edu.degree,
+          field: edu.field,
           institution: edu.institution,
-          year: edu.endDate ? parseInt(edu.endDate) : (edu.startDate ? parseInt(edu.startDate) : new Date().getFullYear()),
-          startDate: edu.startDate ? new Date(parseInt(edu.startDate), 0, 1) : new Date(),
+          year: edu.endDate ? parseInt(edu.endDate) : undefined,
+          startDate: edu.startDate ? new Date(parseInt(edu.startDate), 0, 1) : undefined,
           endDate: edu.endDate ? new Date(parseInt(edu.endDate), 0, 1) : undefined,
           grade: edu.gradingType === 'percentage' ? edu.grade : undefined,
           gpa: edu.gradingType === 'gpa' && !isNaN(gradeValue) ? gradeValue : undefined,
@@ -551,10 +615,10 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ studentInfo, refreshDat
             const gradeValue = parseFloat(edu.grade);
             return {
               degree: edu.degree,
-              field: edu.degree,
+              field: edu.field,
               institution: edu.institution,
-              year: edu.endDate ? parseInt(edu.endDate) : (edu.startDate ? parseInt(edu.startDate) : new Date().getFullYear()),
-              startDate: edu.startDate ? new Date(parseInt(edu.startDate), 0, 1) : new Date(),
+              year: edu.endDate ? parseInt(edu.endDate) : undefined,
+              startDate: edu.startDate ? new Date(parseInt(edu.startDate), 0, 1) : undefined,
               endDate: edu.endDate ? new Date(parseInt(edu.endDate), 0, 1) : undefined,
               grade: edu.gradingType === 'percentage' ? edu.grade : undefined,
               gpa: edu.gradingType === 'gpa' && !isNaN(gradeValue) ? gradeValue : undefined,
@@ -666,16 +730,22 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ studentInfo, refreshDat
 
   // Achievement functions
   const saveAchievement = async () => {
+    const cleanedTitle = achievementForm.title.trim();
+    if (!cleanedTitle || /^(?:&|and)?\s*(?:achievements?|awards?|certifications?|certificates?|licenses?)\s*:?$/i.test(cleanedTitle)) {
+      alert('Please enter the actual achievement or certification name.');
+      return;
+    }
+    const cleanedAchievement = { ...achievementForm, title: cleanedTitle };
     let updatedAchievementList;
     
     if (editingAchievementIndex !== null) {
       const updated = [...achievementList];
-      updated[editingAchievementIndex] = achievementForm;
+      updated[editingAchievementIndex] = cleanedAchievement;
       updatedAchievementList = updated;
       setAchievementList(updated);
       setEditingAchievementIndex(null);
     } else {
-      updatedAchievementList = [...achievementList, achievementForm];
+      updatedAchievementList = [...achievementList, cleanedAchievement];
       setAchievementList(updatedAchievementList);
     }
     
@@ -686,7 +756,7 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ studentInfo, refreshDat
       const token = localStorage.getItem('token');
       const formattedAchievements = updatedAchievementList.map(ach => ({
         name: ach.title,
-        year: parseInt(ach.year),
+        year: ach.year && !isNaN(parseInt(ach.year)) ? parseInt(ach.year) : undefined,
         organization: ach.description
       }));
 
@@ -732,7 +802,7 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ studentInfo, refreshDat
           const token = localStorage.getItem('token');
           const formattedAchievements = updated.map(ach => ({
             name: ach.title,
-            year: parseInt(ach.year),
+            year: ach.year && !isNaN(parseInt(ach.year)) ? parseInt(ach.year) : undefined,
             organization: ach.description
           }));
 
@@ -864,13 +934,19 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ studentInfo, refreshDat
 
   const addLanguage = () => {
     if (languageInput && proficiencyInput) {
+      const cleanedLanguage = /^germany$/i.test(languageInput.trim()) ? 'German' : languageInput.trim();
+      if (/^languages?(?:\s+skills)?\s*:?$/i.test(cleanedLanguage)) return;
+      if (languages.some(language => language.language.toLowerCase() === cleanedLanguage.toLowerCase())) {
+        alert('This language is already added.');
+        return;
+      }
       const skills = [];
       if (languageSkills.read) skills.push('Read');
       if (languageSkills.write) skills.push('Write');
       if (languageSkills.speak) skills.push('Speak');
       
       setLanguages([...languages, { 
-        language: languageInput, 
+        language: cleanedLanguage,
         proficiency: proficiencyInput,
         skills: skills
       }]);
@@ -1145,9 +1221,13 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ studentInfo, refreshDat
     try {
       const token = localStorage.getItem('token');
       const formattedLanguages = languages.map(lang => ({
-        name: lang.language,
-        proficiency: lang.proficiency
-      }));
+        name: lang.language.trim(),
+        proficiency: lang.proficiency.trim()
+      })).filter((lang, index, items) =>
+        lang.name &&
+        !/^languages?(?:\s+skills)?\s*:?$/i.test(lang.name) &&
+        items.findIndex(other => other.name.toLowerCase() === lang.name.toLowerCase()) === index
+      );
 
       // Create proper nested object structure
       const updateData: any = {
@@ -1299,23 +1379,32 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ studentInfo, refreshDat
                 )}
               </div>
               
-              <p className="text-xs text-gray-500 mb-4">(*doc,pdf max file size is 5MB)</p>
+              <p className="text-xs text-gray-500 mb-4">(*PDF max file size is 5MB)</p>
+              {resumeStatusMessage && (
+                <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+                  {resumeStatusMessage}
+                </div>
+              )}
               
               {!selectedResume ? (
                 <label className="inline-block px-6 py-2 bg-blue-100 text-[#3E9EFE] rounded-lg cursor-pointer hover:bg-blue-200">
                   Upload Resume
-                  <input type="file" className="hidden" accept=".pdf,.doc,.docx" onChange={handleResumeUpload} />
+                  <input type="file" className="hidden" accept=".pdf" onChange={handleResumeUpload} />
                 </label>
               ) : (
                 <label className="inline-block px-6 py-2 bg-blue-100 text-[#3E9EFE] rounded-lg cursor-pointer hover:bg-blue-200">
                   Replace Resume
-                  <input type="file" className="hidden" accept=".pdf,.doc,.docx" onChange={handleResumeUpload} />
+                  <input type="file" className="hidden" accept=".pdf" onChange={handleResumeUpload} />
                 </label>
               )}
               
               <div className="flex justify-end mt-6">
-                <button className="px-8 py-2 bg-gradient-to-r from-[#2791FC] to-[#0377EB] text-white rounded-lg hover:opacity-90">
-                  Save
+                <button
+                  onClick={handleResumeSave}
+                  disabled={resumeUploading}
+                  className="px-8 py-2 bg-gradient-to-r from-[#2791FC] to-[#0377EB] text-white rounded-lg hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {resumeUploading ? 'Analyzing...' : 'Save'}
                 </button>
               </div>
             </div>
@@ -1374,7 +1463,7 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ studentInfo, refreshDat
                   
                   {workTypeDropdownOpen && (
                     <div className="absolute z-10 w-full mt-2 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                      {['Full-Time', 'Part-Time', 'Contract', 'Internship'].map((type) => (
+                      {['Full-Time', 'Part-Time', 'Internship', 'Freelance', 'Gig/Flexible'].map((type) => (
                         <div
                           key={type}
                           onClick={() => toggleWorkType(type)}
@@ -1751,8 +1840,8 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ studentInfo, refreshDat
                       <div className="flex-1">
                         <div className="flex items-center space-x-4">
                           <span className="font-medium text-gray-900">{lang.language}</span>
-                          <span className="text-sm text-gray-600">• {lang.proficiency}</span>
-                          <span className="text-sm text-gray-500">• {lang.skills.join(', ')}</span>
+                          {lang.proficiency && <span className="text-sm text-gray-600">• {lang.proficiency}</span>}
+                          {lang.skills.length > 0 && <span className="text-sm text-gray-500">• {lang.skills.join(', ')}</span>}
                         </div>
                       </div>
                       <button 
@@ -1930,7 +2019,7 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ studentInfo, refreshDat
               <button onClick={() => {
                 setShowEducationModal(false);
                 setEditingEducationIndex(null);
-                setEducationForm({ degree: '', institution: '', startDate: '', endDate: '', grade: '', gradingType: 'percentage' });
+                setEducationForm({ degree: '', field: '', institution: '', startDate: '', endDate: '', grade: '', gradingType: 'percentage' });
               }} className="text-gray-400 hover:text-gray-600">
                 <X className="h-6 w-6" />
               </button>
@@ -1944,6 +2033,17 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ studentInfo, refreshDat
                   value={educationForm.degree}
                   onChange={(e) => setEducationForm({...educationForm, degree: e.target.value})}
                   placeholder="e.g., Class X, B.Tech"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-gray-600 mb-2">Field of Study</label>
+                <input
+                  type="text"
+                  value={educationForm.field}
+                  onChange={(e) => setEducationForm({...educationForm, field: e.target.value})}
+                  placeholder="e.g., Computer Engineering"
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -2355,12 +2455,12 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ studentInfo, refreshDat
               </div>
               
               <h2 className="text-xl font-bold text-gray-900 mt-4">
-                {studentInfo?.firstName || 'Amit'} {studentInfo?.lastName || 'Kumar'}
+                {[studentInfo?.firstName, studentInfo?.lastName].filter(Boolean).join(' ') || 'Not provided'}
               </h2>
               <p className="text-sm text-gray-600 mt-1">
                 {(typeof studentInfo?.collegeId === 'object' && studentInfo?.collegeId?.name) 
                   ? studentInfo.collegeId.name 
-                  : (studentInfo?.collegeName || 'ABC University')}
+                  : (studentInfo?.collegeName || 'Not provided')}
               </p>
             </div>
 
@@ -2509,14 +2609,14 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ studentInfo, refreshDat
                     <div>
                       <p className="text-sm text-gray-600 mb-1">Full Name:</p>
                       <p className="text-sm font-medium text-gray-900">
-                        {studentInfo?.firstName || 'Amit'} {studentInfo?.lastName || 'Kumar'}
+                        {[studentInfo?.firstName, studentInfo?.lastName].filter(Boolean).join(' ') || 'Not provided'}
                       </p>
                     </div>
                     
                     <div>
                       <p className="text-sm text-gray-600 mb-1">Phone:</p>
                       <p className="text-sm font-medium text-gray-900">
-                        {studentInfo?.phoneNumber || '+91 1010101010'}
+                        {studentInfo?.phoneNumber || 'Not provided'}
                       </p>
                     </div>
                     
@@ -2525,7 +2625,7 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ studentInfo, refreshDat
                       <p className="text-sm font-medium text-gray-900">
                         {studentInfo?.dateOfBirth 
                           ? new Date(studentInfo.dateOfBirth).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
-                          : '15 December, 2008'
+                          : 'Not provided'
                         }
                       </p>
                     </div>
@@ -2533,7 +2633,7 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ studentInfo, refreshDat
                     <div>
                       <p className="text-sm text-gray-600 mb-1">Email:</p>
                       <p className="text-sm font-medium text-gray-900">
-                        {studentInfo?.email || 'amit.kumar@gmail.com'}
+                        {studentInfo?.email || 'Not provided'}
                       </p>
                     </div>
                     
@@ -2657,8 +2757,12 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ studentInfo, refreshDat
                         <div className="flex-1">
                           <div className="flex items-center space-x-3">
                             <p className="text-sm font-semibold text-gray-900">{lang.language}</p>
-                            <span className="text-xs text-gray-400">•</span>
-                            <p className="text-sm text-gray-600">{lang.proficiency}</p>
+                            {lang.proficiency && (
+                              <>
+                                <span className="text-xs text-gray-400">•</span>
+                                <p className="text-sm text-gray-600">{lang.proficiency}</p>
+                              </>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center space-x-2">
@@ -2696,7 +2800,7 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ studentInfo, refreshDat
                     <button 
                       onClick={() => {
                         setEditingEducationIndex(null);
-                        setEducationForm({ degree: '', institution: '', startDate: '', endDate: '', grade: '', gradingType: 'percentage' });
+                        setEducationForm({ degree: '', field: '', institution: '', startDate: '', endDate: '', grade: '', gradingType: 'percentage' });
                         setShowEducationModal(true);
                       }}
                       className="text-gray-400 hover:text-gray-600"
@@ -2715,6 +2819,7 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ studentInfo, refreshDat
                                 <h4 className="text-sm font-semibold text-gray-900">{edu.degree}</h4>
                                 <ExternalLink className="h-4 w-4 text-gray-400 cursor-pointer" />
                               </div>
+                              {edu.field && <p className="text-xs text-gray-700 mb-1">{edu.field}</p>}
                               <p className="text-xs text-gray-600 mb-2">{edu.institution}</p>
                               <div className="flex items-center space-x-4">
                                 <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded">{edu.startDate} - {edu.endDate}</span>

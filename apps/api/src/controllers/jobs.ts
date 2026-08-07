@@ -4,22 +4,17 @@ import { Types } from 'mongoose';
 import JobPostingService from '../services/job-posting';
 import CareerAlertService from '../services/career-alerts';
 import AIMatchingService from '../services/ai-matching';
+import JobsRepository from '../services/job-aggregation/jobs.repository';
+import { enrichJob, freshnessCutoff, fuzzyJobSimilarity } from '../services/job-intelligence';
 
 // Get all jobs
 export const getAllJobs = async (req: Request, res: Response) => {
     try {
-        const { recruiterId } = req.query;
-        
-        let filter = {};
-        if (recruiterId) {
-            filter = { recruiterId: new Types.ObjectId(recruiterId as string) };
-        }
-        
-        const jobs = await Job.find(filter)
-            .populate('recruiterId', 'companyInfo.name')
-            .sort({ createdAt: -1 }); // Sort by newest first
-            
-        res.status(200).json(jobs);
+        const result = await JobsRepository.findAll(req.query as any, true);
+        res.setHeader('X-Total-Count', String(result.total));
+        res.setHeader('X-Page', String(result.page));
+        res.setHeader('X-Page-Size', String(result.limit));
+        res.status(200).json(result.jobs);
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Server error' });
@@ -30,7 +25,7 @@ export const getAllJobs = async (req: Request, res: Response) => {
 export const getJobById = async (req: Request, res: Response) => {
     const { jobId } = req.params; // Extract the job ID from the request params
     try {
-        const job = await Job.findById(jobId); // Find the job by its ID
+        const job = await JobsRepository.findPublicById(jobId);
         if (!job) {
             return res.status(404).json({ message: 'Job not found' });
         }
@@ -122,6 +117,7 @@ export const createJob = async (req: Request, res: Response) => {
             // Fallback to basic job creation
             const newJob = new Job({
                 ...jobData,
+                ...enrichJob(jobData),
                 status: 'active',
                 postedAt: new Date(),
                 lastModified: new Date(),
@@ -153,6 +149,73 @@ export const createJob = async (req: Request, res: Response) => {
             message: 'Failed to create job',
             error: error instanceof Error ? error.message : 'Unknown error'
         });
+    }
+};
+
+/**
+ * Stores a vacancy obtained from a supported importer.  Import connectors send
+ * normalized data here; the original URL is kept only as provenance and is
+ * deliberately not used as an application URL.
+ */
+export const importJob = async (req: Request, res: Response) => {
+    try {
+        const user = req.user as any;
+        const { source, sourceExternalId, sourceUrl, ...jobData } = req.body;
+        if (!['company_careers', 'job_board'].includes(source) || !sourceExternalId) {
+            return res.status(400).json({ success: false, message: 'source and sourceExternalId are required for imported jobs' });
+        }
+
+        const { Recruiter } = require('../models/Recruiter');
+        const recruiter = await Recruiter.findOne({ userId: user._id || user.userId });
+        if (!recruiter) return res.status(404).json({ success: false, message: 'Recruiter profile not found' });
+
+        const importedPostedAt = jobData.postedAt ? new Date(jobData.postedAt) : new Date();
+        if (importedPostedAt < freshnessCutoff()) {
+            return res.status(422).json({ success: false, message: 'Only jobs posted within the last 15 days can be imported' });
+        }
+        const normalizedJob = {
+            ...jobData,
+            ...enrichJob(jobData),
+            recruiterId: recruiter._id,
+            source,
+            sourceExternalId,
+            sourceUrl,
+            importedAt: new Date(),
+            status: 'active',
+            postedAt: importedPostedAt,
+            lastModified: new Date(),
+            applications: jobData.applications || []
+        };
+
+        const existing = await Job.findOne({ source, sourceExternalId });
+        if (!existing) {
+            const candidates = await Job.find({ status: 'active', postedAt: { $gte: freshnessCutoff() } })
+                .select('title companyName locations description').limit(500).lean();
+            const duplicate = candidates.find(candidate => fuzzyJobSimilarity(normalizedJob, candidate) >= 0.82);
+            if (duplicate) return res.status(200).json({ success: true, message: 'Duplicate job already exists', data: duplicate });
+        }
+        const job = await Job.findOneAndUpdate(
+            { source, sourceExternalId },
+            { $set: normalizedJob },
+            { new: true, upsert: true, setDefaultsOnInsert: true }
+        );
+
+        // Only a newly discovered job generates alerts. Refreshes must not
+        // re-notify students for the same opportunity.
+        if (!existing) {
+            setImmediate(() => CareerAlertService.processNewJobPosting(job._id).catch(error =>
+                console.error(`Imported job matching failed for ${job._id}:`, error)
+            ));
+        }
+
+        return res.status(existing ? 200 : 201).json({
+            success: true,
+            message: existing ? 'Imported job refreshed' : 'Imported job published and matching started',
+            data: job
+        });
+    } catch (error) {
+        console.error('Error importing job:', error);
+        return res.status(500).json({ success: false, message: 'Failed to import job' });
     }
 };
 
@@ -225,7 +288,23 @@ export const updateJob = async (req: Request, res: Response) => {
             return res.status(404).json({ message: 'Job not found' });
         }
 
-        res.status(200).json(updatedJob); // Return the updated job
+        const enrichedJob = await Job.findByIdAndUpdate(updatedJob._id, { $set: enrichJob(updatedJob.toObject()) }, { new: true });
+
+        // A changed job description or requirement invalidates every existing
+        // candidate score. Active jobs are reprocessed in the background.
+        setImmediate(async () => {
+            try {
+                const CentralizedMatchingService = require('../services/centralized-matching').default;
+                await CentralizedMatchingService.invalidateJobCache(updatedJob._id);
+                if (updatedJob.status === 'active') {
+                    await CareerAlertService.processNewJobPosting(updatedJob._id);
+                }
+            } catch (matchError) {
+                console.error('Hybrid match refresh after job update failed:', matchError);
+            }
+        });
+
+        res.status(200).json(enrichedJob || updatedJob);
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Server error' });

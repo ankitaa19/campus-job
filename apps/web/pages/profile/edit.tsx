@@ -21,9 +21,9 @@ interface StudentProfile {
   githubUrl: string;
   portfolioUrl: string;
   studentId: string;
-  enrollmentYear: number;
-  graduationYear: number;
-  currentSemester: number;
+  enrollmentYear: number | '';
+  graduationYear: number | '';
+  currentSemester: number | '';
   skills: Array<{
     name: string;
     level: 'beginner' | 'intermediate' | 'advanced';
@@ -33,8 +33,8 @@ interface StudentProfile {
     institution: string;
     degree: string;
     fieldOfStudy: string;
-    startYear: number;
-    endYear: number;
+    startYear: number | '';
+    endYear: number | '';
     gpa?: number;
   }>;
   experience: Array<{
@@ -70,9 +70,9 @@ const ProfileEditContent = () => {
     githubUrl: '',
     portfolioUrl: '',
     studentId: '',
-    enrollmentYear: new Date().getFullYear(),
-    graduationYear: new Date().getFullYear() + 4,
-    currentSemester: 1,
+    enrollmentYear: '',
+    graduationYear: '',
+    currentSemester: '',
     skills: [],
     education: [],
     experience: [],
@@ -91,12 +91,74 @@ const ProfileEditContent = () => {
   const [resumeUploading, setResumeUploading] = useState(false);
   const [resumeInfo, setResumeInfo] = useState<any>(null);
 
+  const applyResumeAnalysisToProfile = (analysis: any) => {
+    if (!analysis) {
+      return;
+    }
+
+    const personalInfo = analysis.personalInfo || analysis.extractedDetails?.personalInfo || {};
+    const rawSkills = analysis.skills || analysis.extractedDetails?.skills || [];
+    const rawEducation = analysis.education || analysis.extractedDetails?.education || [];
+    const rawExperience = analysis.experience || analysis.extractedDetails?.experience || [];
+    const rawPreferences = analysis.jobPreferences || analysis.extractedDetails?.jobPreferences || {};
+
+    setProfile(prev => ({
+      ...prev,
+      // Name and phone are registration-owned fields and must be preserved.
+      firstName: prev.firstName,
+      lastName: prev.lastName,
+      phoneNumber: prev.phoneNumber,
+      email: prev.email,
+      linkedinUrl: personalInfo.linkedinUrl || personalInfo.linkedIn || analysis.linkedinUrl || '',
+      githubUrl: personalInfo.githubUrl || personalInfo.github || analysis.githubUrl || '',
+      portfolioUrl: personalInfo.portfolioUrl || analysis.portfolioUrl || '',
+      skills: Array.isArray(rawSkills)
+        ? rawSkills.map((skill: any) => ({
+            name: typeof skill === 'string' ? skill : skill.name || skill.skill || '',
+            level: skill.level || 'intermediate',
+            category: skill.category || 'technical'
+          })).filter((skill: any) => skill.name)
+        : [],
+      education: Array.isArray(rawEducation)
+        ? rawEducation.map((edu: any) => ({
+            institution: edu.institution || edu.college || '',
+            degree: edu.degree || '',
+            fieldOfStudy: edu.fieldOfStudy || edu.field || '',
+            startYear: edu.startYear || edu.year || '',
+            endYear: edu.endYear || edu.graduationYear || edu.year || '',
+            gpa: edu.gpa || edu.cgpa || undefined
+          }))
+        : [],
+      experience: Array.isArray(rawExperience)
+        ? rawExperience.map((exp: any) => ({
+            company: exp.company || '',
+            position: exp.position || exp.title || '',
+            description: exp.description || '',
+            startDate: exp.startDate || '',
+            endDate: exp.endDate || '',
+            isCurrentJob: Boolean(exp.isCurrentJob)
+          }))
+        : [],
+      jobPreferences: {
+        ...prev.jobPreferences,
+        jobTypes: rawPreferences.jobTypes || rawPreferences.preferredRoles || [],
+        preferredLocations: rawPreferences.preferredLocations || [],
+        workMode: rawPreferences.workMode || 'any',
+        expectedSalary: rawPreferences.expectedSalary
+      }
+    }));
+  };
+
   // Resume upload hook
   const resumeUpload = useResumeUpload({
-    onUploadSuccess: (analysis) => {
+    onUploadSuccess: (analysis, status) => {
       console.log('Resume upload successful with analysis:', analysis);
       setResumeInfo(analysis);
-      setSuccessMessage('Resume uploaded and analyzed successfully! Profile updated with extracted information.');
+      applyResumeAnalysisToProfile(analysis);
+      const warning = status?.aiWarnings?.[0];
+      setSuccessMessage(warning
+        ? `Resume uploaded and profile updated. ${warning}`
+        : 'Resume uploaded and analyzed successfully! Profile updated with extracted information.');
       // Refresh profile data to get updated info
       fetchProfile();
     },
@@ -141,9 +203,9 @@ const ProfileEditContent = () => {
           githubUrl: data.githubUrl || '',
           portfolioUrl: data.portfolioUrl || '',
           studentId: data.studentId || '',
-          enrollmentYear: data.enrollmentYear || new Date().getFullYear(),
-          graduationYear: data.graduationYear || new Date().getFullYear() + 4,
-          currentSemester: data.currentSemester || 1,
+          enrollmentYear: data.enrollmentYear || '',
+          graduationYear: data.graduationYear || '',
+          currentSemester: data.currentSemester || '',
           skills: data.skills || [],
           education: data.education || [],
           experience: data.experience || [],
@@ -520,7 +582,7 @@ const ProfileEditContent = () => {
                     <strong>🚀 Update Profile Using Resume:</strong> Upload your resume to automatically extract and update your profile information using AI.
                   </p>
                   <p className="text-blue-600 text-xs">
-                    This will analyze your resume and update your skills, experience, education, and contact information.
+                    This updates your bio, skills, experience, education, projects and certifications. Your registered name, email and phone stay unchanged.
                   </p>
                 </div>
 

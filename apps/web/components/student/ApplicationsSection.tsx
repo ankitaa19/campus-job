@@ -1,134 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Search, MapPin, Briefcase, Calendar, Eye, Building, X, FileText, CheckCircle, Clock, XCircle } from 'lucide-react';
 import JobDetailsModal from './JobDeatilsModal';
-import { sampleJobDetails } from '../../data/sampleJobDetails';
-import { StudentApplication, StudentJobType } from '../../types/studentJobs';
+import { apiClient } from '../../utils/api';
 
 interface ApplicationsSectionProps {
   studentInfo: any;
 }
-
-const daysAgo = (days: number) =>
-  new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-
-const applicationMeta: Record<StudentJobType, {
-  id: number;
-  status: string;
-  timeline: Array<{ status: string; daysAgo: number; description: string }>;
-}> = {
-  'Internship': {
-    id: 101,
-    status: 'Shortlisted',
-    timeline: [
-      {
-        status: 'Applied',
-        daysAgo: 5,
-        description: 'Your application has been received',
-      },
-      {
-        status: 'Shortlisted',
-        daysAgo: 3,
-        description: 'Your profile has been shortlisted for next round',
-      },
-    ],
-  },
-  'Full-Time': {
-    id: 102,
-    status: 'Interviewed',
-    timeline: [
-      {
-        status: 'Applied',
-        daysAgo: 10,
-        description: 'Your application has been received',
-      },
-      {
-        status: 'Shortlisted',
-        daysAgo: 8,
-        description: 'Your profile has been shortlisted',
-      },
-      {
-        status: 'Interviewed',
-        daysAgo: 2,
-        description: 'Interview completed successfully',
-      },
-    ],
-  },
-  'Freelance': {
-    id: 103,
-    status: 'Applied',
-    timeline: [
-      {
-        status: 'Applied',
-        daysAgo: 2,
-        description: 'Your application has been received',
-      },
-    ],
-  },
-  'Gig/Flexible': {
-    id: 104,
-    status: 'Hired',
-    timeline: [
-      {
-        status: 'Applied',
-        daysAgo: 15,
-        description: 'Your application has been received',
-      },
-      {
-        status: 'Shortlisted',
-        daysAgo: 13,
-        description: 'Your profile has been shortlisted',
-      },
-      {
-        status: 'Interviewed',
-        daysAgo: 10,
-        description: 'Interview completed',
-      },
-      {
-        status: 'Offered',
-        daysAgo: 5,
-        description: 'Offer letter received',
-      },
-      {
-        status: 'Hired',
-        daysAgo: 1,
-        description: 'Congratulations! You have been hired',
-      },
-    ],
-  },
-  'Part-Time': {
-    id: 105,
-    status: 'Rejected',
-    timeline: [
-      {
-        status: 'Applied',
-        daysAgo: 7,
-        description: 'Your application has been received',
-      },
-      {
-        status: 'Rejected',
-        daysAgo: 4,
-        description: 'Unfortunately, we are moving forward with other candidates',
-      },
-    ],
-  },
-};
-
-const dummyApplications: StudentApplication[] = sampleJobDetails.map((job) => {
-  const config = applicationMeta[job.jobType];
-  const statusHistory = config.timeline.map((item) => ({
-    status: item.status,
-    description: item.description,
-    date: daysAgo(item.daysAgo),
-  }));
-
-  return {
-    ...job,
-    id: config.id,
-    appliedDate: statusHistory[0]?.date || daysAgo(0),
-    status: config.status,
-    statusHistory,
-  };
-});
 
 const ApplicationsSection: React.FC<ApplicationsSectionProps> = ({ studentInfo }) => {
   const [applications, setApplications] = useState<any[]>([]);
@@ -139,41 +16,62 @@ const ApplicationsSection: React.FC<ApplicationsSectionProps> = ({ studentInfo }
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showJobDetailsModal, setShowJobDetailsModal] = useState(false);
   const [selectedJobDetails, setSelectedJobDetails] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [applicationsError, setApplicationsError] = useState('');
 
-  // Load applications from localStorage and merge with dummy data
+  // MongoDB is the only source of truth for applications. Browser storage and
+  // sample records must never appear in the student's tracked application list.
   useEffect(() => {
-    const loadApplications = () => {
-      const storedApplications = localStorage.getItem('studentApplications');
-      let realApplications: any[] = [];
-      
-      if (storedApplications) {
-        try {
-          realApplications = JSON.parse(storedApplications);
-        } catch (error) {
-          console.error('Error loading applications:', error);
-        }
+    const loadApplications = async () => {
+      setLoading(true);
+      setApplicationsError('');
+      try {
+        const response = await apiClient.get('/api/students/applications');
+        const records = Array.isArray(response.data?.data) ? response.data.data : [];
+        setApplications(records.map((record: any) => {
+          const snapshot = record.jobSnapshot || {};
+          const rawLocation = Array.isArray(record.jobLocation) ? record.jobLocation[0] : record.jobLocation;
+          const location = typeof rawLocation === 'string'
+            ? rawLocation
+            : [rawLocation?.city, rawLocation?.state, rawLocation?.country].filter(Boolean).join(', ');
+          const salary = record.salary;
+          const salaryText = salary && (salary.min || salary.max)
+            ? `${salary.currency || 'INR'} ${Number(salary.min || 0).toLocaleString()} - ${Number(salary.max || 0).toLocaleString()}`
+            : 'Salary not disclosed';
+          const status = String(record.currentStatus || record.status || 'applied')
+            .replace(/_/g, ' ')
+            .replace(/\b\w/g, (letter: string) => letter.toUpperCase());
+          return {
+            ...record,
+            id: record._id,
+            title: record.jobTitle,
+            company: record.companyName,
+            location: location || '',
+            salary: salaryText,
+            type: snapshot.jobType || '',
+            jobType: snapshot.jobType || 'Full-Time',
+            workMode: record.workMode || snapshot.workMode || '',
+            match: typeof record.matchScore === 'number' ? `${record.matchScore}% Match` : '',
+            skills: snapshot.requiredSkills || [],
+            description: snapshot.description || '',
+            experience: snapshot.experienceLevel || '',
+            appliedDate: record.appliedDate || record.dateApplied,
+            status,
+            statusHistory: (record.statusHistory || []).map((history: any) => ({
+              status: String(history.status || '').replace(/_/g, ' ').replace(/\b\w/g, (letter: string) => letter.toUpperCase()),
+              date: history.updatedAt || history.date,
+              description: history.notes || history.description || 'Status updated in CampusPe'
+            }))
+          };
+        }));
+      } catch (error: any) {
+        setApplications([]);
+        setApplicationsError(error?.response?.data?.message || 'Unable to load applications from CampusPe.');
+      } finally {
+        setLoading(false);
       }
-      
-      // Merge dummy data with real applications (dummy data shown first)
-      setApplications([...dummyApplications, ...realApplications]);
     };
-
     loadApplications();
-
-    // Listen for storage changes (in case of updates from JobsSection)
-    const handleStorageChange = () => {
-      loadApplications();
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    
-    // Also poll for changes every second to catch same-tab updates
-    const interval = setInterval(loadApplications, 1000);
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      clearInterval(interval);
-    };
   }, []);
 
   const handleViewJobDetails = (application: any) => {
@@ -334,7 +232,11 @@ const ApplicationsSection: React.FC<ApplicationsSectionProps> = ({ studentInfo }
         </div>
 
         {/* Applications List */}
-        {getFilteredApplications().length === 0 ? (
+        {loading ? (
+          <div className="flex items-center justify-center py-16 text-gray-500">Loading your applications…</div>
+        ) : applicationsError ? (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-8 text-center text-amber-900">{applicationsError}</div>
+        ) : getFilteredApplications().length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16">
             <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-4">
               <Briefcase className="h-10 w-10 text-blue-500" />
@@ -370,6 +272,11 @@ const ApplicationsSection: React.FC<ApplicationsSectionProps> = ({ studentInfo }
                             </span>
                           </div>
                           <p className="text-sm font-medium text-gray-700">{application.company}</p>
+                          <p className={`mt-1 text-xs font-medium ${application.employerDeliveryStatus === 'delivered_to_campuspe_employer' ? 'text-emerald-700' : 'text-amber-700'}`}>
+                            {application.employerDeliveryStatus === 'delivered_to_campuspe_employer'
+                              ? 'Delivered to employer in CampusPe'
+                              : 'Tracked in CampusPe · Employer connection pending · Auto-delivery enabled'}
+                          </p>
                         </div>
                         <div className="text-right ml-4">
                           {getStatusBadge(application.status)}
@@ -488,6 +395,11 @@ const ApplicationsSection: React.FC<ApplicationsSectionProps> = ({ studentInfo }
                       </div>
                     </div>
                     <p className="text-sm text-gray-600">Submitted: {formatDetailedDate(selectedApplication.appliedDate)}</p>
+                    <p className={`mt-1 text-xs font-medium ${selectedApplication.employerDeliveryStatus === 'delivered_to_campuspe_employer' ? 'text-emerald-700' : 'text-amber-700'}`}>
+                      {selectedApplication.employerDeliveryStatus === 'delivered_to_campuspe_employer'
+                        ? 'Employer received this application in CampusPe'
+                        : 'Stored and tracked in CampusPe. It will be delivered automatically when the employer connects.'}
+                    </p>
                   </div>
                 </div>
               </div>

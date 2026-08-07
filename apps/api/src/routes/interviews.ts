@@ -73,7 +73,7 @@ router.post('/create-from-application', authMiddleware, async (req: any, res: an
         }
         
         // Verify ownership
-        if (application.recruiterId.toString() !== recruiter._id.toString()) {
+        if (!application.recruiterId || application.recruiterId.toString() !== recruiter._id.toString()) {
             return res.status(403).json({ message: 'Access denied' });
         }
         

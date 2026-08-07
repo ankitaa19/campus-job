@@ -8,6 +8,13 @@ export interface ResumeMatchResult {
   suggestions: string[];
   skillsMatched: string[];
   skillsGap: string[];
+  usedFallback?: boolean;
+  hardSkillsScore: number;
+  seniorityScore: number;
+  domainScore: number;
+  experienceYearsFound: number | null;
+  experienceMatchStatus: 'EXCEEDS' | 'MATCHES' | 'UNDERQUALIFIED';
+  conciseJustification: string;
 }
 
 export interface ResumeImprovementSuggestion {
@@ -26,6 +33,10 @@ export interface ComprehensiveResumeAnalysis {
     location?: string;
     linkedIn?: string;
     github?: string;
+    portfolio?: string;
+    summary?: string;
+    dateOfBirth?: string;
+    gender?: string;
   };
   skills: Array<{
     name: string;
@@ -48,7 +59,24 @@ export interface ComprehensiveResumeAnalysis {
     startYear?: number;
     endYear?: number;
     gpa?: string;
+    grade?: string;
+    gradingType?: 'gpa' | 'percentage';
     isCompleted: boolean;
+  }>;
+  projects?: Array<{
+    name: string;
+    description?: string;
+    technologies?: string[];
+    link?: string;
+  }>;
+  certifications?: Array<{
+    name: string;
+    organization?: string;
+    year?: number;
+  }>;
+  languages?: Array<{
+    name: string;
+    proficiency?: string;
   }>;
   jobPreferences: {
     preferredRoles: string[];
@@ -68,11 +96,16 @@ export interface ComprehensiveResumeAnalysis {
     primarySkillCategory: string;
     suggestedJobCategory: string;
     analysisDate: Date;
+    provider?: string;
+    creditStatus?: 'available' | 'fallback' | 'exhausted';
+    exhaustedProviders?: string[];
+    providerWarnings?: string[];
   };
 }
 
 class AIResumeMatchingService {
   private claudeApiKey: string = '';
+  private claudeDisabled = false;
   private lastApiCall: number = 0;
   private readonly minDelayBetweenCalls = 1000; // 1 second minimum delay for Claude
 
@@ -161,19 +194,20 @@ class AIResumeMatchingService {
         
         await this.enforceRateLimit();
 
-        // Set a 10-second timeout for Claude API call
+        // Allow enough time and output space for projects, certifications and
+        // education in addition to the core resume sections.
         const claudeTimeout = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('Claude API timeout')), 10000);
+          setTimeout(() => reject(new Error('Claude API timeout')), 25000);
         });
 
         const claudePromise = axios.post(
           'https://api.anthropic.com/v1/messages',
           {
             model: 'claude-3-haiku-20240307',
-            max_tokens: 2000,
+            max_tokens: 4000,
             messages: [{
               role: 'user',
-              content: `Analyze this resume comprehensively and extract all relevant information. Return ONLY a valid JSON object with the following structure:
+      content: `Analyze this resume comprehensively and extract only information explicitly present in it. Return ONLY a valid JSON object with the following structure:
 
 {
   "personalInfo": {
@@ -182,7 +216,11 @@ class AIResumeMatchingService {
     "phone": "phone if found",
     "location": "location if found",
     "linkedIn": "LinkedIn URL if found",
-    "github": "GitHub URL if found"
+    "github": "GitHub URL if found",
+    "portfolio": "portfolio URL if found",
+    "summary": "professional summary exactly as stated",
+    "dateOfBirth": "date of birth if explicitly stated",
+    "gender": "gender if explicitly stated"
   },
   "skills": [
     {
@@ -213,9 +251,30 @@ class AIResumeMatchingService {
       "isCompleted": true
     }
   ],
+  "projects": [
+    {
+      "name": "Project Name",
+      "description": "Project description",
+      "technologies": ["technology explicitly mentioned"],
+      "link": "project URL if found"
+    }
+  ],
+  "certifications": [
+    {
+      "name": "Certification Name",
+      "organization": "Issuing organization",
+      "year": 2024
+    }
+  ],
+  "languages": [
+    {
+      "name": "Language",
+      "proficiency": "proficiency if explicitly stated"
+    }
+  ],
   "jobPreferences": {
-    "preferredRoles": ["inferred job roles based on experience"],
-    "preferredIndustries": ["inferred industries based on background"],
+    "preferredRoles": ["roles explicitly stated in the resume"],
+    "preferredIndustries": ["industries explicitly stated in the resume"],
     "experienceLevel": "entry|mid|senior|executive",
     "workMode": "remote|onsite|hybrid|any"
   },
@@ -231,7 +290,13 @@ class AIResumeMatchingService {
 Resume Text:
 ${resumeText}
 
-IMPORTANT: Return ONLY the JSON object, no additional text or formatting.`
+IMPORTANT:
+- Never invent, infer, assume, or supply placeholder values.
+- For a missing scalar value use null or an empty string.
+- For a missing section use an empty array.
+- Do not infer job preferences from skills or experience.
+- Preserve the resume's facts exactly.
+- Return ONLY the JSON object, no additional text or formatting.`
             }]
           },
           {
@@ -240,7 +305,7 @@ IMPORTANT: Return ONLY the JSON object, no additional text or formatting.`
               'x-api-key': this.claudeApiKey,
               'anthropic-version': '2023-06-01'
             },
-            timeout: 10000
+            timeout: 25000
           }
         );
 
@@ -252,7 +317,37 @@ IMPORTANT: Return ONLY the JSON object, no additional text or formatting.`
           console.log('📄 AI Response preview:', aiResponseText.substring(0, 200) + '...');
 
           try {
-            const aiAnalysis = JSON.parse(aiResponseText);
+            const cleanedResponse = aiResponseText
+              .replace(/^```(?:json)?\s*/i, '')
+              .replace(/\s*```$/, '')
+              .trim();
+            const aiAnalysis = JSON.parse(cleanedResponse);
+            aiAnalysis.personalInfo = aiAnalysis.personalInfo || {};
+            aiAnalysis.personalInfo.summary = aiAnalysis.personalInfo.summary || aiAnalysis.summary || aiAnalysis.bio || '';
+            aiAnalysis.skills = Array.isArray(aiAnalysis.skills) ? aiAnalysis.skills : [];
+            aiAnalysis.experience = Array.isArray(aiAnalysis.experience) ? aiAnalysis.experience : [];
+            aiAnalysis.education = Array.isArray(aiAnalysis.education)
+              ? aiAnalysis.education
+              : (Array.isArray(aiAnalysis.qualifications) ? aiAnalysis.qualifications : []);
+            aiAnalysis.projects = Array.isArray(aiAnalysis.projects) ? aiAnalysis.projects : [];
+            aiAnalysis.certifications = Array.isArray(aiAnalysis.certifications)
+              ? aiAnalysis.certifications
+              : (Array.isArray(aiAnalysis.achievements) ? aiAnalysis.achievements : []);
+            if (typeof aiAnalysis.languages === 'string') {
+              aiAnalysis.languages = aiAnalysis.languages.split(/[,;|]/).map((name: string) => ({ name: name.trim(), proficiency: '' })).filter((item: any) => item.name);
+            } else {
+              aiAnalysis.languages = Array.isArray(aiAnalysis.languages) ? aiAnalysis.languages : [];
+            }
+
+            // AI responses sometimes omit a section even though it is present in
+            // the resume. Fill only blank sections using deterministic parsing.
+            const localAnalysis = this.comprehensiveFallbackAnalysis(resumeText);
+            if (!aiAnalysis.personalInfo.summary) aiAnalysis.personalInfo.summary = localAnalysis.personalInfo.summary || '';
+            if (!aiAnalysis.education.length) aiAnalysis.education = localAnalysis.education;
+            if (!aiAnalysis.projects.length) aiAnalysis.projects = localAnalysis.projects || [];
+            if (!aiAnalysis.certifications.length) aiAnalysis.certifications = localAnalysis.certifications || [];
+            if (!aiAnalysis.languages.length) aiAnalysis.languages = localAnalysis.languages || [];
+            aiAnalysis.analysisMetadata = aiAnalysis.analysisMetadata || {};
             aiAnalysis.analysisMetadata.analysisDate = new Date();
             aiAnalysis.analysisMetadata.extractionMethod = 'AI';
             
@@ -306,6 +401,10 @@ IMPORTANT: Return ONLY the JSON object, no additional text or formatting.`
     
     // Extract education (enhanced)
     const education = this.extractEducation(resumeText);
+
+    const projects = this.extractProjects(resumeText);
+    const certifications = this.extractCertifications(resumeText);
+    const languages = this.extractLanguages(resumeText);
     
     // Infer job preferences based on content
     const jobPreferences = this.inferJobPreferences(resumeText, skills);
@@ -319,6 +418,9 @@ IMPORTANT: Return ONLY the JSON object, no additional text or formatting.`
       skills,
       experience,
       education,
+      projects,
+      certifications,
+      languages,
       jobPreferences,
       analysisMetadata: {
         confidence: 75,
@@ -335,6 +437,8 @@ IMPORTANT: Return ONLY the JSON object, no additional text or formatting.`
       skillsFound: skills.length,
       experienceEntries: experience.length,
       educationEntries: education.length,
+      projectEntries: projects.length,
+      certificationEntries: certifications.length,
       primaryCategory: primarySkillCategory
     });
     
@@ -346,7 +450,7 @@ IMPORTANT: Return ONLY the JSON object, no additional text or formatting.`
    */
   private extractPersonalInfo(resumeText: string): ComprehensiveResumeAnalysis['personalInfo'] {
     const personalInfo: ComprehensiveResumeAnalysis['personalInfo'] = {
-      name: 'Professional'
+      name: ''
     };
 
     // Extract name (first few lines, common patterns)
@@ -387,6 +491,24 @@ IMPORTANT: Return ONLY the JSON object, no additional text or formatting.`
     const githubMatch = resumeText.match(/(?:github\.com\/)[^\s]+/i);
     if (githubMatch) {
       personalInfo.github = githubMatch[0];
+    }
+
+    const portfolioMatch = resumeText.match(/https?:\/\/(?!www\.)?[^\s]*(?:portfolio|behance|dribbble|github\.io)[^\s]*/i);
+    if (portfolioMatch) personalInfo.portfolio = portfolioMatch[0];
+
+    const summarySection = this.extractSection(resumeText, ['summary', 'professional summary', 'profile', 'about me', 'objective', 'career objective']);
+    if (summarySection) {
+      personalInfo.summary = summarySection
+        .split('\n')
+        .map(line => line.trim())
+        .filter(Boolean)
+        .map((line, index) => index === 0
+          ? line.replace(/^(summary|professional summary|profile|about me|objective|career objective)\s*:?\s*/i, '')
+          : line)
+        .filter(Boolean)
+        .slice(0, 6)
+        .join(' ')
+        .trim();
     }
 
     return personalInfo;
@@ -603,11 +725,11 @@ IMPORTANT: Return ONLY the JSON object, no additional text or formatting.`
           
           // Look for location in the same line or next line
           const locationMatch = line.match(/[|,]\s*([A-Za-z\s,]+)$/);
-          const location = locationMatch ? locationMatch[1].trim() : 'Not specified';
+          const location = locationMatch ? locationMatch[1].trim() : '';
           
           // Get job title from previous line or extract from this line
-          let title = 'Professional';
-          let company = 'Company';
+          let title = '';
+          let company = '';
           
           if (i > 0) {
             const prevLine = lines[i - 1];
@@ -669,145 +791,246 @@ IMPORTANT: Return ONLY the JSON object, no additional text or formatting.`
    * Enhanced education extraction from resume text
    */
   private extractEducation(resumeText: string): ComprehensiveResumeAnalysis['education'] {
+    const section = this.extractSection(resumeText, [
+      'education', 'educational background', 'academic background',
+      'academic qualifications', 'qualifications'
+    ]);
+    if (!section) return [];
+
+    const lines = section.split('\n')
+      .map(line => line.trim().replace(/^[-•*]\s*/, ''))
+      .filter(Boolean);
+    if (lines.length) {
+      lines[0] = lines[0].replace(/^(education|educational background|academic background|academic qualifications|qualifications)\s*:?\s*/i, '');
+      if (!lines[0]) lines.shift();
+    }
+
     const education: ComprehensiveResumeAnalysis['education'] = [];
-    const lines = resumeText.split('\n').map(line => line.trim()).filter(line => line.length > 0);
-    
-    let currentEducation: any = null;
-    let inEducationSection = false;
-    
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      const lineLower = line.toLowerCase();
-      
-      // Check if we're entering education section
-      if (lineLower === 'education' || 
-          lineLower.includes('educational background') || 
-          lineLower.includes('academic') ||
-          lineLower.includes('qualifications')) {
-        inEducationSection = true;
+    let current: any = null;
+    const degreePattern = /\b(B\.?\s?Tech|B\.?\s?E\.?|Bachelor(?:'s)? of (?:Engineering|Technology|Science|Commerce|Arts|Business Administration|Computer Applications)|Bachelor(?:'s)? Degree|B\.?\s?Sc\.?|B\.?\s?Com\.?|B\.?\s?A\.?|BBA|BCA|M\.?\s?Tech|M\.?\s?E\.?|Master(?:'s)? of (?:Engineering|Technology|Science|Commerce|Arts|Business Administration|Computer Applications)|Master(?:'s)? Degree|M\.?\s?Sc\.?|M\.?\s?Com\.?|M\.?\s?A\.?|MBA|MCA|Ph\.?\s?D\.?|Doctorate|Diploma|HSC|SSC|12th|10th)\b/i;
+    const institutionPattern = /\b(university|college|institute|school|academy|polytechnic)\b/i;
+    const yearRangePattern = /\b((?:19|20)\d{2})\s*[-–—]\s*((?:19|20)\d{2}|present|current|pursuing)\b/i;
+    const singleYearPattern = /\b((?:19|20)\d{2})\b/;
+    const scorePattern = /\b(?:CGPA|GPA)\s*[:\-]?\s*(\d+(?:\.\d+)?)|\b(\d+(?:\.\d+)?)\s*%/i;
+
+    const finishCurrent = () => {
+      if (current && (current.degree || current.institution)) education.push(current);
+      current = null;
+    };
+
+    for (const line of lines) {
+      const degreeMatch = line.match(degreePattern);
+      if (degreeMatch) {
+        const previousInstitution = current && !current.degree ? current.institution : '';
+        if (current?.degree) finishCurrent();
+        const degree = degreeMatch[0].replace(/\s+/g, ' ').trim();
+        const institutionMatch = line.match(/(?:^|[,|])\s*([^,|]*(?:university|college|institute|school|academy|polytechnic)[^,|]*)/i);
+        let field = line
+          .replace(degreeMatch[0], '')
+          .replace(yearRangePattern, '')
+          .replace(scorePattern, '')
+          .replace(institutionMatch?.[0] || '', '')
+          .trim()
+          .replace(/^(?:in|of|[-–—|,:.])+\s*/i, '')
+          .replace(/\s*[|,]\s*(?:CGPA|GPA|Percentage).*$/i, '')
+          .replace(/[|,:.\s]+$/, '')
+          .trim();
+        if (institutionPattern.test(field)) field = '';
+        current = {
+          degree,
+          field,
+          institution: institutionMatch?.[1]?.trim() || previousInstitution || '',
+          startYear: undefined,
+          endYear: undefined,
+          gpa: undefined,
+          isCompleted: true
+        };
+      }
+
+      if (!current && institutionPattern.test(line)) {
+        current = { degree: '', field: '', institution: '', startYear: undefined, endYear: undefined, gpa: undefined, isCompleted: true };
+      }
+      if (!current) continue;
+
+      if (institutionPattern.test(line)) {
+        const institutionMatch = line.match(/(?:^|[,|])\s*([^,|]*(?:university|college|institute|school|academy|polytechnic)[^,|]*)/i);
+        current.institution = institutionMatch?.[1]?.trim() || line
+          .replace(yearRangePattern, '')
+          .replace(scorePattern, '')
+          .replace(/[|,\s]+$/, '')
+          .trim();
+      }
+
+      const yearRange = line.match(yearRangePattern);
+      if (yearRange) {
+        current.startYear = Number(yearRange[1]);
+        const endValue = yearRange[2].toLowerCase();
+        current.isCompleted = !['present', 'current', 'pursuing'].includes(endValue);
+        current.endYear = current.isCompleted ? Number(yearRange[2]) : undefined;
+      } else {
+        const singleYear = line.match(singleYearPattern);
+        if (singleYear && !current.endYear) current.endYear = Number(singleYear[1]);
+      }
+
+      const score = line.match(scorePattern);
+      if (score?.[1]) {
+        current.gpa = score[1];
+        current.gradingType = 'gpa';
+      } else if (score?.[2]) {
+        current.grade = score[2];
+        current.gradingType = 'percentage';
+      }
+    }
+
+    finishCurrent();
+    return education;
+  }
+
+  private extractProjects(resumeText: string): NonNullable<ComprehensiveResumeAnalysis['projects']> {
+    const section = this.extractSection(resumeText, ['projects', 'personal projects', 'academic projects', 'key projects']);
+    if (!section) return [];
+
+    const lines = section.split('\n').map(line => line.trim()).filter(Boolean);
+    if (lines.length) {
+      lines[0] = lines[0].replace(/^(projects?|personal projects|academic projects|key projects)\s*:?\s*/i, '');
+      if (!lines[0]) lines.shift();
+    }
+
+    const projects: NonNullable<ComprehensiveResumeAnalysis['projects']> = [];
+    let current: any = null;
+    const technologyNames = [
+      'JavaScript', 'TypeScript', 'React', 'Angular', 'Vue', 'Node.js', 'Express',
+      'Python', 'Django', 'Flask', 'Java', 'Spring Boot', 'C++', 'C#', '.NET',
+      'MongoDB', 'MySQL', 'PostgreSQL', 'Firebase', 'AWS', 'Azure', 'Docker',
+      'Kubernetes', 'HTML', 'CSS', 'Tailwind', 'Git'
+    ];
+    const finishProject = () => {
+      if (!current?.name) return;
+      const projectText = `${current.name} ${current.description}`;
+      const inferredTechnologies = technologyNames.filter(technology => {
+        const escapedTechnology = technology.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        return new RegExp(`(^|[^A-Za-z0-9])${escapedTechnology}([^A-Za-z0-9]|$)`, 'i').test(projectText);
+      });
+      current.technologies = Array.from(new Set([...(current.technologies || []), ...inferredTechnologies]));
+      projects.push(current);
+      current = null;
+    };
+
+    for (const line of lines) {
+      const bullet = /^[-•*]\s*/.test(line);
+      const cleanedLine = line.replace(/^[-•*]\s*/, '').trim();
+      const inlineProject = cleanedLine.match(/^(.{2,80}?)\s+[-–—]\s+((?:built|developed|created|designed|implemented)\b.+)$/i);
+      const technologiesMatch = cleanedLine.match(/(?:technologies|tech stack|built with|using)\s*:?\s*(.+)/i);
+      const linkMatch = line.match(/https?:\/\/\S+/i);
+      const looksLikeTitle = !bullet && cleanedLine.length <= 100 && !/[.!?]$/.test(cleanedLine) && !technologiesMatch;
+
+      if (inlineProject) {
+        finishProject();
+        current = { name: inlineProject[1].trim(), description: inlineProject[2].trim(), technologies: [], link: linkMatch?.[0] || '' };
+      } else if (looksLikeTitle && (!current || Boolean(current.description))) {
+        finishProject();
+        const name = cleanedLine
+          .replace(linkMatch?.[0] || '', '')
+          .replace(/[|:–—\-\s]+$/, '')
+          .trim();
+        current = { name, description: '', technologies: [], link: linkMatch?.[0] || '' };
+      } else if (current) {
+        if (technologiesMatch) {
+          current.technologies = technologiesMatch[1].split(/[,|]|\s+and\s+/i).map((item: string) => item.trim()).filter(Boolean);
+          if (!/^(?:technologies|tech stack)\s*:/i.test(cleanedLine)) {
+            current.description = [current.description, cleanedLine].filter(Boolean).join(' ');
+          }
+        } else {
+          current.description = [current.description, cleanedLine].filter(Boolean).join(' ');
+        }
+        if (linkMatch) current.link = linkMatch[0];
+      }
+    }
+    finishProject();
+    return projects;
+  }
+
+  private extractCertifications(resumeText: string): NonNullable<ComprehensiveResumeAnalysis['certifications']> {
+    const entries: NonNullable<ComprehensiveResumeAnalysis['certifications']> = [];
+    const achievementHeading = /^(certifications?(?:\s*(?:&|and)\s*licenses?)?|licenses?(?:\s*(?:&|and)\s*certifications?)?|certificates?|achievements?(?:\s*(?:&|and)\s*awards?)?|awards?(?:\s*(?:&|and)\s*achievements?)?)\s*(?::\s*(.*))?$/i;
+    const otherHeading = /^(?:summary|professional summary|profile|objective|career objective|experience|work experience|education|educational background|academic background|academic qualifications|qualifications|skills|technical skills|projects?|personal projects|academic projects|key projects|languages?|language skills)\s*:?/i;
+    let activeHeading = '';
+
+    for (const rawLine of resumeText.split('\n')) {
+      let line = rawLine.trim().replace(/^[-•*]\s*/, '');
+      if (!line) continue;
+      const headingMatch = line.match(achievementHeading);
+      if (headingMatch) {
+        activeHeading = headingMatch[1].toLowerCase();
+        line = (headingMatch[2] || '').trim();
+        if (!line) continue;
+      } else if (otherHeading.test(line)) {
+        activeHeading = '';
         continue;
       }
-      
-      // Check if we're leaving education section
-      if (inEducationSection && (
-          lineLower.includes('experience') || 
-          lineLower.includes('skills') || 
-          lineLower.includes('projects') ||
-          lineLower.includes('certificates') ||
-          lineLower.includes('achievements'))) {
-        // Save current education before leaving
-        if (currentEducation) {
-          education.push(currentEducation);
-          currentEducation = null;
-        }
-        break;
-      }
-      
-      if (inEducationSection) {
-        const datePattern = /(\d{4})\s*[-–—]\s*(\d{4}|present|current|\d{4})/i;
-        
-        // Look for degree patterns
-        const degreePatterns = [
-          /^(b\.?tech|bachelor|b\.?sc|b\.?com|b\.?a|bs|ba|btech|bsc|bcom)\s*(.*)$/i,
-          /^(m\.?tech|master|m\.?sc|m\.?com|m\.?a|ms|ma|mtech|msc|mcom|mba)\s*(.*)$/i,
-          /^(ph\.?d|doctorate|doctoral)\s*(.*)$/i,
-          /^(diploma|certificate|associate)\s*(.*)$/i
-        ];
-        
-        // Check if this line contains a degree
-        let degreeFound = false;
-        for (const pattern of degreePatterns) {
-          const match = line.match(pattern);
-          if (match) {
-            // Save previous education
-            if (currentEducation) {
-              education.push(currentEducation);
-            }
-            
-            let degree = match[1];
-            let field = match[2] ? match[2].trim() : 'General Studies';
-            
-            // Normalize degree names
-            if (degree.toLowerCase().includes('tech') || degree.toLowerCase() === 'btech') {
-              degree = 'B.Tech';
-            } else if (degree.toLowerCase().includes('bachelor') || degree.toLowerCase().startsWith('b.')) {
-              degree = 'Bachelor\'s Degree';
-            } else if (degree.toLowerCase().includes('master') || degree.toLowerCase().startsWith('m.')) {
-              degree = 'Master\'s Degree';
-            } else if (degree.toLowerCase().includes('phd') || degree.toLowerCase().includes('doctorate')) {
-              degree = 'PhD';
-            }
-            
-            // Clean up field name
-            if (field.toLowerCase().includes('cse') || field.toLowerCase().includes('computer science')) {
-              field = 'Computer Science Engineering';
-            } else if (field.toLowerCase().includes('engineering')) {
-              field = field + ' Engineering';
-            }
-            
-            currentEducation = {
-              degree: degree,
-              field: field,
-              institution: 'Educational Institution', // Will be filled in next
-              startYear: null,
-              endYear: null,
-              gpa: null,
-              isCompleted: true
-            };
-            
-            degreeFound = true;
-            break;
-          }
-        }
-        
-        // If current education exists, try to extract institution and dates
-        if (currentEducation && !degreeFound) {
-          // Look for institution name (usually all caps or proper case)
-          if (line.match(/^[A-Z\s&\.]+$/) && line.length > 5) {
-            currentEducation.institution = line;
-          }
-          
-          // Look for dates
-          const dateMatch = line.match(datePattern);
-          if (dateMatch) {
-            currentEducation.startYear = parseInt(dateMatch[1]);
-            if (dateMatch[2].toLowerCase().includes('present') || dateMatch[2].toLowerCase().includes('current')) {
-              currentEducation.endYear = new Date().getFullYear();
-              currentEducation.isCompleted = false;
-            } else {
-              currentEducation.endYear = parseInt(dateMatch[2]);
-            }
-          }
-          
-          // Look for single year (graduation year)
-          const singleYearMatch = line.match(/^(\d{4})$/);
-          if (singleYearMatch) {
-            currentEducation.endYear = parseInt(singleYearMatch[1]);
-            currentEducation.startYear = currentEducation.endYear - 4; // Assume 4-year program
-          }
-          
-          // Look for date range in same line as institution
-          const institutionWithDates = line.match(/^(.+?)\s+(\d{4})\s*[-–—]\s*(\d{4}|\w+)$/);
-          if (institutionWithDates) {
-            currentEducation.institution = institutionWithDates[1].trim();
-            currentEducation.startYear = parseInt(institutionWithDates[2]);
-            if (institutionWithDates[3].toLowerCase().includes('present')) {
-              currentEducation.endYear = new Date().getFullYear();
-              currentEducation.isCompleted = false;
-            } else {
-              currentEducation.endYear = parseInt(institutionWithDates[3]);
-            }
-          }
+      if (!activeHeading || line.length < 3) continue;
+      if (/^(?:&|and)?\s*(?:achievements?|awards?|certifications?|certificates?|licenses?)\s*:?$/i.test(line)) continue;
+
+      const year = line.match(/\b(19|20)\d{2}\b/)?.[0];
+      let organization = line.match(/(?:by|from|issued by)\s+([^,;|]+)/i)?.[1]?.trim() || '';
+      let name = line
+        .replace(/(?:by|from|issued by)\s+[^,;|]+/i, '')
+        .replace(/\b(19|20)\d{2}\b/g, '')
+        .replace(/[|,;\-–—]+\s*$/, '')
+        .trim();
+      if (!organization && /certification|certificate|license/i.test(activeHeading)) {
+        const parts = name.split(/\s+[-–—]\s+/).map(part => part.trim()).filter(Boolean);
+        if (parts.length > 1) {
+          name = parts.shift() || name;
+          organization = parts.join(' - ');
         }
       }
+      if (name && !entries.some(entry => entry.name.toLowerCase() === name.toLowerCase())) {
+        entries.push({ name, organization, year: year ? Number(year) : undefined });
+      }
     }
-    
-    // Add the last education
-    if (currentEducation) {
-      education.push(currentEducation);
+    return entries;
+  }
+
+  private extractLanguages(resumeText: string): NonNullable<ComprehensiveResumeAnalysis['languages']> {
+    const section = this.extractSection(resumeText, ['languages', 'language skills']);
+    if (!section) return [];
+
+    const languageDefinitions = [
+      { name: 'English', aliases: ['English'] }, { name: 'Hindi', aliases: ['Hindi'] },
+      { name: 'Marathi', aliases: ['Marathi'] }, { name: 'German', aliases: ['German', 'Germany'] },
+      { name: 'Gujarati', aliases: ['Gujarati'] }, { name: 'Kannada', aliases: ['Kannada'] },
+      { name: 'Tamil', aliases: ['Tamil'] }, { name: 'Telugu', aliases: ['Telugu'] },
+      { name: 'Malayalam', aliases: ['Malayalam'] }, { name: 'Bengali', aliases: ['Bengali', 'Bangla'] },
+      { name: 'Punjabi', aliases: ['Punjabi'] }, { name: 'Urdu', aliases: ['Urdu'] },
+      { name: 'Odia', aliases: ['Odia', 'Oriya'] }, { name: 'Assamese', aliases: ['Assamese'] },
+      { name: 'Sanskrit', aliases: ['Sanskrit'] }, { name: 'French', aliases: ['French'] },
+      { name: 'Spanish', aliases: ['Spanish'] }, { name: 'Italian', aliases: ['Italian'] },
+      { name: 'Portuguese', aliases: ['Portuguese'] }, { name: 'Russian', aliases: ['Russian'] },
+      { name: 'Arabic', aliases: ['Arabic'] }, { name: 'Japanese', aliases: ['Japanese'] },
+      { name: 'Korean', aliases: ['Korean'] }, { name: 'Chinese', aliases: ['Chinese'] },
+      { name: 'Mandarin', aliases: ['Mandarin'] }
+    ];
+    const normalizedSection = section.replace(/^(languages?|language skills)\s*:?\s*/i, '');
+    const aliasToName = new Map<string, string>();
+    for (const definition of languageDefinitions) {
+      for (const alias of definition.aliases) aliasToName.set(alias.toLowerCase(), definition.name);
     }
-    
-    return education;
+    const languagePattern = new RegExp(`\\b(${Array.from(aliasToName.keys()).sort((a, b) => b.length - a.length).join('|')})\\b`, 'gi');
+    const matches = Array.from(normalizedSection.matchAll(languagePattern));
+    const results: NonNullable<ComprehensiveResumeAnalysis['languages']> = [];
+
+    matches.forEach((match, index) => {
+      const name = aliasToName.get(match[0].toLowerCase()) || match[0];
+      if (results.some(language => language.name === name)) return;
+      const segmentStart = (match.index || 0) + match[0].length;
+      const segmentEnd = matches[index + 1]?.index ?? normalizedSection.length;
+      const segment = normalizedSection.substring(segmentStart, segmentEnd).split(/[,;\n|]/)[0];
+      const proficiency = segment.match(/native|fluent|professional(?: working)?|proficient|intermediate|conversational|basic|beginner|advanced/i)?.[0] || '';
+      results.push({ name, proficiency });
+    });
+
+    return results;
   }
 
   /**
@@ -921,32 +1144,50 @@ IMPORTANT: Return ONLY the JSON object, no additional text or formatting.`
    * Extract a specific section from resume text
    */
   private extractSection(text: string, sectionNames: string[]): string | null {
-    const lowerText = text.toLowerCase();
-    
+    let sectionIndex = -1;
+    let matchedLength = 0;
     for (const sectionName of sectionNames) {
-      const sectionIndex = lowerText.indexOf(sectionName.toLowerCase());
-      if (sectionIndex !== -1) {
-        // Find the end of this section (next major section or end of text)
-        const nextSectionIndex = this.findNextSectionIndex(lowerText, sectionIndex + sectionName.length);
-        return text.substring(sectionIndex, nextSectionIndex);
+      const escapedName = sectionName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const match = new RegExp(`(?:^|\\n)\\s*(${escapedName})\\s*:?`, 'i').exec(text);
+      if (match) {
+        const headingIndex = match.index + match[0].indexOf(match[1]);
+        if (sectionIndex === -1 || headingIndex < sectionIndex) {
+          sectionIndex = headingIndex;
+          matchedLength = match[1].length;
+        }
       }
     }
-    
-    return null;
+    if (sectionIndex === -1) return null;
+
+    const nextSectionIndex = this.findNextSectionIndex(text, sectionIndex + matchedLength);
+    return text.substring(sectionIndex, nextSectionIndex);
   }
 
   /**
    * Find the index of the next major section
    */
   private findNextSectionIndex(text: string, startIndex: number): number {
-    const majorSections = ['experience', 'education', 'skills', 'projects', 'certifications'];
+    const majorSections = [
+      'summary', 'professional summary', 'profile', 'objective',
+      'about me', 'career objective', 'experience', 'work experience',
+      'education', 'educational background', 'academic background',
+      'academic qualifications', 'qualifications',
+      'skills', 'technical skills', 'projects', 'personal projects',
+      'academic projects', 'key projects', 'certifications and licenses',
+      'licenses and certifications', 'achievements and awards', 'awards and achievements',
+      'certifications', 'certificates', 'licenses', 'achievements', 'awards',
+      'languages', 'language skills'
+    ];
     
     let nextIndex = text.length;
     
     for (const section of majorSections) {
-      const index = text.indexOf(section, startIndex);
-      if (index !== -1 && index < nextIndex) {
-        nextIndex = index;
+      const escapedSection = section.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const remainingText = text.substring(startIndex);
+      const match = new RegExp(`(?:^|\\n)\\s*(${escapedSection})\\s*:?`, 'i').exec(remainingText);
+      if (match) {
+        const index = startIndex + match.index + match[0].indexOf(match[1]);
+        if (index < nextIndex) nextIndex = index;
       }
     }
     
@@ -1002,30 +1243,38 @@ IMPORTANT: Return ONLY the JSON object, no additional text or formatting.`
     console.log('🔍 Starting resume-job match analysis...');
     
     try {
-      if (!this.claudeApiKey) {
+      if (!this.claudeApiKey || this.claudeDisabled) {
         console.log('⚠️ No Claude API key available, using fallback matching');
         return this.generateFallbackMatch(resumeText, jobDescription);
       }
       
       await this.enforceRateLimit();
       
-      const prompt = `You are a resume analyzer. Analyze this resume against the job description and return ONLY a valid JSON response.
+      const prompt = `You are an advanced, industry-grade Applicant Tracking System matching engine. Evaluate the resume against the job description objectively, like an elite technical recruiter.
 
-Resume:
-${resumeText}
+Evaluation criteria, based only on evidence in the resume:
+1. Hard Skills Match (40%): contextual evidence of mandatory technologies, methodologies, and frameworks.
+2. Experience & Seniority Match (30%): relevant years, actual responsibilities, impact and required seniority.
+3. Domain & Context Match (30%): relevant industry background and role trajectory.
 
-Job Description:
+Disregard hidden keywords and context-free keyword lists. Infer seniority from responsibility and impact, not title alone. Return ONLY valid JSON with this exact schema and no markdown:
+{
+  "hard_skills_score": 0,
+  "seniority_score": 0,
+  "domain_score": 0,
+  "final_match_score": 0,
+  "experience_years_found": null,
+  "experience_match_status": "UNDERQUALIFIED",
+  "matched_core_skills": [],
+  "missing_critical_skills": [],
+  "concise_justification": "Exactly two concise sentences."
+}
+
+[JOB DESCRIPTION]
 ${jobDescription}
 
-CRITICAL: Return ONLY the JSON object with no explanation, no markdown formatting, no additional text. Just pure JSON:
-
-{
-  "matchScore": 75,
-  "explanation": "Good match with relevant experience...",
-  "suggestions": ["Add specific project examples", "Highlight leadership experience"],
-  "skillsMatched": ["JavaScript", "React", "Node.js"],
-  "skillsGap": ["Docker", "AWS", "TypeScript"]
-}`;
+[RESUME]
+${resumeText}`;
 
       const response = await axios.post(
         'https://api.anthropic.com/v1/messages',
@@ -1062,13 +1311,25 @@ CRITICAL: Return ONLY the JSON object with no explanation, no markdown formattin
           
           const result = JSON.parse(jsonStr);
           
-          // Validate that required fields exist
-          if (typeof result.matchScore !== 'number' || !result.explanation) {
+          const hardSkillsScore = this.validScore(result.hard_skills_score);
+          const seniorityScore = this.validScore(result.seniority_score);
+          const domainScore = this.validScore(result.domain_score);
+          if ([hardSkillsScore, seniorityScore, domainScore].some(score => score === undefined) || !result.concise_justification) {
             throw new Error('Invalid JSON structure from Claude');
           }
-          
-          console.log('✅ Claude analysis successful - Match Score:', result.matchScore);
-          return result;
+          const matchScore = Math.round(hardSkillsScore! * 0.4 + seniorityScore! * 0.3 + domainScore! * 0.3);
+          const skillsMatched = Array.isArray(result.matched_core_skills) ? result.matched_core_skills.map(String) : [];
+          const skillsGap = Array.isArray(result.missing_critical_skills) ? result.missing_critical_skills.map(String) : [];
+          const status = ['EXCEEDS', 'MATCHES', 'UNDERQUALIFIED'].includes(result.experience_match_status) ? result.experience_match_status : 'UNDERQUALIFIED';
+          console.log('✅ Claude analysis successful - Match Score:', matchScore);
+          return {
+            matchScore, hardSkillsScore: hardSkillsScore!, seniorityScore: seniorityScore!, domainScore: domainScore!,
+            experienceYearsFound: Number.isFinite(Number(result.experience_years_found)) ? Math.max(0, Math.round(Number(result.experience_years_found))) : null,
+            experienceMatchStatus: status,
+            conciseJustification: String(result.concise_justification),
+            explanation: String(result.concise_justification), suggestions: skillsGap.slice(0, 4).map((skill: string) => `Develop or demonstrate ${skill} in a relevant project.`),
+            skillsMatched, skillsGap
+          };
         } catch (parseError) {
           console.error('❌ Failed to parse Claude response:', parseError);
           console.error('Raw response:', response.data.content[0].text);
@@ -1081,6 +1342,7 @@ CRITICAL: Return ONLY the JSON object with no explanation, no markdown formattin
       
       if (error.response?.status === 401) {
         console.error('🚫 Authentication failed - please check your Claude API key');
+        this.claudeDisabled = true;
       }
     }
 
@@ -1108,7 +1370,13 @@ CRITICAL: Return ONLY the JSON object with no explanation, no markdown formattin
     );
     
     // Calculate basic match score
-    const matchScore = Math.min(100, Math.round((matchingKeywords.length / Math.max(jobKeywords.length, 1)) * 100));
+    const hardSkillsScore = Math.min(100, Math.round((matchingKeywords.length / Math.max(jobKeywords.length, 1)) * 100));
+    const yearsPattern = /\b(\d{1,2})\s*(?:\+|years?)\b/gi;
+    const resumeYears = Math.max(0, ...Array.from(resumeText.matchAll(yearsPattern), match => Number(match[1]) || 0));
+    const requiredYears = Math.max(0, ...Array.from(jobDescription.matchAll(yearsPattern), match => Number(match[1]) || 0));
+    const seniorityScore = requiredYears ? Math.min(100, Math.round(resumeYears / requiredYears * 100)) : resumeYears ? 70 : 25;
+    const domainScore = Math.round(hardSkillsScore * 0.55 + seniorityScore * 0.45);
+    const matchScore = Math.round(hardSkillsScore * 0.4 + seniorityScore * 0.3 + domainScore * 0.3);
     
     // Generate basic suggestions
     const suggestions = [
@@ -1126,8 +1394,18 @@ CRITICAL: Return ONLY the JSON object with no explanation, no markdown formattin
       explanation: `Based on keyword analysis, your resume has a ${matchScore}% match with this job. ${matchingKeywords.length} key terms align with the job requirements.`,
       suggestions,
       skillsMatched,
-      skillsGap
+      skillsGap,
+      usedFallback: true,
+      hardSkillsScore, seniorityScore, domainScore,
+      experienceYearsFound: resumeYears || null,
+      experienceMatchStatus: resumeYears > requiredYears + 1 ? 'EXCEEDS' : resumeYears >= requiredYears ? 'MATCHES' : 'UNDERQUALIFIED',
+      conciseJustification: `Core skills scored ${hardSkillsScore}%, while relevant seniority scored ${seniorityScore}%. Domain and role-context alignment scored ${domainScore}%, producing a strict weighted match of ${matchScore}%.`
     };
+  }
+
+  private validScore(value: unknown): number | undefined {
+    const score = Number(value);
+    return Number.isFinite(score) && score >= 0 && score <= 100 ? Math.round(score) : undefined;
   }
 
   /**

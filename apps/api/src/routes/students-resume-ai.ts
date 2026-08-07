@@ -7,6 +7,9 @@ import authMiddleware from '../middleware/auth';
 import { Student } from '../models/Student';
 import pdfParse from 'pdf-parse';
 import AIResumeMatchingService from '../services/ai-resume-matching';
+import BunnyStorageService from '../services/bunny-storage.service';
+import { createFeatureVector } from '../services/job-intelligence';
+import CompactResumeExtractor, { extractResumeContacts } from '../services/compact-resume-extractor';
 
 const router = express.Router();
 
@@ -212,12 +215,12 @@ async function analyzeResumeWithAI(resumeText: string): Promise<{ success: boole
   try {
     console.log('🤖 Starting AI analysis with aggressive timeout protection...');
     
-    // Set a 5-second timeout for AI analysis (very aggressive)
+    // Comprehensive extraction needs enough time for all resume sections.
     const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('AI analysis timeout - falling back to local analysis')), 10000);
+      setTimeout(() => reject(new Error('AI analysis timeout - falling back to local analysis')), 30000);
     });
     
-    const analysisPromise = AIResumeMatchingService.analyzeCompleteResume(resumeText);
+    const analysisPromise = CompactResumeExtractor.analyze(resumeText);
     
     // Race between analysis and timeout
     const aiResponse = await Promise.race([analysisPromise, timeoutPromise]);
@@ -240,6 +243,32 @@ async function analyzeResumeWithAI(resumeText: string): Promise<{ success: boole
     
     return { success: false, error: error instanceof Error ? error.message : 'AI analysis failed' };
   }
+}
+
+function parseResumeDate(value: unknown, endOfPeriod = false): Date | undefined {
+  if (!value || value instanceof Date && isNaN(value.getTime())) return undefined;
+  if (value instanceof Date) return value;
+  const raw = String(value).trim();
+  if (!raw || /^(unknown|present|current|ongoing|now)$/i.test(raw)) return undefined;
+  const yearMonth = raw.match(/\b((?:19|20)\d{2})[-/.](0?[1-9]|1[0-2])\b/);
+  const monthYear = raw.match(/\b(0?[1-9]|1[0-2])[-/.]((?:19|20)\d{2})\b/);
+  const yearOnly = raw.match(/\b((?:19|20)\d{2})\b/);
+  let year: number | undefined;
+  let month: number | undefined;
+  if (yearMonth) { year = Number(yearMonth[1]); month = Number(yearMonth[2]) - 1; }
+  else if (monthYear) { year = Number(monthYear[2]); month = Number(monthYear[1]) - 1; }
+  else {
+    const parsed = new Date(`1 ${raw}`);
+    if (!isNaN(parsed.getTime()) && yearOnly) { year = parsed.getFullYear(); month = parsed.getMonth(); }
+    else if (yearOnly) { year = Number(yearOnly[1]); month = endOfPeriod ? 11 : 0; }
+  }
+  if (year == null || month == null) return undefined;
+  return endOfPeriod ? new Date(year, month + 1, 0) : new Date(year, month, 1);
+}
+
+function resumeYear(value: unknown): number | undefined {
+  const match = String(value || '').match(/\b((?:19|20)\d{2})\b/);
+  return match ? Number(match[1]) : undefined;
 }
 
 // ============================================================
@@ -657,23 +686,24 @@ function createEnhancedFallbackAnalysis(resumeText: string): any {
   
   return {
     personalInfo: {
-      name: personalInfo.name || 'Professional',
+      name: personalInfo.name || null,
       email: personalInfo.email || null,
       phone: personalInfo.phone || null,
       linkedIn: personalInfo.linkedIn || null,
       github: personalInfo.github || null
     },
-    skills: basicSkills.length > 0 ? basicSkills : [
-      { name: 'Communication', level: 'intermediate', category: 'soft' },
-      { name: 'Problem Solving', level: 'intermediate', category: 'soft' },
-      { name: 'Teamwork', level: 'intermediate', category: 'soft' }
-    ],
-    skillsCount: basicSkills.length || 3,
+    skills: basicSkills,
+    skillsCount: basicSkills.length,
     experience: experience,
     experienceCount: experience.length,
     education: education,
     educationCount: education.length,
-    jobPreferences: jobPreferences,
+    jobPreferences: {
+      preferredRoles: [],
+      preferredIndustries: [],
+      experienceLevel: experience.length > 0 ? jobPreferences.experienceLevel : null,
+      workMode: null
+    },
     analysisMetadata: {
       confidence: 80, // Higher confidence for enhanced analysis
       extractionMethod: 'enhanced-fallback',
@@ -1043,6 +1073,10 @@ router.post('/analyze-resume-ai', authMiddleware, upload.single('resume'), async
       });
     }
 
+    // Contact details are detected locally at zero token cost for validation
+    // only. Registration-owned email and phone are never overwritten.
+    const detectedResumeContacts = extractResumeContacts(resumeText);
+
     // Find or create student record
     let student = await Student.findOne({ userId: user._id }) as any;
     
@@ -1050,22 +1084,55 @@ router.post('/analyze-resume-ai', authMiddleware, upload.single('resume'), async
       console.log('👤 Creating new student profile...');
       student = new Student({
         userId: user._id,
-        firstName: user.name?.split(' ')[0] || 'Student',
+        firstName: user.name?.split(' ')[0] || user.firstName || '',
         lastName: user.name?.split(' ')[1] || '',
-        email: user.email,
-        collegeId: new mongoose.Types.ObjectId(),
-        studentId: `STU${Date.now()}`,
-        enrollmentYear: new Date().getFullYear(),
+        phoneNumber: user.phone || '',
+        education: [],
+        experience: [],
+        skills: [],
+        jobPreferences: { jobTypes: [], preferredLocations: [], workMode: 'any' },
         isActive: true
       });
+    }
+
+    // Bunny.net is paused by default. Set ENABLE_BUNNY_RESUME_STORAGE=true to
+    // restore cloud uploads without changing this flow again.
+    const useBunnyStorage = process.env.ENABLE_BUNNY_RESUME_STORAGE === 'true';
+    let resumeStorageUrl = filePath;
+    let storedFileName = req.file.filename;
+
+    if (useBunnyStorage) {
+      console.log('☁️ Uploading original resume to Bunny.net...');
+      const resumeBuffer = fs.readFileSync(filePath);
+      const bunnyUpload = await BunnyStorageService.uploadPDFWithRetry(
+        resumeBuffer,
+        req.file.originalname,
+        student._id.toString(),
+        3
+      );
+
+      if (!bunnyUpload.success || !bunnyUpload.url) {
+        console.error('❌ Bunny.net resume upload failed:', bunnyUpload.error);
+        try { fs.unlinkSync(filePath); } catch {}
+        return res.status(502).json({
+          success: false,
+          error: 'Resume storage failed. Please try again.',
+          details: bunnyUpload.error
+        });
+      }
+      resumeStorageUrl = bunnyUpload.url;
+      storedFileName = bunnyUpload.fileName || req.file.filename;
+      console.log('✅ Original resume stored on Bunny.net:', resumeStorageUrl);
+    } else {
+      console.log('⏸️ Bunny.net resume storage paused; keeping resume in local storage');
     }
 
     // Store resume text in database FIRST
     console.log('🗃️ STEP 1B: Storing resume text in database...');
     student.resumeText = resumeText;
-    student.resumeFile = filePath;
+    student.resumeFile = resumeStorageUrl;
     student.resumeAnalysis = {
-      fileName: req.file.originalname,
+      fileName: storedFileName,
       originalFileName: req.file.originalname,
       uploadDate: new Date(),
       resumeText: resumeText,
@@ -1076,6 +1143,12 @@ router.post('/analyze-resume-ai', authMiddleware, upload.single('resume'), async
     };
     student.updatedAt = new Date();
 
+    student.profileFeatureVector = createFeatureVector([
+      resumeText,
+      ...(student.skills || []).map((skill: any) => skill.name || skill),
+      ...(student.experience || []).map((item: any) => `${item.title || ''} ${item.description || ''}`),
+      ...(student.education || []).map((item: any) => `${item.degree || ''} ${item.field || ''}`)
+    ].join(' '));
     await student.save();
     console.log('✅ Resume text stored in database successfully');
 
@@ -1112,33 +1185,90 @@ router.post('/analyze-resume-ai', authMiddleware, upload.single('resume'), async
       finalAnalysis = createEnhancedFallbackAnalysis(resumeText);
     }
 
+    // Normalize common alternate field names before persisting the profile.
+    finalAnalysis.personalInfo = finalAnalysis.personalInfo || {};
+    finalAnalysis.personalInfo.summary = finalAnalysis.personalInfo.summary || finalAnalysis.summary || finalAnalysis.bio || '';
+    finalAnalysis.education = Array.isArray(finalAnalysis.education)
+      ? finalAnalysis.education
+      : (Array.isArray(finalAnalysis.qualifications) ? finalAnalysis.qualifications : []);
+    finalAnalysis.projects = Array.isArray(finalAnalysis.projects) ? finalAnalysis.projects : [];
+    finalAnalysis.certifications = Array.isArray(finalAnalysis.certifications)
+      ? finalAnalysis.certifications
+      : (Array.isArray(finalAnalysis.achievements) ? finalAnalysis.achievements : []);
+    finalAnalysis.languages = Array.isArray(finalAnalysis.languages) ? finalAnalysis.languages : [];
+
+    finalAnalysis.education = finalAnalysis.education.map((edu: any) => ({
+      ...edu,
+      degree: edu.degree || edu.qualification || '',
+      field: edu.field || edu.fieldOfStudy || edu.specialization || '',
+      institution: edu.institution || edu.college || edu.university || edu.school || '',
+      startYear: edu.startDate || edu.startYear,
+      endYear: edu.endDate || edu.endYear || edu.year || edu.graduationYear
+    }));
+    finalAnalysis.projects = finalAnalysis.projects.map((project: any) => typeof project === 'string'
+      ? { name: project, description: '', technologies: [], link: '' }
+      : { ...project, name: project.name || project.title || '' });
+    finalAnalysis.certifications = finalAnalysis.certifications.map((item: any) => typeof item === 'string'
+      ? { name: item, organization: '', year: undefined }
+      : { ...item, name: item.name || item.title || item.achievement || '' })
+      .map((item: any) => ({ ...item, name: String(item.name || '').trim() }))
+      .filter((item: any, index: number, items: any[]) =>
+        item.name &&
+        !/^(?:&|and)?\s*(?:achievements?|awards?|certifications?|certificates?|licenses?)\s*:?$/i.test(item.name) &&
+        items.findIndex(other => other.name.toLowerCase() === item.name.toLowerCase()) === index
+      );
+    const languageNameMap: Record<string, string> = {
+      english: 'English', hindi: 'Hindi', marathi: 'Marathi', german: 'German', germany: 'German',
+      gujarati: 'Gujarati', kannada: 'Kannada', tamil: 'Tamil', telugu: 'Telugu',
+      malayalam: 'Malayalam', bengali: 'Bengali', bangla: 'Bengali', punjabi: 'Punjabi',
+      urdu: 'Urdu', odia: 'Odia', oriya: 'Odia', french: 'French', spanish: 'Spanish'
+    };
+    finalAnalysis.languages = finalAnalysis.languages.map((item: any) => {
+      const language = typeof item === 'string' ? { name: item, proficiency: '' } : item;
+      const rawName = String(language.name || language.language || '').trim();
+      return {
+        name: languageNameMap[rawName.toLowerCase()] || rawName,
+        proficiency: String(language.proficiency || language.level || '').trim()
+      };
+    }).filter((item: any, index: number, items: any[]) =>
+      item.name &&
+      !/^languages?(?:\s+skills)?\s*:?$/i.test(item.name) &&
+      items.findIndex(other => other.name.toLowerCase() === item.name.toLowerCase()) === index
+    );
+
     // ========================================
     // STEP 3: UPDATE DATABASE WITH ANALYSIS
     // ========================================
     console.log('💾 STEP 3: Updating database with structured analysis...');
     
-    // Update personal information
-    if (finalAnalysis.personalInfo?.name && finalAnalysis.personalInfo.name !== 'Professional') {
-      const nameParts = finalAnalysis.personalInfo.name.split(' ');
-      student.firstName = nameParts[0] || student.firstName;
-      student.lastName = nameParts.slice(1).join(' ') || student.lastName;
+    // Registered name, email and phone number are authoritative and are never
+    // overwritten by resume extraction.
+    finalAnalysis.personalInfo.name = `${student.firstName || ''} ${student.lastName || ''}`.trim();
+    finalAnalysis.personalInfo.email = student.email || user.email || '';
+    finalAnalysis.personalInfo.phone = student.phoneNumber || user.phone || '';
+    student.linkedinUrl = finalAnalysis.personalInfo?.linkedIn || undefined;
+    student.githubUrl = finalAnalysis.personalInfo?.github || undefined;
+    student.portfolioUrl = finalAnalysis.personalInfo?.portfolio || undefined;
+    student.dateOfBirth = undefined;
+    student.gender = undefined;
+
+    if (finalAnalysis.personalInfo?.dateOfBirth) {
+      const parsedDateOfBirth = new Date(finalAnalysis.personalInfo.dateOfBirth);
+      if (!isNaN(parsedDateOfBirth.getTime())) student.dateOfBirth = parsedDateOfBirth;
     }
-    
-    if (finalAnalysis.personalInfo?.email && !student.email) {
-      student.email = finalAnalysis.personalInfo.email;
+
+    if (['male', 'female', 'other'].includes(String(finalAnalysis.personalInfo?.gender).toLowerCase())) {
+      student.gender = String(finalAnalysis.personalInfo.gender).toLowerCase();
     }
-    
-    if (finalAnalysis.personalInfo?.phone && !student.phoneNumber) {
-      student.phoneNumber = finalAnalysis.personalInfo.phone;
-    }
-    
-    if (finalAnalysis.personalInfo?.linkedIn) {
-      student.linkedinUrl = finalAnalysis.personalInfo.linkedIn;
-    }
-    
-    if (finalAnalysis.personalInfo?.github) {
-      student.githubUrl = finalAnalysis.personalInfo.github;
-    }
+
+    // Resume-owned collections are replaced on every upload. Missing sections
+    // therefore remain empty instead of retaining stale or fabricated values.
+    student.skills = [];
+    student.experience = [];
+    student.education = [];
+    student.collegeName = undefined;
+    student.enrollmentYear = undefined;
+    student.graduationYear = undefined;
 
     // Update skills with proper normalization and validation
     if (finalAnalysis.skills && finalAnalysis.skills.length > 0) {
@@ -1155,63 +1285,18 @@ router.post('/analyze-resume-ai', authMiddleware, upload.single('resume'), async
     // Update experience with proper date handling
     if (finalAnalysis.experience && finalAnalysis.experience.length > 0) {
       student.experience = finalAnalysis.experience.map((exp: any) => {
-        // Parse dates safely
-        let startDate: Date;
-        let endDate: Date | undefined;
-        
-        try {
-          // Handle various date formats
-          if (exp.startDate && exp.startDate !== 'Unknown') {
-            if (exp.startDate.includes('/')) {
-              // Handle MM/YYYY or DD/MM/YYYY format
-              const dateParts = exp.startDate.split('/');
-              if (dateParts.length >= 2) {
-                const year = parseInt(dateParts[dateParts.length - 1]);
-                const month = dateParts.length > 2 ? parseInt(dateParts[1]) - 1 : 0;
-                startDate = new Date(year, month, 1);
-              } else {
-                startDate = new Date(parseInt(exp.startDate) || 2020, 0, 1);
-              }
-            } else {
-              // Handle year only
-              const year = parseInt(exp.startDate) || 2020;
-              startDate = new Date(year, 0, 1);
-            }
-          } else {
-            startDate = new Date(2020, 0, 1); // Default start date
-          }
-          
-          if (exp.endDate && exp.endDate !== 'Present' && exp.endDate !== 'Unknown') {
-            if (exp.endDate.includes('/')) {
-              // Handle MM/YYYY or DD/MM/YYYY format
-              const dateParts = exp.endDate.split('/');
-              if (dateParts.length >= 2) {
-                const year = parseInt(dateParts[dateParts.length - 1]);
-                const month = dateParts.length > 2 ? parseInt(dateParts[1]) - 1 : 11;
-                endDate = new Date(year, month, 31);
-              } else {
-                endDate = new Date(parseInt(exp.endDate) || new Date().getFullYear(), 11, 31);
-              }
-            } else {
-              // Handle year only
-              const year = parseInt(exp.endDate) || new Date().getFullYear();
-              endDate = new Date(year, 11, 31);
-            }
-          }
-          // If endDate is 'Present' or undefined, leave it undefined for current jobs
-        } catch (error) {
-          console.warn('Date parsing error for experience:', error);
-          startDate = new Date(2020, 0, 1);
-        }
+        const startDate = parseResumeDate(exp.startDate);
+        const endDate = parseResumeDate(exp.endDate, true);
+        const isCurrentJob = /present|current|ongoing|now/i.test(String(exp.endDate || '')) || Boolean(exp.isCurrentJob);
         
         return {
-          title: exp.title || 'Professional',
-          company: exp.company || 'Company',
+          title: exp.title || '',
+          company: exp.company || '',
           location: exp.location || '',
           startDate: startDate,
           endDate: endDate,
           description: exp.description || '',
-          isCurrentJob: exp.endDate === 'Present' || !exp.endDate || exp.isCurrentJob
+          isCurrentJob
         };
       });
       console.log('✅ Updated experience:', student.experience.length, 'positions');
@@ -1220,35 +1305,33 @@ router.post('/analyze-resume-ai', authMiddleware, upload.single('resume'), async
     // Update education with required fields
     if (finalAnalysis.education && finalAnalysis.education.length > 0) {
       student.education = finalAnalysis.education.map((edu: any) => {
-        // Parse dates safely
-        let startDate: Date;
-        let endDate: Date | undefined;
-        
-        try {
-          const startYear = edu.startYear || edu.startDate || 2020;
-          const endYear = edu.endYear || edu.endDate || startYear + 4;
-          
-          startDate = new Date(parseInt(startYear.toString()), 0, 1);
-          if (edu.isCompleted !== false && endYear) {
-            endDate = new Date(parseInt(endYear.toString()), 11, 31);
-          }
-        } catch (error) {
-          console.warn('Date parsing error for education:', error);
-          startDate = new Date(2020, 0, 1);
-          endDate = new Date(2024, 11, 31);
-        }
+        const endValue = edu.endDate || edu.endYear;
+        const endYear = resumeYear(endValue);
+        const explicitlyOngoing = /present|current|pursuing|expected|ongoing/i.test(String(endValue || ''));
+        const isCompleted = explicitlyOngoing
+          ? false
+          : Boolean(edu.isCompleted || (endYear && endYear <= new Date().getFullYear()));
+        const startDate = parseResumeDate(edu.startDate || edu.startYear);
+        const endDate = isCompleted ? parseResumeDate(endValue, true) : undefined;
         
         return {
-          degree: edu.degree || 'Degree',
-          field: edu.field || edu.fieldOfStudy || 'General Studies', // Ensure field is always present
-          institution: edu.institution || 'Educational Institution',
+          degree: edu.degree || '',
+          field: edu.field || edu.fieldOfStudy || '',
+          institution: edu.institution || '',
           startDate: startDate,
           endDate: endDate,
-          gpa: edu.gpa ? parseFloat(edu.gpa) : undefined,
-          isCompleted: edu.isCompleted !== false
+          gpa: edu.gpa && parseFloat(edu.gpa) <= 10 ? parseFloat(edu.gpa) : undefined,
+          grade: edu.grade || (edu.gpa && parseFloat(edu.gpa) > 10 ? String(edu.gpa) : undefined),
+          gradingType: edu.gradingType || (edu.grade || (edu.gpa && parseFloat(edu.gpa) > 10) ? 'percentage' : (edu.gpa ? 'gpa' : undefined)),
+          isCompleted
         };
       });
       console.log('✅ Updated education:', student.education.length, 'entries');
+
+      const primaryEducation = finalAnalysis.education[0];
+      student.collegeName = primaryEducation.institution || undefined;
+      student.enrollmentYear = resumeYear(primaryEducation.startDate || primaryEducation.startYear);
+      student.graduationYear = resumeYear(primaryEducation.endDate || primaryEducation.endYear);
     }
 
     // Update resume analysis summary with sanitized data
@@ -1257,112 +1340,67 @@ router.post('/analyze-resume-ai', authMiddleware, upload.single('resume'), async
       skills: finalAnalysis.skills?.map((s: any) => s.name) || [],
       category: finalAnalysis.analysisMetadata?.suggestedJobCategory || 'General',
       experienceLevel: finalAnalysis.jobPreferences?.experienceLevel || 'mid',
-      summary: `Resume analyzed successfully. Extracted: ${finalAnalysis.skillsCount || 0} skills, ${finalAnalysis.experienceCount || 0} experiences, ${finalAnalysis.educationCount || 0} education entries.`,
+      summary: finalAnalysis.personalInfo?.summary || '',
       extractedDetails: {
-        personalInfo: finalAnalysis.personalInfo,
+        personalInfo: {
+          name: `${student.firstName || ''} ${student.lastName || ''}`.trim(),
+          summary: finalAnalysis.personalInfo?.summary || ''
+        },
+        contactInfo: {
+          email: student.email || user.email || '',
+          phone: student.phoneNumber || '',
+          linkedin: finalAnalysis.personalInfo?.linkedIn || '',
+          github: finalAnalysis.personalInfo?.github || '',
+          address: finalAnalysis.personalInfo?.location || ''
+        },
         // Sanitize experience data for storage with proper Date conversion
         experience: finalAnalysis.experience?.map((exp: any) => {
-          // Helper function to convert date strings to Date objects
-          const convertToDate = (dateStr: any): Date | undefined => {
-            if (!dateStr || dateStr === 'Unknown' || dateStr === 'Present') return undefined;
-            if (dateStr instanceof Date) return dateStr;
-            
-            try {
-              // Handle various date formats
-              if (typeof dateStr === 'string') {
-                if (dateStr.includes('/')) {
-                  // Handle MM/YYYY or DD/MM/YYYY format
-                  const parts = dateStr.split('/');
-                  if (parts.length >= 2) {
-                    const year = parseInt(parts[parts.length - 1]);
-                    const month = parts.length > 2 ? parseInt(parts[1]) - 1 : 0;
-                    return new Date(year, month, 1);
-                  }
-                } else {
-                  // Handle year only
-                  const year = parseInt(dateStr);
-                  if (!isNaN(year) && year > 1900 && year < 2100) {
-                    return new Date(year, 0, 1);
-                  }
-                }
-              }
-              // Try direct Date conversion as fallback
-              const date = new Date(dateStr);
-              return isNaN(date.getTime()) ? undefined : date;
-            } catch (error) {
-              return undefined;
-            }
-          };
-          
           return {
-            title: exp.title || 'Professional',
-            company: exp.company || 'Company',
+            title: exp.title || '',
+            company: exp.company || '',
             location: exp.location || '',
-            startDate: convertToDate(exp.startDate) || new Date(2020, 0, 1),
-            endDate: exp.endDate === 'Present' ? undefined : convertToDate(exp.endDate),
+            startDate: parseResumeDate(exp.startDate),
+            endDate: parseResumeDate(exp.endDate, true),
             description: exp.description || '',
-            isCurrentJob: exp.endDate === 'Present' || !exp.endDate || exp.isCurrentJob
+            isCurrentJob: /present|current|ongoing|now/i.test(String(exp.endDate || '')) || Boolean(exp.isCurrentJob)
           };
         }) || [],
         // Sanitize education data for storage with proper Date conversion
         education: finalAnalysis.education?.map((edu: any) => {
-          // Helper function to convert date to Date object or year number
-          const convertToYear = (dateValue: any): number | undefined => {
-            if (!dateValue || dateValue === 'Unknown') return undefined;
-            if (typeof dateValue === 'number') return dateValue;
-            
-            try {
-              if (typeof dateValue === 'string') {
-                const year = parseInt(dateValue);
-                if (!isNaN(year) && year > 1900 && year < 2100) {
-                  return year;
-                }
-              }
-              if (dateValue instanceof Date) {
-                return dateValue.getFullYear();
-              }
-            } catch (error) {
-              return undefined;
-            }
-          };
-          
-          const convertToDate = (dateValue: any): Date | undefined => {
-            if (!dateValue || dateValue === 'Unknown') return undefined;
-            if (dateValue instanceof Date) return dateValue;
-            
-            try {
-              if (typeof dateValue === 'string') {
-                if (dateValue.includes('/')) {
-                  const parts = dateValue.split('/');
-                  if (parts.length >= 2) {
-                    const year = parseInt(parts[parts.length - 1]);
-                    const month = parts.length > 2 ? parseInt(parts[1]) - 1 : 0;
-                    return new Date(year, month, 1);
-                  }
-                } else {
-                  const year = parseInt(dateValue);
-                  if (!isNaN(year) && year > 1900 && year < 2100) {
-                    return new Date(year, 0, 1);
-                  }
-                }
-              }
-              const date = new Date(dateValue);
-              return isNaN(date.getTime()) ? undefined : date;
-            } catch (error) {
-              return undefined;
-            }
-          };
-          
+          const endValue = edu.endDate || edu.endYear;
+          const endYear = resumeYear(endValue);
+          const explicitlyOngoing = /present|current|pursuing|expected|ongoing/i.test(String(endValue || ''));
+          const isCompleted = explicitlyOngoing
+            ? false
+            : Boolean(edu.isCompleted || (endYear && endYear <= new Date().getFullYear()));
           return {
-            degree: edu.degree || 'Degree',
-            field: edu.field || edu.fieldOfStudy || 'General Studies',
-            institution: edu.institution || 'Educational Institution',
-            startDate: convertToDate(edu.startDate || edu.startYear),
-            endDate: convertToDate(edu.endDate || edu.endYear),
-            year: convertToYear(edu.year || edu.endYear || edu.graduationYear) || new Date().getFullYear(),
-            isCompleted: edu.isCompleted !== false
+            degree: edu.degree || '',
+            field: edu.field || edu.fieldOfStudy || '',
+            institution: edu.institution || '',
+            startDate: parseResumeDate(edu.startDate || edu.startYear),
+            endDate: isCompleted ? parseResumeDate(endValue, true) : undefined,
+            year: resumeYear(edu.year || edu.endYear || edu.graduationYear),
+            gpa: edu.gpa && parseFloat(edu.gpa) <= 10 ? parseFloat(edu.gpa) : undefined,
+            grade: edu.grade || (edu.gpa && parseFloat(edu.gpa) > 10 ? String(edu.gpa) : undefined),
+            gradingType: edu.gradingType || (edu.grade || (edu.gpa && parseFloat(edu.gpa) > 10) ? 'percentage' : (edu.gpa ? 'gpa' : undefined)),
+            isCompleted
           };
         }) || [],
+        projects: (finalAnalysis.projects || []).map((project: any) => ({
+          name: project.name || '',
+          description: project.description || '',
+          technologies: Array.isArray(project.technologies) ? project.technologies : [],
+          link: project.link || ''
+        })),
+        certifications: (finalAnalysis.certifications || []).map((certification: any) => ({
+          name: certification.name || '',
+          organization: certification.organization || '',
+          year: certification.year || undefined
+        })),
+        languages: (finalAnalysis.languages || []).map((language: any) => ({
+          name: language.name || '',
+          proficiency: language.proficiency || ''
+        })),
         jobPreferences: finalAnalysis.jobPreferences,
         analysisMetadata: finalAnalysis.analysisMetadata
       }
@@ -1371,20 +1409,43 @@ router.post('/analyze-resume-ai', authMiddleware, upload.single('resume'), async
     await student.save();
     console.log('✅ All data updated successfully in database');
 
-    // Clean up uploaded file
-    try { fs.unlinkSync(filePath); } catch {}
+    // Resume data changes every matching dimension, so refresh all active-job
+    // scores after the upload response is no longer waiting on this work.
+    setImmediate(async () => {
+      try {
+        const CareerAlertService = require('../services/career-alerts').default;
+        await CareerAlertService.processStudentProfileUpdate(student._id);
+        console.log('✅ Hybrid job matches refreshed after resume analysis');
+      } catch (matchError) {
+        console.error('❌ Hybrid match refresh after resume analysis failed:', matchError);
+      }
+    });
+
+    // Local files are retained while Bunny.net is paused. Once Bunny storage
+    // is enabled, the temporary upload can be removed after successful upload.
+    if (useBunnyStorage) {
+      try { fs.unlinkSync(filePath); } catch {}
+    }
 
     // Return success response
     return res.json({
       success: true,
       message: 'Resume analyzed successfully using two-step approach and profile updated',
       analysis: finalAnalysis,
+      aiCreditStatus: finalAnalysis.analysisMetadata?.creditStatus || 'available',
+      aiWarnings: finalAnalysis.analysisMetadata?.providerWarnings || [],
       studentId: student._id,
+      resumeUrl: resumeStorageUrl,
+      resumeStorage: useBunnyStorage ? 'bunny' : 'local',
       debug: {
         textLength: resumeText.length,
         extractionMethod: finalAnalysis.analysisMetadata?.extractionMethod || 'unknown',
         confidence: finalAnalysis.analysisMetadata?.confidence || 75,
         aiSuccess: aiResult.success || false,
+        resumeContactDetected: {
+          email: Boolean(detectedResumeContacts.email),
+          phone: Boolean(detectedResumeContacts.phone)
+        },
         stepsCompleted: ['text_extraction', 'database_storage', 'ai_analysis', 'database_update']
       }
     });

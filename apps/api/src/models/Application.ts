@@ -26,13 +26,23 @@ export interface IApplication extends Document {
   // Core References
   studentId: Types.ObjectId;
   jobId: Types.ObjectId;
-  recruiterId: Types.ObjectId;
+  recruiterId?: Types.ObjectId;
   collegeId?: Types.ObjectId;
   
   // Application Details
   coverLetter?: string;
   resumeFile?: string; // Specific resume for this job
   portfolioLinks?: string[];
+  jobSnapshot?: Record<string, unknown>;
+  resumeVersionUsed?: { file?: string; uploadedAt?: Date; analysisVersion?: number };
+  sourcePlatform?: string;
+  submissionChannel: 'campuspe';
+  employerDeliveryStatus: 'delivered_to_campuspe_employer' | 'awaiting_employer_connection';
+  externalSubmissionAttempted: boolean;
+  deliveryAttemptCount: number;
+  lastDeliveryAttemptAt?: Date;
+  nextDeliveryAttemptAt?: Date;
+  employerDeliveredAt?: Date;
   
   // Status Tracking
   currentStatus: 'applied' | 'screening' | 'shortlisted' | 'interview_scheduled' | 'interview_completed' | 'selected' | 'rejected' | 'withdrawn';
@@ -117,13 +127,33 @@ const ApplicationSchema = new Schema<IApplication>({
   // Core References
   studentId: { type: Schema.Types.ObjectId, ref: 'Student', required: true, index: true },
   jobId: { type: Schema.Types.ObjectId, ref: 'Job', required: true, index: true },
-  recruiterId: { type: Schema.Types.ObjectId, ref: 'Recruiter', required: true, index: true },
+  recruiterId: { type: Schema.Types.ObjectId, ref: 'Recruiter', index: true },
   collegeId: { type: Schema.Types.ObjectId, ref: 'College', index: true },
   
   // Application Details
   coverLetter: { type: String },
   resumeFile: { type: String },
   portfolioLinks: [{ type: String }],
+  // Immutable application-time data preserves history after a job expires.
+  jobSnapshot: { type: Schema.Types.Mixed },
+  resumeVersionUsed: {
+    file: String,
+    uploadedAt: Date,
+    analysisVersion: { type: Number, default: 1 }
+  },
+  sourcePlatform: { type: String, default: 'campuspe' },
+  submissionChannel: { type: String, enum: ['campuspe'], default: 'campuspe', required: true },
+  employerDeliveryStatus: {
+    type: String,
+    enum: ['delivered_to_campuspe_employer', 'awaiting_employer_connection'],
+    required: true,
+    index: true
+  },
+  externalSubmissionAttempted: { type: Boolean, default: false, required: true },
+  deliveryAttemptCount: { type: Number, default: 0, min: 0 },
+  lastDeliveryAttemptAt: Date,
+  nextDeliveryAttemptAt: { type: Date, index: true },
+  employerDeliveredAt: Date,
   
   // Status Tracking
   currentStatus: { 

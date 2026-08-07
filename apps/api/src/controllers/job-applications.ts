@@ -2,9 +2,12 @@ import { Request, Response } from 'express';
 import { Application } from '../models/Application';
 import { Student } from '../models/Student';
 import { Job } from '../models/Job';
+import { Recruiter } from '../models/Recruiter';
 import { ResumeJobAnalysis } from '../models/ResumeJobAnalysis';
 import { Types } from 'mongoose';
 import AIResumeMatchingService from '../services/ai-resume-matching';
+import { recordNotification, sendRecruiterApplicationNotification } from '../services/notifications';
+import { toDisplayMatchScore } from '../services/hybrid-resume-matching';
 
 /**
  * Apply for a job with AI resume matching
@@ -12,8 +15,9 @@ import AIResumeMatchingService from '../services/ai-resume-matching';
  */
 export const applyForJob = async (req: Request, res: Response) => {
   try {
+    const minimumAlertScore = Number(process.env.JOB_ALERT_MIN_MATCH_SCORE ?? 70);
     const { jobId } = req.params;
-    const { skipNotification = false } = req.body; // New parameter to skip notifications
+    const { skipNotification = false, coverLetter, portfolioLinks } = req.body;
     const user = req.user as any; // Auth middleware sets req.user to the full user object
     const userId = user._id || user.userId; // Handle both formats
     
@@ -39,19 +43,10 @@ export const applyForJob = async (req: Request, res: Response) => {
       (student.resumeAnalysis?.summary ? `${student.resumeAnalysis.summary}\nSkills: ${student.resumeAnalysis.skills?.join(', ')}` : null);
     
     if (!resumeContent) {
-      // If no resume content, attempt to generate resume content using AI scanning or fallback
-      try {
-        // Placeholder: Call AI resume scanning service here to generate resumeContent
-        // For now, set resumeContent to a default string or student's profile summary if available
-        resumeContent = `Profile summary for ${student.firstName} ${student.lastName}`;
-        console.log('Generated resume content using AI scanning fallback');
-      } catch (error) {
-        console.error('Error generating resume content:', error);
-        return res.status(400).json({
-          success: false,
-          message: 'Please upload your resume before applying to jobs'
-        });
-      }
+      return res.status(400).json({
+        success: false,
+        message: 'Please upload your resume to CampusPe before applying'
+      });
     }
 
     // Find the job
@@ -64,11 +59,8 @@ export const applyForJob = async (req: Request, res: Response) => {
         message: 'Job not found'
       });
     }
-
-    // If recruiterId is missing, set to a default or handle gracefully
-    if (!job.recruiterId) {
-      console.warn('Job recruiterId is missing, setting to a new ObjectId placeholder to avoid validation error');
-      job.recruiterId = new Types.ObjectId('000000000000000000000000');
+    if (job.status !== 'active' || !job.isPublic || !job.allowDirectApplications || job.applicationDeadline < new Date()) {
+      return res.status(400).json({ success: false, message: 'This job is no longer accepting applications' });
     }
 
     // Check if application already exists
@@ -84,13 +76,12 @@ export const applyForJob = async (req: Request, res: Response) => {
       });
     }
 
-    // Perform AI resume analysis
+    // Calculate the same hybrid score used by recommendations and alerts.
     let matchResult;
     try {
-      matchResult = await AIResumeMatchingService.analyzeResumeMatch(
-        resumeContent,
-        job.description
-      );
+      const CentralizedMatchingService = require('../services/centralized-matching').default;
+      matchResult = await CentralizedMatchingService.getOrCalculateMatch(student._id, job._id, true);
+      if (!matchResult) throw new Error('Hybrid match calculation returned no result');
     } catch (aiError) {
       console.error('AIResumeMatchingService error:', aiError);
       return res.status(500).json({
@@ -100,14 +91,53 @@ export const applyForJob = async (req: Request, res: Response) => {
       });
     }
 
-    // Create the application
+    const linkedRecruiterId = (job.recruiterId as any)?._id || job.recruiterId || null;
+    const employerDeliveryStatus = linkedRecruiterId
+      ? 'delivered_to_campuspe_employer'
+      : 'awaiting_employer_connection';
+
+    // Create the application. Imported source URLs remain audit metadata on
+    // the Job only; CampusPe never submits or redirects externally here.
     let application;
     try {
       application = new Application({
         studentId: student._id,
         jobId: new Types.ObjectId(jobId),
-        recruiterId: job.recruiterId || null,
+        recruiterId: linkedRecruiterId,
         collegeId: student.collegeId,
+        coverLetter: typeof coverLetter === 'string' ? coverLetter.trim() : undefined,
+        portfolioLinks: Array.isArray(portfolioLinks) ? portfolioLinks : [],
+        resumeFile: student.resumeFile,
+        resumeVersionUsed: {
+          file: student.resumeFile,
+          uploadedAt: student.resumeAnalysis?.uploadDate,
+          analysisVersion: 1
+        },
+        sourcePlatform: job.sourceProvider || job.source || 'campuspe',
+        submissionChannel: 'campuspe',
+        employerDeliveryStatus,
+        externalSubmissionAttempted: false,
+        ...(employerDeliveryStatus === 'awaiting_employer_connection' ? { nextDeliveryAttemptAt: new Date() } : { employerDeliveredAt: new Date() }),
+        jobSnapshot: {
+          title: job.title,
+          companyName: job.companyName,
+          description: job.description,
+          jobType: job.jobType,
+          workMode: job.workMode,
+          locations: job.locations,
+          requiredSkills: job.requiredSkills,
+          requirements: job.requirements,
+          educationRequirements: job.educationRequirements,
+          experienceLevel: job.experienceLevel,
+          minExperience: job.minExperience,
+          maxExperience: job.maxExperience,
+          salary: job.salary,
+          industry: job.industry,
+          benefits: job.benefits,
+          postedAt: job.postedAt,
+          applicationDeadline: job.applicationDeadline,
+          capturedAt: new Date()
+        },
         currentStatus: 'applied',
         statusHistory: [{
           status: 'applied',
@@ -125,8 +155,18 @@ export const applyForJob = async (req: Request, res: Response) => {
       });
 
       await application.save();
-    } catch (appError) {
+      await Job.findByIdAndUpdate(job._id, { $addToSet: { applications: application._id } });
+      setImmediate(() => {
+        const JobBehaviorService = require('../services/job-behavior').default;
+        JobBehaviorService.record(new Types.ObjectId(userId), job._id, 'apply').catch((error: unknown) =>
+          console.error('Failed to record application behavior:', error)
+        );
+      });
+    } catch (appError: any) {
       console.error('Application save error:', appError);
+      if (appError?.code === 11000) {
+        return res.status(409).json({ success: false, message: 'You have already applied for this job' });
+      }
       return res.status(500).json({
         success: false,
         message: 'Failed to save application. Please try again later.',
@@ -144,6 +184,10 @@ export const applyForJob = async (req: Request, res: Response) => {
         suggestions: matchResult.suggestions,
         skillsMatched: matchResult.skillsMatched,
         skillsGap: matchResult.skillsGap,
+        matchingModel: matchResult.matchingModel,
+        ruleBasedScore: matchResult.ruleBasedScore,
+        aiScore: matchResult.aiScore,
+        scoreBreakdown: matchResult.scoreBreakdown,
         resumeText: resumeContent,
         resumeVersion: 1,
         jobTitle: job.title,
@@ -175,9 +219,32 @@ export const applyForJob = async (req: Request, res: Response) => {
       // Not blocking application success, just log error
     }
 
+    // Notify recruiter inside CampusPe so the application does not need an
+    // external handoff to be reviewed.
+    try {
+      const recruiterRecord = linkedRecruiterId
+        ? await Recruiter.findById(linkedRecruiterId).populate('userId', 'email')
+        : null;
+      const recruiterUser = recruiterRecord?.userId as any;
+
+      if (recruiterRecord && recruiterUser?._id) {
+        await sendRecruiterApplicationNotification(
+          String(recruiterUser._id),
+          String(application._id),
+          String(job._id),
+          job.title,
+          job.companyName,
+          `${student.firstName} ${student.lastName}`.trim(),
+          recruiterUser.email || undefined,
+        );
+      }
+    } catch (notificationError) {
+      console.error('Recruiter notification error:', notificationError);
+    }
+
     // AUTO-SEND WHATSAPP NOTIFICATION FOR HIGH MATCH SCORES (unless skipped)
     // If match score is above 70%, automatically send WhatsApp notification to the student
-    if (matchResult.matchScore >= 70 && !skipNotification) {
+    if (matchResult.matchScore >= minimumAlertScore && !skipNotification) {
       try {
         console.log(`🎯 High match score (${matchResult.matchScore}%) detected! Auto-sending WhatsApp notification to student...`);
         
@@ -217,8 +284,8 @@ export const applyForJob = async (req: Request, res: Response) => {
             company: job.companyName,
             location: locationInfo,
             salary: salaryInfo,
-            matchScore: matchResult.matchScore.toString(),
-            personalizedMessage: `🎉 Congratulations! You're a ${matchResult.matchScore}% match for this role at ${job.companyName}!`,
+            matchScore: String(matchResult.displayMatchScore || matchResult.matchScore),
+            personalizedMessage: `🎉 Congratulations! You're a ${matchResult.displayMatchScore || matchResult.matchScore}% match for this role at ${job.companyName}!`,
             jobLink: `https://campuspe.com/jobs/${jobId}`
           };
 
@@ -232,27 +299,24 @@ export const applyForJob = async (req: Request, res: Response) => {
             });
 
             // Save notification record
-            const { Notification } = require('../models');
-            await new Notification({
-              recipientId: student._id,
+            await recordNotification({
+              recipientId: String(student.userId),
               recipientType: 'student',
               title: `🎯 Great Match: ${job.title}`,
-              message: `You're a ${matchResult.matchScore}% match! Your application for ${job.title} at ${job.companyName} has been submitted.`,
+              message: `You're a ${matchResult.displayMatchScore || matchResult.matchScore}% match! Your application for ${job.title} at ${job.companyName} has been submitted.`,
               notificationType: 'job_match',
+              relatedJobId: job._id,
               channels: {
-                whatsapp: true
+                platform: true,
+                whatsapp: true,
               },
-              deliveryStatus: {
-                whatsapp: 'sent'
-              },
-              relatedJobId: jobId,
-              priority: 'high', // High priority for auto-notifications
+              priority: 'high',
               metadata: {
-                matchScore: matchResult.matchScore,
+                matchScore: matchResult.displayMatchScore || matchResult.matchScore,
                 autoSent: true,
                 triggerReason: 'high_match_score'
               }
-            }).save();
+            });
 
             console.log(`✅ Auto-sent WhatsApp notification to ${student.firstName} ${student.lastName} (${phoneNumber}) for high match score`);
           } else {
@@ -265,17 +329,22 @@ export const applyForJob = async (req: Request, res: Response) => {
         console.error('Error sending auto WhatsApp notification:', whatsappError);
         // Don't block application success if WhatsApp fails
       }
-    } else if (matchResult.matchScore >= 70 && skipNotification) {
+    } else if (matchResult.matchScore >= minimumAlertScore && skipNotification) {
       console.log(`📱 High match score (${matchResult.matchScore}%) but notifications skipped for dashboard application`);
     }
 
     // Return response with match score and suggestions
     res.status(201).json({
       success: true,
-      message: 'Application submitted successfully!',
+      message: employerDeliveryStatus === 'delivered_to_campuspe_employer'
+        ? 'Application delivered to the employer through CampusPe.'
+        : 'Application saved and tracked in CampusPe. CampusPe will deliver it automatically when the employer connects.',
       data: {
         applicationId: application._id,
-        matchScore: matchResult.matchScore,
+        trackingStatus: application.currentStatus,
+        employerDeliveryStatus,
+        submissionChannel: 'campuspe',
+        matchScore: matchResult.displayMatchScore,
         explanation: matchResult.explanation,
         suggestions: matchResult.suggestions,
         skillsMatched: matchResult.skillsMatched,
@@ -557,13 +626,14 @@ export const getStudentApplications = async (req: Request, res: Response) => {
 
           // Format job details
           const jobDetails = app.jobId as any;
+          const jobSnapshot = (app.jobSnapshot || {}) as any;
           const recruiterDetails = app.recruiterId as any;
 
           return {
             _id: app._id,
             jobId: jobDetails?._id || app.jobId,
-            jobTitle: jobDetails?.title || 'Job Title',
-            companyName: jobDetails?.companyName || recruiterDetails?.companyName || 'Company',
+            jobTitle: jobDetails?.title || jobSnapshot.title || 'Job Title',
+            companyName: jobDetails?.companyName || jobSnapshot.companyName || recruiterDetails?.companyName || 'Company',
             appliedDate: app.appliedAt,
             dateApplied: app.appliedAt,
             status: app.currentStatus || 'applied',
@@ -575,9 +645,9 @@ export const getStudentApplications = async (req: Request, res: Response) => {
             statusHistory: statusHistory.slice(-3), // Last 3 status changes
             
             // Match analysis
-            matchScore: matchAnalysis?.matchScore || app.matchScore,
+            matchScore: matchAnalysis?.displayMatchScore || toDisplayMatchScore(matchAnalysis?.matchScore || app.matchScore || 0),
             matchAnalysis: matchAnalysis ? {
-              overallMatch: matchAnalysis.matchScore,
+              overallMatch: matchAnalysis.displayMatchScore || toDisplayMatchScore(matchAnalysis.matchScore),
               explanation: matchAnalysis.explanation,
               skillsMatched: matchAnalysis.skillsMatched,
               skillsGap: matchAnalysis.skillsGap,
@@ -588,15 +658,22 @@ export const getStudentApplications = async (req: Request, res: Response) => {
             notes: app.shortlistReason || app.rejectionReason || '',
             
             // Job-specific details
-            jobLocation: jobDetails?.location || 'Not specified',
-            workMode: jobDetails?.workMode || 'Not specified',
-            salary: jobDetails?.salary,
-            applicationDeadline: jobDetails?.applicationDeadline,
+            jobLocation: jobDetails?.locations || jobSnapshot.locations || 'Not specified',
+            workMode: jobDetails?.workMode || jobSnapshot.workMode || 'Not specified',
+            salary: jobDetails?.salary || jobSnapshot.salary,
+            applicationDeadline: jobDetails?.applicationDeadline || jobSnapshot.applicationDeadline,
+            jobSnapshot,
             
             // Notification status
             whatsappNotificationSent: app.whatsappNotificationSent || false,
             emailNotificationSent: app.emailNotificationSent || false,
             recruiterViewed: app.recruiterViewed || false,
+            employerDeliveryStatus: app.employerDeliveryStatus || (app.recruiterId ? 'delivered_to_campuspe_employer' : 'awaiting_employer_connection'),
+            submissionChannel: app.submissionChannel || 'campuspe',
+            deliveryAttemptCount: app.deliveryAttemptCount || 0,
+            lastDeliveryAttemptAt: app.lastDeliveryAttemptAt,
+            nextDeliveryAttemptAt: app.nextDeliveryAttemptAt,
+            employerDeliveredAt: app.employerDeliveredAt,
             
             // Real-time metadata
             lastChecked: new Date(),
@@ -677,7 +754,10 @@ export const getCurrentUserResumeAnalysis = async (req: Request, res: Response) 
     const userId = user._id || user.userId;
     
     // Find the student by userId
-    const student = await Student.findOne({ userId });
+    const student = await Student.findOne({ userId })
+      .populate('userId', 'email phone whatsappNumber')
+      .populate('collegeId', 'name shortName')
+      .lean();
     
     if (!student) {
       return res.status(404).json({
@@ -696,13 +776,53 @@ export const getCurrentUserResumeAnalysis = async (req: Request, res: Response) 
     if (!analysis) {
       return res.status(404).json({
         success: false,
-        message: 'No resume analysis found for this job'
+        message: 'No resume analysis found for this job',
+        data: {
+          studentProfile: {
+            firstName: student.firstName,
+            lastName: student.lastName,
+            email: student.userId && typeof student.userId === 'object' ? (student.userId as any).email || student.email || '' : student.email || '',
+            phone: student.userId && typeof student.userId === 'object' ? (student.userId as any).phone || student.phoneNumber || '' : student.phoneNumber || '',
+            whatsappNumber: student.userId && typeof student.userId === 'object' ? (student.userId as any).whatsappNumber || student.phoneNumber || '' : student.phoneNumber || '',
+            collegeName: student.collegeId && typeof student.collegeId === 'object' ? (student.collegeId as any).name || '' : student.collegeName || '',
+            shortName: student.collegeId && typeof student.collegeId === 'object' ? (student.collegeId as any).shortName || '' : '',
+            profileCompleteness: student.profileCompleteness,
+            isPlacementReady: student.isPlacementReady,
+            skills: student.skills || [],
+            education: student.education || [],
+            experience: student.experience || [],
+            jobPreferences: student.jobPreferences || null,
+            resumeSummary: student.resumeAnalysis?.summary || student.resumeText || ''
+          },
+          analysis: null
+        }
       });
     }
 
     res.status(200).json({
       success: true,
-      data: analysis
+      data: {
+        analysis: {
+          ...analysis,
+          matchScore: analysis.displayMatchScore || toDisplayMatchScore(analysis.matchScore)
+        },
+        studentProfile: {
+          firstName: student.firstName,
+          lastName: student.lastName,
+          email: student.userId && typeof student.userId === 'object' ? (student.userId as any).email || student.email || '' : student.email || '',
+          phone: student.userId && typeof student.userId === 'object' ? (student.userId as any).phone || student.phoneNumber || '' : student.phoneNumber || '',
+          whatsappNumber: student.userId && typeof student.userId === 'object' ? (student.userId as any).whatsappNumber || student.phoneNumber || '' : student.phoneNumber || '',
+          collegeName: student.collegeId && typeof student.collegeId === 'object' ? (student.collegeId as any).name || '' : student.collegeName || '',
+          shortName: student.collegeId && typeof student.collegeId === 'object' ? (student.collegeId as any).shortName || '' : '',
+          profileCompleteness: student.profileCompleteness,
+          isPlacementReady: student.isPlacementReady,
+          skills: student.skills || [],
+          education: student.education || [],
+          experience: student.experience || [],
+          jobPreferences: student.jobPreferences || null,
+          resumeSummary: student.resumeAnalysis?.summary || student.resumeText || ''
+        }
+      }
     });
 
   } catch (error) {
@@ -854,87 +974,28 @@ export const analyzeResumeOnly = async (req: Request, res: Response) => {
       });
     }
 
-    // Check if analysis already exists
-    const existingAnalysis = await ResumeJobAnalysis.findOne({
-      studentId: student._id,
-      jobId: new Types.ObjectId(jobId)
-    });
-
-    if (existingAnalysis) {
-      return res.status(200).json({
-        success: true,
-        message: 'Analysis already exists for this job',
-        data: {
-          matchScore: existingAnalysis.matchScore,
-          explanation: existingAnalysis.explanation,
-          suggestions: existingAnalysis.suggestions,
-          skillsMatched: existingAnalysis.skillsMatched,
-          skillsGap: existingAnalysis.skillsGap,
-          analyzedAt: existingAnalysis.analyzedAt
-        }
-      });
+    const CentralizedMatchingService = require('../services/centralized-matching').default;
+    const matchResult = await CentralizedMatchingService.getOrCalculateMatch(student._id, job._id);
+    if (!matchResult) {
+      return res.status(500).json({ success: false, message: 'Hybrid resume analysis failed' });
     }
 
-    // Perform AI resume analysis
-    let matchResult;
-    try {
-      matchResult = await AIResumeMatchingService.analyzeResumeMatch(
-        resumeContent,
-        job.description
-      );
-    } catch (aiError) {
-      console.error('AI resume analysis error:', aiError);
-      return res.status(500).json({
-        success: false,
-        message: 'AI resume analysis failed. Please try again later.',
-        error: aiError instanceof Error ? aiError.message : 'Unknown AI error'
-      });
-    }
-
-    // Save the analysis without creating an application
-    try {
-      const analysisData = {
-        studentId: student._id,
-        jobId: new Types.ObjectId(jobId),
+    return res.status(200).json({
+      success: true,
+      message: 'Hybrid resume analysis completed successfully',
+      data: {
         matchScore: matchResult.matchScore,
         explanation: matchResult.explanation,
         suggestions: matchResult.suggestions,
         skillsMatched: matchResult.skillsMatched,
         skillsGap: matchResult.skillsGap,
-        resumeText: resumeContent,
-        resumeVersion: 1,
-        jobTitle: job.title,
-        jobDescription: job.description,
-        companyName: job.companyName,
-        isActive: true,
-        analyzedAt: new Date()
-        // Note: No applicationId since this is analysis only
-      };
-
-      const analysis = await ResumeJobAnalysis.create(analysisData);
-      console.log('✅ Resume analysis saved successfully (analysis only)');
-
-      return res.status(200).json({
-        success: true,
-        message: 'Resume analysis completed successfully',
-        data: {
-          matchScore: matchResult.matchScore,
-          explanation: matchResult.explanation,
-          suggestions: matchResult.suggestions,
-          skillsMatched: matchResult.skillsMatched,
-          skillsGap: matchResult.skillsGap,
-          analyzedAt: analysis.analyzedAt
-        }
-      });
-
-    } catch (analysisError) {
-      console.error('Analysis save error:', analysisError);
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to save analysis. Please try again later.',
-        error: analysisError instanceof Error ? analysisError.message : 'Unknown analysis save error'
-      });
-    }
+        matchingModel: matchResult.matchingModel,
+        ruleBasedScore: matchResult.ruleBasedScore,
+        aiScore: matchResult.aiScore,
+        scoreBreakdown: matchResult.scoreBreakdown,
+        analyzedAt: matchResult.analyzedAt
+      }
+    });
 
   } catch (error) {
     console.error('Analyze resume only error:', error);

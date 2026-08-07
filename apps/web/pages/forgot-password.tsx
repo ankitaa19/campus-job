@@ -112,8 +112,6 @@ export default function ForgotPassword() {
       
       console.log('Verifying OTP with:', { otpId, otp: otpValue, userType: backendUserType });
       
-      // For forgot password, we need to use the verifyOTPAndLogin endpoint
-      // which handles auto-login after OTP verification
       const requestPayload = {
         otpId,
         otp: otpValue,
@@ -123,57 +121,14 @@ export default function ForgotPassword() {
         email: userType !== 'student' ? email : undefined
       };
       
-      const response = await axios.post(`${API_BASE_URL}/api/auth/verify-otp-login`, requestPayload);
+      const response = await axios.post(`${API_BASE_URL}/api/auth/verify-reset-otp`, requestPayload);
       
       console.log('Verify OTP Response:', response.data);
 
-      if (response.status === 200) {
-        localStorage.setItem('token', response.data.token);
-        localStorage.setItem('userId', response.data.user.id);
-        localStorage.setItem('role', response.data.user.role);
-
-        if (response.data.user.role === 'student') {
-          try {
-            const studentResponse = await axios.get(`${API_BASE_URL}${API_ENDPOINTS.STUDENT_BY_USER_ID(response.data.user.id)}`);
-            if (studentResponse.data) {
-              localStorage.setItem('profileData', JSON.stringify(studentResponse.data));
-            } else {
-              const studentProfile = {
-                id: response.data.user.id,
-                email: response.data.user.email,
-                role: response.data.user.role,
-                isVerified: response.data.user.isVerified,
-                studentId: response.data.user.studentId
-              };
-              localStorage.setItem('profileData', JSON.stringify(studentProfile));
-            }
-          } catch (error) {
-            console.error('Error fetching full student profile:', error);
-            const studentProfile = {
-              id: response.data.user.id,
-              email: response.data.user.email,
-              role: response.data.user.role,
-              isVerified: response.data.user.isVerified,
-              studentId: response.data.user.studentId
-            };
-            localStorage.setItem('profileData', JSON.stringify(studentProfile));
-          }
-        }
-
-        import('../utils/auth').then(({ handleLoginSuccess }) => {
-          handleLoginSuccess(response.data, router).then(() => {
-            if (response.data.user.role === 'student') {
-              router.push('/dashboard/student');
-            } else if (response.data.user.role === 'college') {
-              router.push('/dashboard/college');
-            } else if (response.data.user.role === 'recruiter') {
-              router.push('/dashboard/recruiter');
-            }
-          }).catch((err) => {
-            setError('Login failed: ' + err.message);
-          });
-        });
-        setMessage('OTP verified. Logging you in...');
+      if (response.status === 200 && response.data?.verified && response.data?.resetToken) {
+        setMessage('OTP verified. Create your new password.');
+        sessionStorage.setItem('campuspe_password_reset_token', response.data.resetToken);
+        router.push('/reset-password');
       } else {
         setError('OTP verification failed.');
       }
@@ -208,10 +163,10 @@ export default function ForgotPassword() {
           </div>
 
           <h1 className="text-3xl font-bold text-gray-800 mb-4">
-            Let's get started
+            Reset your password
           </h1>
           <p className="text-gray-600 text-lg leading-relaxed">
-            Connect directly with recruiters open more opportunities for your students.
+            Verify your registered contact and securely create a new CampusPe password.
           </p>
         </div>
       </div>
@@ -242,10 +197,10 @@ export default function ForgotPassword() {
             <div>
               <div className="text-center mb-8">
                 <h2 className="text-3xl font-bold text-gray-900 mb-2">
-                  Let's get started
+                  Forgot your password?
                 </h2>
                 <p className="text-gray-600">
-                  Connect directly with recruiters open more opportunities for your students.
+                  {userType === 'student' ? 'Enter your registered mobile number to receive a WhatsApp OTP.' : 'Enter your registered email to receive a verification code.'}
                 </p>
               </div>
 
@@ -299,10 +254,10 @@ export default function ForgotPassword() {
             <div className="relative">
               <div className="text-center mb-8">
                 <h2 className="text-3xl font-bold text-gray-900 mb-2">
-                  Let's get started
+                  Verify your OTP
                 </h2>
                 <p className="text-gray-600">
-                  Connect directly with recruiters open more opportunities for your students.
+                  After verification, you can create a new password for your CampusPe account.
                 </p>
               </div>
 

@@ -7,6 +7,8 @@ export interface IEducation {
   startDate: Date;
   endDate?: Date;
   gpa?: number;
+  grade?: string;
+  gradingType?: 'gpa' | 'percentage';
   isCompleted: boolean;
 }
 
@@ -37,6 +39,9 @@ export interface IBasicInfo {
 export interface IJobPreferences {
   jobTypes: string[];
   preferredLocations: string[];
+  preferredRoles?: string[];
+  industriesOfInterest?: string[];
+  noticePeriodDays?: number;
   expectedSalary?: {
     min: number;
     max: number;
@@ -65,8 +70,8 @@ export interface IStudent extends Document {
   // College Information
   collegeId: Types.ObjectId;
   collegeName?: string; // Direct college name input (optional, used if collegeId not set)
-  studentId: string; // College student ID
-  enrollmentYear: number;
+  studentId?: string; // College student ID (populated only when known)
+  enrollmentYear?: number;
   graduationYear?: number;
   currentSemester?: number;
 
@@ -110,6 +115,9 @@ export interface IStudent extends Document {
         startDate?: Date;
         endDate?: Date;
         year?: number;
+        gpa?: number;
+        grade?: string;
+        gradingType?: 'gpa' | 'percentage';
         isCompleted?: boolean;
       }>;
       contactInfo?: {
@@ -123,6 +131,7 @@ export interface IStudent extends Document {
         name?: string;
         description?: string;
         technologies?: string[];
+        link?: string;
       }>;
       certifications?: Array<{
         name?: string;
@@ -165,6 +174,9 @@ export interface IStudent extends Document {
 
   // Preferences
   jobPreferences: IJobPreferences;
+  workAuthorization?: string[];
+  completedCourses?: string[];
+  profileFeatureVector?: number[];
 
   // Status
   profileCompleteness: number; // 0-100
@@ -177,20 +189,22 @@ export interface IStudent extends Document {
 }
 
 const EducationSchema = new Schema({
-  degree: { type: String, required: true },
-  field: { type: String, required: true },
-  institution: { type: String, required: true },
-  startDate: { type: Date, required: true },
+  degree: { type: String, default: '' },
+  field: { type: String, default: '' },
+  institution: { type: String, default: '' },
+  startDate: { type: Date },
   endDate: { type: Date },
   gpa: { type: Number, min: 0, max: 10 },
+  grade: { type: String },
+  gradingType: { type: String, enum: ['gpa', 'percentage'] },
   isCompleted: { type: Boolean, default: false }
 });
 
 const ExperienceSchema = new Schema({
-  title: { type: String, required: true },
-  company: { type: String, required: true },
+  title: { type: String, default: '' },
+  company: { type: String, default: '' },
   location: { type: String },
-  startDate: { type: Date, required: true },
+  startDate: { type: Date },
   endDate: { type: Date },
   description: { type: String },
   isCurrentJob: { type: Boolean, default: false }
@@ -205,6 +219,9 @@ const SkillSchema = new Schema({
 const JobPreferencesSchema = new Schema({
   jobTypes: [{ type: String }],
   preferredLocations: [{ type: String }],
+  preferredRoles: [{ type: String, trim: true }],
+  industriesOfInterest: [{ type: String, trim: true }],
+  noticePeriodDays: { type: Number, min: 0 },
   expectedSalary: {
     min: { type: Number },
     max: { type: Number },
@@ -232,8 +249,8 @@ const StudentSchema = new Schema<IStudent>({
   // College Information
   collegeId: { type: Schema.Types.ObjectId, ref: 'College', required: false, index: true }, // Made optional for registration
   collegeName: { type: String, trim: true }, // Direct college name input
-  studentId: { type: String, required: true, trim: true },
-  enrollmentYear: { type: Number, required: true },
+  studentId: { type: String, trim: true },
+  enrollmentYear: { type: Number },
   graduationYear: { type: Number },
   currentSemester: { type: Number },
   
@@ -277,6 +294,9 @@ const StudentSchema = new Schema<IStudent>({
         startDate: Date,
         endDate: Date,
         year: Number,
+        gpa: Number,
+        grade: String,
+        gradingType: { type: String, enum: ['gpa', 'percentage'] },
         isCompleted: Boolean
       }],
       contactInfo: {
@@ -289,7 +309,8 @@ const StudentSchema = new Schema<IStudent>({
       projects: [{
         name: String,
         description: String,
-        technologies: [String]
+        technologies: [String],
+        link: String
       }],
       certifications: [{
         name: String,
@@ -332,6 +353,9 @@ const StudentSchema = new Schema<IStudent>({
   
   // Preferences
   jobPreferences: { type: JobPreferencesSchema, required: true },
+  workAuthorization: [{ type: String, trim: true }],
+  completedCourses: [{ type: String, trim: true }],
+  profileFeatureVector: [{ type: Number, select: false }],
   
   // Status
   profileCompleteness: { type: Number, default: 0, min: 0, max: 100 },
@@ -347,7 +371,6 @@ StudentSchema.index({ 'skills.name': 1 });
 StudentSchema.index({ 'skills.category': 1 });
 StudentSchema.index({ enrollmentYear: 1, graduationYear: 1 });
 StudentSchema.index({ isPlacementReady: 1, isActive: 1 });
-StudentSchema.index({ userId: 1 });
 
 // Separate indexes for job matching (avoid parallel array indexing)
 StudentSchema.index({ 'jobPreferences.jobTypes': 1, isPlacementReady: 1 });

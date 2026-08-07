@@ -178,9 +178,7 @@ const UserSchema = new Schema<IUser>({
 });
 
 // Compound indexes for enterprise performance
-UserSchema.index({ email: 1 }, { unique: true, partialFilterExpression: { status: { $ne: 'deleted' } } });
 UserSchema.index({ tenantId: 1, role: 1 }, { partialFilterExpression: { status: 'active' } });
-UserSchema.index({ phone: 1 }, { sparse: true, partialFilterExpression: { phoneVerified: true } });
 
 // Enterprise security methods
 UserSchema.methods.encryptField = function(value: string): Buffer {
@@ -240,7 +238,6 @@ UserSchema.pre('save', function(next) {
 
 // Indexes for optimization
 UserSchema.index({ email: 1, role: 1 });
-UserSchema.index({ phone: 1 });
 UserSchema.index({ createdAt: -1 });
 
 export const User = mongoose.model<IUser>('User', UserSchema);

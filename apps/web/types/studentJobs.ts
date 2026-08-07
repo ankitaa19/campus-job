@@ -12,16 +12,42 @@ export interface StudentJobBenefit {
 }
 
 export interface StudentJob {
-  id: number;
+  id: string | number;
   title: string;
   company: string;
   location: string;
   salary: string;
+  salaryMin?: number;
+  salaryMax?: number;
+  salaryCurrency?: string;
   date: string;
   type: string;
   jobType: StudentJobType;
   workMode: string;
   match?: string;
+  matchScore?: number;
+  matchingModel?: 'hybrid-ai-v2' | 'hybrid-local-v2';
+  atsEvaluation?: {
+    hardSkillsScore: number;
+    seniorityScore: number;
+    domainScore: number;
+    finalMatchScore: number;
+    experienceYearsFound: number | null;
+    experienceMatchStatus: 'EXCEEDS' | 'MATCHES' | 'UNDERQUALIFIED';
+    matchedCoreSkills: string[];
+    missingCriticalSkills: string[];
+    conciseJustification: string;
+  };
+  behaviorAdjustment?: number;
+  ruleBasedScore?: number;
+  aiScore?: number;
+  scoreBreakdown?: Record<string, {
+    score: number;
+    weight: number;
+    matched: string[];
+    missing: string[];
+    evidence: string;
+  }>;
   via?: string;
   postedDays?: string;
   source?: string;

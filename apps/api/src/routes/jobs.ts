@@ -3,6 +3,7 @@ import {
     getAllJobs, 
     getJobById, 
     createJob, 
+    importJob,
     updateJob, 
     deleteJob,
     publishJob,
@@ -12,6 +13,9 @@ import {
     sendWhatsAppToStudents,
     getJobNotificationHistory
 } from '../controllers/jobs';
+import { discoverCareerSources, getJobAggregationStatus, syncAllJobs, syncProviderCompanyJobs, syncProviderJobs } from '../controllers/job-sync';
+import JobsRepository from '../services/job-aggregation/jobs.repository';
+import JobQueryBuilder from '../services/job-aggregation/job-query-builder';
 import {
     applyForJob,
     getResumeImprovementSuggestions,
@@ -28,8 +32,14 @@ import { Job } from '../models/Job';
 import authMiddleware from '../middleware/auth';
 import { checkRecruiterAccess } from '../middleware/entityAccess';
 import { roleMiddleware } from '../middleware/roleMiddleware';
+import { Types } from 'mongoose';
+import JobBehaviorService from '../services/job-behavior';
+import { freshnessCutoff } from '../services/job-intelligence';
+import { MATCH_VISIBILITY_THRESHOLD } from '../services/hybrid-resume-matching';
+import axios from 'axios';
 
 const router = express.Router();
+const reverseGeocodeCache = new Map<string, { city: string; state: string; country: string; displayName: string }>();
 
 // Route to get all jobs
 router.get('/', getAllJobs);
@@ -37,19 +47,139 @@ router.get('/', getAllJobs);
 // Route to get public jobs (no auth required) - used by /jobs public page and student dashboard
 router.get('/public', async (req: any, res: any) => {
     try {
-        const jobs = await Job.find({ 
-            isPublic: true,
-            status: 'active'
-        })
-        .populate('recruiterId', 'companyInfo.name')
-        .sort({ postedAt: -1 });
-        
-        res.status(200).json(jobs);
+        const result = await JobsRepository.findAll(req.query, true);
+        res.setHeader('X-Total-Count', String(result.total));
+        res.setHeader('Access-Control-Expose-Headers', 'X-Total-Count');
+        res.status(200).json(result.jobs);
     } catch (error) {
         console.error('Error fetching public jobs:', error);
         res.status(500).json({ message: 'Server error' });
     }
 });
+
+// Company-grouped catalogue endpoint. Each page contains a balanced set of
+// employers and all current vacancies needed by that employer's carousel.
+router.get('/public/companies', async (req: any, res: any) => {
+    try {
+        const result = await JobsRepository.findCompanyGroups(req.query, true);
+        res.setHeader('X-Total-Count', String(result.totalJobs));
+        res.setHeader('X-Total-Companies', String(result.totalCompanies));
+        res.setHeader('Access-Control-Expose-Headers', 'X-Total-Count, X-Total-Companies');
+        res.status(200).json(result);
+    } catch (error) {
+        console.error('Error fetching public company jobs:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// Convert browser coordinates into a human-readable search location. Keeping
+// this server-side avoids exposing a third-party geocoding call in the browser.
+router.get('/location/reverse', async (req: any, res: any) => {
+    const latitude = Number(req.query.latitude);
+    const longitude = Number(req.query.longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+        return res.status(400).json({ success: false, message: 'Valid latitude and longitude are required' });
+    }
+
+    const cacheKey = `${latitude.toFixed(3)},${longitude.toFixed(3)}`;
+    const cached = reverseGeocodeCache.get(cacheKey);
+    if (cached) return res.json({ success: true, data: cached });
+
+    try {
+        const response = await axios.get('https://nominatim.openstreetmap.org/reverse', {
+            params: { format: 'jsonv2', lat: latitude, lon: longitude, zoom: 10, addressdetails: 1 },
+            headers: { 'User-Agent': 'CampusPe/1.0 (https://campuspe.com)', Accept: 'application/json' },
+            timeout: 8000
+        });
+        const address = response.data?.address || {};
+        const result = {
+            city: address.city || address.town || address.village || address.municipality || address.county || '',
+            state: address.state || '',
+            country: address.country || '',
+            displayName: response.data?.display_name || ''
+        };
+        if (!result.city && !result.state && !result.country) throw new Error('No location found for coordinates');
+        reverseGeocodeCache.set(cacheKey, result);
+        return res.json({ success: true, data: result });
+    } catch (error) {
+        console.error('Reverse geocoding failed:', error);
+        return res.status(502).json({ success: false, message: 'Unable to identify your location right now' });
+    }
+});
+
+// Manual synchronization is admin-only. These routes must be declared before
+// the dynamic job ID route.
+router.get('/sync', authMiddleware, roleMiddleware(['admin']), syncAllJobs);
+router.get('/sync/status', authMiddleware, roleMiddleware(['admin']), getJobAggregationStatus);
+router.post('/sync/discover-career-sources', authMiddleware, roleMiddleware(['admin']), discoverCareerSources);
+router.get('/sync/:provider', authMiddleware, roleMiddleware(['admin']), syncProviderJobs);
+router.get('/sync/:provider/:companySlug', authMiddleware, roleMiddleware(['admin']), syncProviderCompanyJobs);
+
+// Recommendations must be declared before /:jobId so "recommendations" is
+// never interpreted as a Mongo ObjectId.
+router.get('/recommendations', authMiddleware, async (req: any, res: any) => {
+    try {
+        const { Student } = require('../models/Student');
+        const CentralizedMatchingService = require('../services/centralized-matching').default;
+        const student = await Student.findOne({ userId: req.user?._id || req.user?.userId });
+        if (!student) return res.status(404).json({ success: false, message: 'Student profile not found' });
+
+        const minimumScore = Math.max(MATCH_VISIBILITY_THRESHOLD, Math.min(100, Number(req.query.minimumScore ?? MATCH_VISIBILITY_THRESHOLD)));
+        const result = await CentralizedMatchingService.getStudentJobMatches(student._id, {
+            threshold: minimumScore / 100,
+            limit: Math.min(500, Math.max(1, Number(req.query.limit ?? 20))),
+            includeApplied: true
+        });
+        const jobIds = result.matches.map((match: any) => match.jobId);
+        const { filter: recommendationFilter, sort } = JobQueryBuilder.build(req.query, true);
+        const jobs = await Job.find({ ...recommendationFilter, _id: { $in: jobIds }, postedAt: { $gte: freshnessCutoff() } }).sort(sort).lean();
+        const matchesByJobId = new Map(result.matches.map((match: any) => [match.jobId.toString(), match]));
+        return res.json({
+            success: true,
+            minimumScore,
+            data: jobs.map((job: any) => {
+                const match: any = matchesByJobId.get(job._id.toString());
+                if (!match) return null;
+                return {
+                    ...job,
+                    matchScore: match.displayMatchScore,
+                    matchedSkills: match.skillsMatched,
+                    skillsGap: match.skillsGap,
+                    matchingModel: match.matchingModel,
+                    ruleBasedScore: match.ruleBasedScore,
+                    aiScore: match.aiScore,
+                    behaviorAdjustment: match.behaviorAdjustment,
+                    scoreBreakdown: match.scoreBreakdown,
+                    atsEvaluation: match.atsEvaluation
+                };
+            }).filter(Boolean)
+        });
+    } catch (error) {
+        console.error('Error fetching recommendations:', error);
+        return res.status(500).json({ success: false, message: 'Failed to fetch recommendations' });
+    }
+});
+
+router.post('/:jobId/interactions', authMiddleware, async (req: any, res: any) => {
+    try {
+        const allowed = ['view', 'click', 'save', 'dismiss', 'apply', 'abandon'] as const;
+        if (!Types.ObjectId.isValid(req.params.jobId) || !allowed.includes(req.body?.type)) {
+            return res.status(400).json({ success: false, message: 'Invalid job interaction' });
+        }
+        await JobBehaviorService.record(
+            new Types.ObjectId(req.user?._id || req.user?.userId),
+            new Types.ObjectId(req.params.jobId),
+            req.body.type,
+            req.body.metadata
+        );
+        return res.status(201).json({ success: true });
+    } catch (error) {
+        console.error('Error recording job interaction:', error);
+        return res.status(500).json({ success: false, message: 'Failed to record interaction' });
+    }
+});
+
+router.post('/imports', authMiddleware, checkRecruiterAccess, importJob);
 
 // Route to get jobs for authenticated recruiter
 router.get('/recruiter-jobs', authMiddleware, checkRecruiterAccess, async (req: any, res: any) => {
@@ -122,9 +252,6 @@ router.get('/my-jobs', authMiddleware, checkRecruiterAccess, async (req: any, re
         res.status(500).json({ message: 'Server error' });
     }
 });
-
-// Route to get job by ID
-router.get('/:jobId', getJobById);
 
 // Route to get job matching statistics
 router.get('/:jobId/stats', getJobMatchingStats);
@@ -305,5 +432,9 @@ router.get('/trending', authMiddleware, async (req: any, res: any) => {
         res.status(500).json({ message: 'Failed to fetch trending jobs' });
     }
 });
+
+// Keep the single-job lookup after every named route so names such as
+// "trending", "matches", and "recommendations" are never treated as IDs.
+router.get('/:jobId', getJobById);
 
 export default router;

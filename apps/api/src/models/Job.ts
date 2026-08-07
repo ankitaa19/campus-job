@@ -39,8 +39,26 @@ export interface IJob extends Document {
   department: string;
   
   // Company & Recruiter
-  recruiterId: Types.ObjectId;
+  recruiterId?: Types.ObjectId;
   companyName: string;
+
+  // Origin is retained for audit/refresh purposes only. Applications always
+  // remain on CampusPe; sourceUrl is never returned as an apply action.
+  source: 'campuspe' | 'company_careers' | 'job_board';
+  sourceExternalId?: string;
+  sourceProvider?: string;
+  sourceCompanySlug?: string;
+  providerCompanyId?: Types.ObjectId;
+  sourceUrl?: string;
+  attributionName?: string;
+  attributionUrl?: string;
+  importedAt?: Date;
+  sourceLifecycleStatus?: 'active' | 'missing_on_source' | 'recheck' | 'expired';
+  lastVerifiedAt?: Date;
+  firstMissingAt?: Date;
+  lastMissingAt?: Date;
+  nextSourceRecheckAt?: Date;
+  missingSourceCount: number;
   
   // Location & Work Mode
   locations: IJobLocation[];
@@ -52,6 +70,7 @@ export interface IJob extends Document {
   experienceLevel: 'entry' | 'mid' | 'senior' | 'lead' | 'executive';
   minExperience: number; // in years
   maxExperience?: number;
+  noticePeriodDays?: number;
   
   // Education Requirements
   educationRequirements: {
@@ -90,6 +109,13 @@ export interface IJob extends Document {
   // AI & Matching
   aiGeneratedDescription?: string;
   matchingKeywords: string[];
+  normalizedTitle?: string;
+  canonicalSkills: string[];
+  certifications: string[];
+  industry?: string;
+  featureVector: number[];
+  dedupFingerprint?: string;
+  normalizationVersion?: number;
   
   // Analytics
   views: number;
@@ -151,8 +177,23 @@ const JobSchema = new Schema<IJob>({
   department: { type: String, required: true, trim: true },
   
   // Company & Recruiter
-  recruiterId: { type: Schema.Types.ObjectId, ref: 'Recruiter', required: true, index: true },
+  recruiterId: { type: Schema.Types.ObjectId, ref: 'Recruiter', index: true },
   companyName: { type: String, required: true, trim: true, index: true },
+  source: { type: String, enum: ['campuspe', 'company_careers', 'job_board'], default: 'campuspe', index: true },
+  sourceExternalId: { type: String, trim: true },
+  sourceUrl: { type: String, trim: true, select: false },
+  attributionName: { type: String, trim: true },
+  attributionUrl: { type: String, trim: true },
+  sourceProvider: { type: String, trim: true, lowercase: true, index: true },
+  sourceCompanySlug: { type: String, trim: true, lowercase: true, index: true },
+  providerCompanyId: { type: Schema.Types.ObjectId, ref: 'ProviderCompany', index: true },
+  importedAt: { type: Date },
+  sourceLifecycleStatus: { type: String, enum: ['active', 'missing_on_source', 'recheck', 'expired'], index: true },
+  lastVerifiedAt: { type: Date, index: true },
+  firstMissingAt: Date,
+  lastMissingAt: Date,
+  nextSourceRecheckAt: { type: Date, index: true },
+  missingSourceCount: { type: Number, default: 0, min: 0 },
   
   // Location & Work Mode
   locations: [JobLocationSchema],
@@ -165,6 +206,7 @@ const JobSchema = new Schema<IJob>({
   
   // Requirements
   requirements: [JobRequirementSchema],
+  requiredSkills: [{ type: String, trim: true, lowercase: true, index: true }],
   experienceLevel: { 
     type: String, 
     enum: ['entry', 'mid', 'senior', 'lead', 'executive'], 
@@ -173,6 +215,7 @@ const JobSchema = new Schema<IJob>({
   },
   minExperience: { type: Number, required: true, min: 0 },
   maxExperience: { type: Number, min: 0 },
+  noticePeriodDays: { type: Number, min: 0, index: true },
   
   // Education Requirements
   educationRequirements: [EducationRequirementSchema],
@@ -211,6 +254,13 @@ const JobSchema = new Schema<IJob>({
   // AI & Matching
   aiGeneratedDescription: { type: String },
   matchingKeywords: [{ type: String }],
+  normalizedTitle: { type: String, trim: true, lowercase: true, index: true },
+  canonicalSkills: [{ type: String, trim: true, lowercase: true, index: true }],
+  certifications: [{ type: String, trim: true }],
+  industry: { type: String, trim: true, index: true },
+  featureVector: [{ type: Number, select: false }],
+  dedupFingerprint: { type: String, trim: true, index: true },
+  normalizationVersion: { type: Number, default: 1, index: true },
   
   // Analytics
   views: { type: Number, default: 0 },
@@ -233,6 +283,11 @@ JobSchema.index({ 'requirements.skill': 1 });
 JobSchema.index({ targetColleges: 1, status: 1 });
 JobSchema.index({ companyName: 1, status: 1 });
 JobSchema.index({ workMode: 1, status: 1 });
+// An upstream vacancy can be refreshed safely without creating a second job.
+JobSchema.index({ source: 1, sourceExternalId: 1 }, { unique: true, sparse: true });
+JobSchema.index({ sourceProvider: 1, sourceCompanySlug: 1, status: 1 });
+JobSchema.index({ sourceLifecycleStatus: 1, nextSourceRecheckAt: 1 });
+JobSchema.index({ status: 1, postedAt: -1, industry: 1 });
 
 // Compound indexes for complex queries
 JobSchema.index({ 

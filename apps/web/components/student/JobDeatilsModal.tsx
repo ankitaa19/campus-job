@@ -1,14 +1,15 @@
 import React from 'react';
-import { X, MapPin, Calendar, Briefcase, Building, Eye, FileText, Heart, CalendarCheck, TrendingUp, Award } from 'lucide-react';
+import { X, MapPin, Calendar, Briefcase, Building, FileText, Heart, CalendarCheck, TrendingUp, Award } from 'lucide-react';
 import { StudentJob } from '../../types/studentJobs';
 
 interface JobDetailsModalProps {
   job: StudentJob;
   isOpen: boolean;
   onClose: () => void;
+  onApply?: () => void;
 }
 
-const JobDetailsModal: React.FC<JobDetailsModalProps> = ({ job, isOpen, onClose }) => {
+const JobDetailsModal: React.FC<JobDetailsModalProps> = ({ job, isOpen, onClose, onApply }) => {
   if (!isOpen || !job) return null;
 
   const jobTypeValue = job.jobType?.toLowerCase() || '';
@@ -18,8 +19,8 @@ const JobDetailsModal: React.FC<JobDetailsModalProps> = ({ job, isOpen, onClose 
   const isGig = jobTypeValue.includes('gig') || jobTypeValue.includes('flexible');
   const isPartTime = jobTypeValue.includes('part');
 
-  const salaryDisplay = job.salary?.split('/')[0]?.trim() || job.salary || 'Not specified';
-  const description = job.description || 'Job description will be shared soon.';
+  const salaryDisplay = job.salary?.split('/')[0]?.trim() || job.salary || '';
+  const description = job.description || '';
   const truncatedDescription =
     description.length > 250 ? `${description.substring(0, 250)}...` : description;
   const skills =
@@ -50,7 +51,7 @@ const JobDetailsModal: React.FC<JobDetailsModalProps> = ({ job, isOpen, onClose 
     if (job.workExperience?.min || job.workExperience?.max) {
       return `${job.workExperience?.min || '0'}-${job.workExperience?.max || '0'} Years`;
     }
-    return 'Fresher';
+    return '';
   };
 
   const formatPreferredDays = (
@@ -67,10 +68,9 @@ const JobDetailsModal: React.FC<JobDetailsModalProps> = ({ job, isOpen, onClose 
 
   const noticePeriod =
     job.fullTimeDetails?.noticePeriod ||
-    (isInternship || isGig ? 'Immediate Joiner' : undefined) ||
-    'Immediate Joiner';
-  const qualification = job.education || job.educationQualification || 'Graduate';
-  const workMode = job.workMode || job.fullTimeDetails?.preferredMode || 'Remote';
+    (isInternship || isGig ? job.fullTimeDetails?.noticePeriod : undefined);
+  const qualification = job.education || job.educationQualification || '';
+  const workMode = job.workMode || job.fullTimeDetails?.preferredMode || '';
 
   const DetailChip = ({ label, value }: { label: string; value?: string }) =>
     value ? (
@@ -199,7 +199,7 @@ const JobDetailsModal: React.FC<JobDetailsModalProps> = ({ job, isOpen, onClose 
             <div className="flex-1">
               <h2 className="text-base font-semibold text-gray-900">{job.company} - Job Details</h2>
               <p className="text-sm text-gray-500 mt-0.5">
-                View complete job details, interview scheduling, and candidate management for Infosys
+                Authentic job information stored and managed inside CampusPe
               </p>
             </div>
           </div>
@@ -226,7 +226,7 @@ const JobDetailsModal: React.FC<JobDetailsModalProps> = ({ job, isOpen, onClose 
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-600 w-full">
                 <span className="inline-flex items-center">
                   <MapPin className="mr-1 h-3.5 w-3.5" />
-                  {job.workMode?.toLowerCase() === 'remote' ? 'Remote' : job.workMode?.toLowerCase() === 'hybrid' ? `${job.location || 'New Delhi Sector-14'}, Hybrid` : (job.location || 'New Delhi Sector-14')}
+                  {job.workMode?.toLowerCase() === 'remote' ? 'Remote' : job.workMode?.toLowerCase() === 'hybrid' ? `${job.location || ''}, Hybrid` : job.location}
                 </span>
                 <span className="text-gray-400">·</span>
                 <span className="inline-flex items-center">
@@ -251,12 +251,8 @@ const JobDetailsModal: React.FC<JobDetailsModalProps> = ({ job, isOpen, onClose 
               </div>
             </div>
             <div className="px-6 pb-4 pt-4">
-              <h4 className="text-sm font-semibold text-gray-900 mb-2">
-                Get To Know Deali Jobs:
-              </h4>
-              <p className="text-sm leading-relaxed text-gray-700">
-                {description}
-              </p>
+              <h4 className="text-sm font-semibold text-gray-900 mb-2">Job description</h4>
+              {description && <p className="text-sm leading-relaxed text-gray-700">{description}</p>}
             </div>
           </div>
 
@@ -283,12 +279,12 @@ const JobDetailsModal: React.FC<JobDetailsModalProps> = ({ job, isOpen, onClose 
 
           )}
 
-          <div className="mt-5">
+          {job.numberOfOpenings != null && <div className="mt-5">
             <h5 className="text-sm font-semibold text-gray-900 mb-3">Number of Openings:</h5>
             <div className="inline-flex items-center justify-center px-4 py-2" style={{ backgroundColor: 'rgba(204, 177, 255, 0.2)', borderRadius: '8px' }}>
-              <p className="text-lg text-gray-900">{job.numberOfOpenings || 1}</p>
+              <p className="text-lg text-gray-900">{job.numberOfOpenings}</p>
             </div>
-          </div>
+          </div>}
 
           {benefits.length > 0 && (
             <div className="mt-5">
@@ -335,15 +331,9 @@ const JobDetailsModal: React.FC<JobDetailsModalProps> = ({ job, isOpen, onClose 
             )}
           </div>
 
-          <div className="mt-6 flex items-center gap-3 justify-end">
-            <button className=" flex items-center justify-center gap-2 rounded-lg border border-blue-500 bg-white px-6 py-2.5 text-sm font-medium text-blue-600 transition hover:bg-blue-50">
-              <Eye className="h-4 w-4" />
-              <span>View Company</span>
-            </button>
-            <button className=" rounded-lg bg-blue-500 px-6 py-2.5 text-sm font-medium text-white transition hover:bg-blue-600">
-              Apply
-            </button>
-          </div>
+          {onApply && <div className="mt-6 flex items-center justify-end">
+            <button onClick={onApply} className="rounded-lg bg-blue-500 px-6 py-2.5 text-sm font-medium text-white transition hover:bg-blue-600">Apply in CampusPe</button>
+          </div>}
         </div>
       </div>
     </div>

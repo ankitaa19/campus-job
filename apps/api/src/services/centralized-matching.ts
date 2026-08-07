@@ -3,7 +3,9 @@ import { Student } from '../models/Student';
 import { Job } from '../models/Job';
 import { ResumeJobAnalysis, IResumeJobAnalysis } from '../models/ResumeJobAnalysis';
 import AIResumeMatchingService from './ai-resume-matching';
-import AIMatchingService from './ai-matching';
+import HybridResumeMatchingService, { AtsEvaluation, DimensionScore, MatchDimension, toDisplayMatchScore } from './hybrid-resume-matching';
+import JobBehaviorService from './job-behavior';
+import { freshnessCutoff } from './job-intelligence';
 
 /**
  * Centralized Job Matching Service
@@ -40,6 +42,13 @@ export interface MatchResult {
   semanticSimilarity: number;
   matchedSkills: string[];
   matchedTools: string[];
+  matchingModel: 'hybrid-ai-v2' | 'hybrid-local-v2';
+  displayMatchScore?: number;
+  behaviorAdjustment: number;
+  ruleBasedScore: number;
+  aiScore: number;
+  scoreBreakdown: Record<MatchDimension, DimensionScore>;
+  atsEvaluation?: AtsEvaluation;
   
   // Metadata
   jobTitle: string;
@@ -98,7 +107,10 @@ class CentralizedMatchingService {
       // 2. Get all active jobs
       const jobQuery: any = { 
         status: 'active',
-        applicationDeadline: { $gt: new Date() }
+        isPublic: true,
+        allowDirectApplications: true,
+        applicationDeadline: { $gt: new Date() },
+        postedAt: { $gte: freshnessCutoff() }
       };
 
       // Optionally exclude already applied jobs
@@ -116,28 +128,81 @@ class CentralizedMatchingService {
       const activeJobs = await Job.find(jobQuery).lean();
       console.log(`   💼 Found ${activeJobs.length} active jobs to analyze`);
 
-      // 3. Process matches (with caching)
+      // 3. Read the complete cache in one query. Missing rows receive the
+      // deterministic hybrid score in memory and are persisted asynchronously.
+      // The recommendation request must never wait for one AI/database round
+      // trip per active job.
       const matches: MatchResult[] = [];
-      
-      for (const job of activeJobs) {
-        try {
-          const match = await this.getOrCalculateMatch(
-            objStudentId, 
-            job._id, 
-            forceRefresh
-          );
-          
-          if (match && match.finalMatchScore >= threshold) {
-            // Add job details
-            match.jobTitle = job.title;
-            match.companyName = job.companyName || 'Unknown Company';
-            match.workMode = job.workMode || 'Not specified';
-            
-            matches.push(match);
-          }
-        } catch (matchError) {
-          console.error(`❌ Error calculating match for job ${job._id}:`, matchError);
+      const cacheExpiry = new Date(Date.now() - this.CACHE_EXPIRY_HOURS * 60 * 60 * 1000);
+      const cachedAnalyses = forceRefresh ? [] : await ResumeJobAnalysis.find({
+        studentId: objStudentId,
+        jobId: { $in: activeJobs.map(job => job._id) },
+        isActive: true,
+        matchingModel: { $in: ['hybrid-ai-v2', 'hybrid-local-v2'] },
+        analyzedAt: { $gt: cacheExpiry }
+      }).lean();
+      const cacheByJob = new Map(cachedAnalyses.map(analysis => [analysis.jobId.toString(), analysis]));
+      const behaviorAdjustments = await Promise.all(activeJobs.map(job => JobBehaviorService.adjustment(objStudentId, job)));
+      const resumeContent = this.buildResumeContent(student);
+      const pendingWrites: any[] = [];
+
+      activeJobs.forEach((job, index) => {
+        const cached = cacheByJob.get(job._id.toString());
+        const behaviorAdjustment = behaviorAdjustments[index] || 0;
+        let match: MatchResult;
+        if (cached) {
+          const atsScore = cached.ruleBasedScore ?? cached.matchScore;
+          match = {
+            studentId: objStudentId, jobId: job._id, matchScore: atsScore,
+            explanation: cached.explanation, suggestions: cached.suggestions || [], skillsMatched: cached.skillsMatched || [], skillsGap: cached.skillsGap || [],
+            finalMatchScore: atsScore / 100, skillMatch: 0, toolMatch: 0, categoryMatch: 0, workModeMatch: 0, semanticSimilarity: 0,
+            matchedSkills: cached.skillsMatched || [], matchedTools: [], matchingModel: (cached.matchingModel as 'hybrid-ai-v2' | 'hybrid-local-v2') || 'hybrid-local-v2',
+            displayMatchScore: toDisplayMatchScore(atsScore), behaviorAdjustment,
+            ruleBasedScore: cached.ruleBasedScore ?? cached.matchScore, aiScore: cached.aiScore ?? cached.matchScore,
+            scoreBreakdown: (cached.scoreBreakdown || {}) as Record<MatchDimension, DimensionScore>,
+            atsEvaluation: cached.atsEvaluation as AtsEvaluation | undefined,
+            jobTitle: job.title, companyName: job.companyName || 'Unknown Company', workMode: job.workMode || 'Not specified', cached: true, analyzedAt: cached.analyzedAt
+          };
+        } else {
+          const local = HybridResumeMatchingService.calculate(student, job);
+          match = {
+            studentId: objStudentId, jobId: job._id, matchScore: local.matchScore,
+            explanation: local.explanation, suggestions: local.suggestions, skillsMatched: local.skillsMatched, skillsGap: local.skillsGap,
+            finalMatchScore: local.matchScore / 100,
+            skillMatch: local.scoreBreakdown.semanticSkills.score / 100,
+            toolMatch: local.scoreBreakdown.educationCertifications.score / 100,
+            categoryMatch: local.scoreBreakdown.industry.score / 100,
+            workModeMatch: local.scoreBreakdown.location.score / 100,
+            semanticSimilarity: local.aiScore / 100, matchedSkills: local.skillsMatched,
+            matchedTools: local.scoreBreakdown.educationCertifications.matched,
+            matchingModel: 'hybrid-local-v2', displayMatchScore: toDisplayMatchScore(local.matchScore), behaviorAdjustment,
+            ruleBasedScore: local.ruleBasedScore, aiScore: local.aiScore, scoreBreakdown: local.scoreBreakdown,
+            atsEvaluation: local.atsEvaluation,
+            jobTitle: job.title, companyName: job.companyName || 'Unknown Company', workMode: job.workMode || 'Not specified', cached: false, analyzedAt: new Date()
+          };
+          pendingWrites.push({
+            updateOne: {
+              filter: { studentId: objStudentId, jobId: job._id },
+              update: { $set: {
+                studentId: objStudentId, jobId: job._id, matchScore: local.matchScore,
+                explanation: local.explanation, suggestions: local.suggestions, skillsMatched: local.skillsMatched, skillsGap: local.skillsGap,
+                matchingModel: 'hybrid-local-v2', displayMatchScore: toDisplayMatchScore(local.matchScore), behaviorAdjustment,
+                ruleBasedScore: local.ruleBasedScore, aiScore: local.aiScore, scoreBreakdown: local.scoreBreakdown,
+                atsEvaluation: local.atsEvaluation,
+                resumeText: resumeContent, resumeVersion: 1, jobTitle: job.title, jobDescription: job.description,
+                companyName: job.companyName || 'Unknown Company', isActive: true, analyzedAt: new Date()
+              } },
+              upsert: true
+            }
+          });
         }
+        if (match.finalMatchScore >= threshold) matches.push(match);
+      });
+
+      if (pendingWrites.length) {
+        setImmediate(() => ResumeJobAnalysis.bulkWrite(pendingWrites, { ordered: false }).catch(error =>
+          console.error('Failed to persist bulk recommendation scores:', error)
+        ));
       }
 
       // 4. Sort by match score
@@ -205,21 +270,25 @@ class CentralizedMatchingService {
         studentId,
         jobId,
         isActive: true,
+        matchingModel: { $in: ['hybrid-ai-v2', 'hybrid-local-v2'] },
         analyzedAt: { $gt: cacheExpiry }
       }).lean();
 
       if (cachedAnalysis) {
-        console.log(`💾 [CACHE HIT] Using cached match: ${cachedAnalysis.matchScore}%`);
+        const cachedJob = await Job.findById(jobId).select('industry normalizedTitle title canonicalSkills requiredSkills').lean();
+        const behaviorAdjustment = cachedJob ? await JobBehaviorService.adjustment(studentId, cachedJob) : 0;
+        const atsScore = cachedAnalysis.ruleBasedScore ?? cachedAnalysis.matchScore;
+        console.log(`💾 [CACHE HIT] Using cached ATS match: ${atsScore}%`);
         
         return {
           studentId,
           jobId,
-          matchScore: cachedAnalysis.matchScore,
+          matchScore: atsScore,
           explanation: cachedAnalysis.explanation,
           suggestions: cachedAnalysis.suggestions,
           skillsMatched: cachedAnalysis.skillsMatched,
           skillsGap: cachedAnalysis.skillsGap,
-          finalMatchScore: cachedAnalysis.matchScore / 100, // Convert to 0-1 scale
+          finalMatchScore: atsScore / 100,
           skillMatch: 0, // Legacy fields - could be enhanced
           toolMatch: 0,
           categoryMatch: 0,
@@ -227,6 +296,13 @@ class CentralizedMatchingService {
           semanticSimilarity: 0,
           matchedSkills: cachedAnalysis.skillsMatched,
           matchedTools: [],
+          matchingModel: (cachedAnalysis.matchingModel as 'hybrid-ai-v2' | 'hybrid-local-v2') || 'hybrid-local-v2',
+          displayMatchScore: toDisplayMatchScore(atsScore),
+          behaviorAdjustment,
+          ruleBasedScore: cachedAnalysis.ruleBasedScore ?? cachedAnalysis.matchScore,
+          aiScore: cachedAnalysis.aiScore ?? cachedAnalysis.matchScore,
+          scoreBreakdown: (cachedAnalysis.scoreBreakdown || {}) as Record<MatchDimension, DimensionScore>,
+          atsEvaluation: cachedAnalysis.atsEvaluation as AtsEvaluation | undefined,
           jobTitle: cachedAnalysis.jobTitle,
           companyName: cachedAnalysis.companyName,
           workMode: 'Unknown',
@@ -264,27 +340,35 @@ class CentralizedMatchingService {
       // 2. Build resume content
       const resumeContent = this.buildResumeContent(student);
       
-      // 3. Use the enhanced AI matching service
-      const advancedMatch = await AIMatchingService.calculateAdvancedMatch(studentId, jobId);
-      
-      // 4. Also get detailed AI analysis
+      // 3. Get semantic/AI analysis. The service has a deterministic fallback
+      // when no provider key is configured.
       const aiAnalysis = await AIResumeMatchingService.analyzeResumeMatch(
         resumeContent,
         job.description
       );
 
-      // 5. Combine results
-      const finalMatchScore = Math.max(advancedMatch.finalMatchScore, aiAnalysis.matchScore / 100);
+      // 4. Calculate the strict 40/30/30 ATS score.
+      const hybridMatch = HybridResumeMatchingService.calculate(student, job, aiAnalysis);
+      const behaviorAdjustment = await JobBehaviorService.adjustment(studentId, job);
+      // Behavior remains recommendation metadata and never changes ATS suitability.
+      const finalMatchScore = hybridMatch.matchScore / 100;
       
       // 6. Store in database
       const analysisData = {
         studentId,
         jobId,
-        matchScore: Math.round(finalMatchScore * 100),
-        explanation: aiAnalysis.explanation,
-        suggestions: aiAnalysis.suggestions,
-        skillsMatched: [...new Set([...advancedMatch.matchedSkills, ...aiAnalysis.skillsMatched])],
-        skillsGap: aiAnalysis.skillsGap,
+        matchScore: hybridMatch.matchScore,
+        explanation: hybridMatch.explanation,
+        suggestions: hybridMatch.suggestions,
+        skillsMatched: hybridMatch.skillsMatched,
+        skillsGap: hybridMatch.skillsGap,
+        matchingModel: hybridMatch.matchingModel,
+        displayMatchScore: hybridMatch.displayMatchScore,
+        behaviorAdjustment,
+        ruleBasedScore: hybridMatch.ruleBasedScore,
+        aiScore: hybridMatch.aiScore,
+        scoreBreakdown: hybridMatch.scoreBreakdown,
+        atsEvaluation: hybridMatch.atsEvaluation,
         resumeText: resumeContent,
         resumeVersion: 1, // Could be enhanced to track versions
         jobTitle: job.title,
@@ -301,25 +385,32 @@ class CentralizedMatchingService {
         { upsert: true, new: true }
       );
 
-      console.log(`💾 [STORED] Match analysis: ${Math.round(finalMatchScore * 100)}% for ${job.title}`);
+      console.log(`💾 [STORED] ${hybridMatch.matchingModel} analysis: ${hybridMatch.matchScore}% for ${job.title}`);
 
       // 7. Return unified result
       return {
         studentId,
         jobId,
-        matchScore: Math.round(finalMatchScore * 100),
-        explanation: aiAnalysis.explanation,
-        suggestions: aiAnalysis.suggestions,
+        matchScore: hybridMatch.matchScore,
+        explanation: hybridMatch.explanation,
+        suggestions: hybridMatch.suggestions,
         skillsMatched: analysisData.skillsMatched,
-        skillsGap: aiAnalysis.skillsGap,
+        skillsGap: hybridMatch.skillsGap,
         finalMatchScore,
-        skillMatch: advancedMatch.skillMatch,
-        toolMatch: advancedMatch.toolMatch,
-        categoryMatch: advancedMatch.categoryMatch,
-        workModeMatch: advancedMatch.workModeMatch,
-        semanticSimilarity: advancedMatch.semanticSimilarity,
-        matchedSkills: advancedMatch.matchedSkills,
-        matchedTools: advancedMatch.matchedTools,
+        skillMatch: hybridMatch.scoreBreakdown.semanticSkills.score / 100,
+        toolMatch: hybridMatch.scoreBreakdown.educationCertifications.score / 100,
+        categoryMatch: hybridMatch.scoreBreakdown.industry.score / 100,
+        workModeMatch: hybridMatch.scoreBreakdown.location.score / 100,
+        semanticSimilarity: hybridMatch.aiScore / 100,
+        matchedSkills: hybridMatch.skillsMatched,
+        matchedTools: hybridMatch.scoreBreakdown.educationCertifications.matched,
+        matchingModel: hybridMatch.matchingModel,
+        displayMatchScore: hybridMatch.displayMatchScore,
+        behaviorAdjustment,
+        ruleBasedScore: hybridMatch.ruleBasedScore,
+        aiScore: hybridMatch.aiScore,
+        scoreBreakdown: hybridMatch.scoreBreakdown,
+        atsEvaluation: hybridMatch.atsEvaluation,
         jobTitle: job.title,
         companyName: analysisData.companyName,
         workMode: job.workMode || 'Not specified',
@@ -337,8 +428,8 @@ class CentralizedMatchingService {
    * Build resume content from student profile
    */
   private buildResumeContent(student: any): string {
-    let content = '';
-    
+    let content = student.resumeText ? `${student.resumeText}\n\n` : '';
+
     // Basic info
     if (student.firstName && student.lastName) {
       content += `${student.firstName} ${student.lastName}\n\n`;
@@ -368,11 +459,16 @@ class CentralizedMatchingService {
       });
     }
 
-    // Use stored resume text if available
-    if (student.resumeText) {
-      content = student.resumeText;
+    const extracted = student.resumeAnalysis?.extractedDetails;
+    if (extracted?.certifications?.length) {
+      content += `\nCertifications: ${extracted.certifications.map((item: any) => item.name).filter(Boolean).join(', ')}\n`;
     }
-    
+    if (extracted?.projects?.length) {
+      content += `\nProjects:\n${extracted.projects.map((item: any) => `${item.name || ''} ${item.description || ''} ${(item.technologies || []).join(' ')}`).join('\n')}\n`;
+    }
+    if (student.jobPreferences) {
+      content += `\nPreferences: ${(student.jobPreferences.jobTypes || []).join(', ')}; ${student.jobPreferences.workMode || 'any'}; ${(student.jobPreferences.preferredLocations || []).join(', ')}\n`;
+    }
     return content || 'No resume information available';
   }
 

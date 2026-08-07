@@ -1,8 +1,10 @@
 import express from 'express';
 import { Application } from '../models/Application';
 import { Job } from '../models/Job';
+import { Student } from '../models/Student';
 import authMiddleware from '../middleware/auth';
 import { checkRecruiterAccess } from '../middleware/entityAccess';
+import { sendApplicationStatusNotification } from '../services/notifications';
 
 const router = express.Router();
 
@@ -58,7 +60,7 @@ router.patch('/:applicationId/status', authMiddleware, checkRecruiterAccess, asy
             return res.status(404).json({ message: 'Application not found' });
         }
         
-        if (application.recruiterId.toString() !== recruiter._id.toString()) {
+        if (!application.recruiterId || application.recruiterId.toString() !== recruiter._id.toString()) {
             return res.status(403).json({ message: 'Access denied' });
         }
         
@@ -70,6 +72,26 @@ router.patch('/:applicationId/status', authMiddleware, checkRecruiterAccess, asy
             notes: `Status updated to ${status}`
         });
         await application.save();
+
+        try {
+            const studentRecord = await Student.findById(application.studentId).populate('userId', '_id');
+            const job = await Job.findById(application.jobId).select('title').lean();
+            const studentUser = studentRecord?.userId as any;
+
+            if (!studentUser?._id) {
+                throw new Error('Student user profile not found');
+            }
+
+            await sendApplicationStatusNotification(
+                String(studentUser._id),
+                String(application._id),
+                status,
+                job?.title,
+                String(application.jobId)
+            );
+        } catch (notificationError) {
+            console.error('Error creating application status notification:', notificationError);
+        }
         
         res.status(200).json(application);
     } catch (error) {
@@ -103,31 +125,31 @@ router.delete('/:applicationId', authMiddleware, checkRecruiterAccess, async (re
             return res.status(404).json({ message: 'Application not found' });
         }
         
-        if (application.recruiterId.toString() !== recruiter._id.toString()) {
+        if (!application.recruiterId || application.recruiterId.toString() !== recruiter._id.toString()) {
             return res.status(403).json({ message: 'Access denied' });
-        }
-        
-        // Send notification to student before deleting
-        try {
-            const { Notification } = require('../models/Notification');
-            await Notification.create({
-                userId: application.studentId._id,
-                type: 'application_rejected',
-                title: 'Application Status Update',
-                message: `Your application has been rejected and removed from our system.`,
-                data: {
-                    applicationId: application._id,
-                    jobTitle: (application.jobId as any)?.title || 'Unknown Job'
-                },
-                createdAt: new Date()
-            });
-        } catch (notificationError) {
-            console.error('Error sending notification:', notificationError);
-            // Continue with deletion even if notification fails
         }
         
         // Delete the application
         await Application.findByIdAndDelete(applicationId);
+
+        try {
+            const studentRecord = await Student.findById(application.studentId).populate('userId', '_id');
+            const studentUser = studentRecord?.userId as any;
+
+            if (!studentUser?._id) {
+                throw new Error('Student user profile not found');
+            }
+
+            await sendApplicationStatusNotification(
+                String(studentUser._id),
+                String(application._id),
+                'rejected',
+                (application.jobId as any)?.title,
+                String(application.jobId)
+            );
+        } catch (notificationError) {
+            console.error('Error sending rejection notification:', notificationError);
+        }
         
         res.status(200).json({ message: 'Application rejected and deleted successfully' });
     } catch (error) {

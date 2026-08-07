@@ -140,6 +140,11 @@ NotificationSchema.index({ notificationType: 1, recipientType: 1 });
 NotificationSchema.index({ scheduledAt: 1, 'deliveryStatus.platform': 1 });
 NotificationSchema.index({ priority: 1, isUrgent: 1 });
 NotificationSchema.index({ relatedJobId: 1, notificationType: 1 });
+// One job-match alert per student and job, across all delivery attempts.
+NotificationSchema.index(
+  { recipientId: 1, relatedJobId: 1, notificationType: 1 },
+  { unique: true, partialFilterExpression: { notificationType: 'job_match', relatedJobId: { $exists: true } } }
+);
 NotificationSchema.index({ createdAt: -1 });
 NotificationSchema.index({ expiresAt: 1 });
 

@@ -1,7 +1,8 @@
 import { Notification } from '../models';
 import { sendWhatsAppMessage, sendJobMatchNotification } from './whatsapp';
-import AIMatchingService from './ai-matching';
 import { Types } from 'mongoose';
+import { EmailClient } from '@azure/communication-email';
+import { freshnessCutoff } from './job-intelligence';
 
 interface AlertData {
     studentId: Types.ObjectId;
@@ -14,11 +15,15 @@ interface AlertData {
     workMode: string;
     studentName: string;
     studentPhone?: string;
+    studentEmail?: string;
+    studentUserId?: Types.ObjectId;
     jobUrl: string;
     jobData?: any; // Include job data for salary and location info
 }
 
 class CareerAlertService {
+    private readonly minimumAlertScore = Number(process.env.JOB_ALERT_MIN_MATCH_SCORE ?? 70);
+
     /**
      * Step 6: Send Personalized WhatsApp Alerts via Webhook
      */
@@ -35,14 +40,11 @@ class CareerAlertService {
                 workMode,
                 studentName,
                 studentPhone,
+                studentEmail,
+                studentUserId,
                 jobUrl,
                 jobData
             } = alertData;
-
-            if (!studentPhone) {
-                console.warn(`No phone number found for student ${studentId}`);
-                return;
-            }
 
             // Check if match score is above 70%
             // Note: matchScore can be either decimal (0.0-1.0) or percentage (0-100)
@@ -55,9 +57,29 @@ class CareerAlertService {
                 matchPercentage = Math.round(matchScore);
             }
             
-            if (matchPercentage < 70) {
-                console.log(`Match score ${matchPercentage}% below threshold for student ${studentName}`);
+            if (matchPercentage < this.minimumAlertScore) {
+                console.log(`Match score ${matchPercentage}% below threshold (${this.minimumAlertScore}%) for student ${studentName}`);
                 return;
+            }
+
+            // The in-app record is created before external delivery. It makes
+            // the opportunity visible even when a provider is unavailable and
+            // the unique upsert prevents duplicate alerts on a job refresh.
+            const isNewAlert = await this.saveNotificationRecord({
+                studentId,
+                studentUserId,
+                jobId,
+                message: `A ${jobTitle} role at ${companyName} matches your profile with a ${matchPercentage}% Match Score. Apply now on CampusPe.`,
+                matchScore: matchPercentage,
+                deliveryStatus: 'pending'
+            });
+            if (!isNewAlert) {
+                console.log(`Duplicate job alert suppressed for student ${studentId} and job ${jobId}`);
+                return;
+            }
+
+            if (!studentPhone) {
+                console.warn(`No WhatsApp number found for student ${studentId}`);
             }
 
             // Generate AI personalized message
@@ -100,32 +122,22 @@ class CareerAlertService {
             };
 
             // Send notification via webhook
-            const result = await sendJobMatchNotification(studentPhone, webhookData);
+            const result = studentPhone
+                ? await sendJobMatchNotification(studentPhone, webhookData)
+                : { success: false, message: 'No WhatsApp number configured' };
 
             if (result.success) {
-                // Save notification to database
-                await this.saveNotificationRecord({
-                    studentId,
-                    jobId,
-                    message: JSON.stringify(webhookData),
-                    matchScore,
-                    deliveryStatus: 'sent'
-                });
+                await this.updateDeliveryStatus(studentUserId || studentId, jobId, 'whatsapp', 'sent');
 
                 console.log(`✅ Job match notification sent successfully to ${studentName} (${studentPhone}) - ${matchPercentage}% match`);
             } else {
                 console.error(`❌ Failed to send job match notification to ${studentName}:`, result.message);
                 
-                // Save failed notification
-                await this.saveNotificationRecord({
-                    studentId,
-                    jobId,
-                    message: JSON.stringify(webhookData),
-                    matchScore,
-                    deliveryStatus: 'failed',
-                    errorMessage: result.message
-                });
+                await this.updateDeliveryStatus(studentUserId || studentId, jobId, 'whatsapp', 'failed');
             }
+
+            const emailStatus = await this.sendJobMatchEmail(studentEmail, jobTitle, companyName, matchPercentage, jobUrl);
+            await this.updateDeliveryStatus(studentUserId || studentId, jobId, 'email', emailStatus);
 
         } catch (error) {
             console.error('Error sending job match alert:', error);
@@ -153,7 +165,7 @@ class CareerAlertService {
             const students = await Student.find({
                 isActive: true
                 // Removed isPlacementReady filter to check all active students
-            }).populate('userId', 'phone whatsappNumber').lean();
+            }).populate('userId', '_id email phone whatsappNumber').lean();
 
             console.log(`Found ${students.length} total active students to check for matches`);
 
@@ -186,29 +198,26 @@ class CareerAlertService {
                     console.log(`Student ${student.firstName} ${student.lastName}: ${matchResult.matchScore}% match score${matchResult.cached ? ' (cached)' : ''}`);
 
                     // Check if match score is above 70%
-                    if (matchResult.matchScore >= 70) {
+                    if (matchResult.matchScore >= this.minimumAlertScore) {
                         matchCount++;
                         const studentPhone = student.userId.whatsappNumber || student.userId.phone;
-                        
-                        if (!studentPhone) {
-                            console.warn(`No phone number for student ${student._id} (${student.firstName} ${student.lastName})`);
-                            continue;
-                        }
 
                         matches.push({
                             studentId: student._id,
                             jobId: jobId,
-                            finalMatchScore: matchResult.matchScore, // Keep as percentage for consistency
+                            finalMatchScore: matchResult.displayMatchScore || matchResult.matchScore,
                             matchedSkills: matchResult.skillsMatched || matchResult.matchedSkills || [],
                             matchedTools: matchResult.matchedTools || [], // From centralized service
                             studentName: `${student.firstName} ${student.lastName}`,
                             studentPhone: studentPhone,
-                            matchScore: matchResult.matchScore // Keep original percentage format
+                            studentEmail: student.userId.email,
+                            studentUserId: student.userId._id,
+                            matchScore: matchResult.displayMatchScore || matchResult.matchScore
                         });
 
                         console.log(`✅ Student ${student.firstName} ${student.lastName} matched with ${matchResult.matchScore}% score${matchResult.cached ? ' (cached)' : ''}`);
                     } else {
-                        console.log(`❌ Student ${student.firstName} ${student.lastName} scored ${matchResult.matchScore}% (below 70% threshold)`);
+                        console.log(`❌ Student ${student.firstName} ${student.lastName} scored ${matchResult.matchScore}% (below ${this.minimumAlertScore}% threshold)`);
                     }
 
                     // Progress logging every 20 students
@@ -247,6 +256,8 @@ class CareerAlertService {
                         workMode: job.workMode,
                         studentName: match.studentName,
                         studentPhone: match.studentPhone,
+                        studentEmail: match.studentEmail,
+                        studentUserId: match.studentUserId,
                         jobUrl: `${process.env.FRONTEND_URL || 'https://campuspe.com'}/jobs/${jobId}`,
                         jobData: job // Pass the complete job data
                     };
@@ -290,7 +301,7 @@ class CareerAlertService {
             const recentJobs = await Job.find({
                 status: 'active',
                 createdAt: { $gte: yesterday }
-            }).select('_id title companyName').lean();
+            }).select('_id title companyName workMode locations salary').lean();
 
             console.log(`Found ${recentJobs.length} recent jobs to process`);
 
@@ -324,11 +335,12 @@ class CareerAlertService {
             // Get active jobs
             const activeJobs = await Job.find({
                 status: 'active',
-                applicationDeadline: { $gt: new Date() }
-            }).select('_id title companyName').lean();
+                applicationDeadline: { $gt: new Date() },
+                postedAt: { $gte: freshnessCutoff() }
+            }).select('_id title companyName workMode locations salary').lean();
 
             const student = await Student.findById(studentId)
-                .populate('userId', 'phone whatsappNumber')
+                .populate('userId', 'email phone whatsappNumber')
                 .lean();
 
             if (!student || !student.userId) {
@@ -337,28 +349,33 @@ class CareerAlertService {
             }
 
             let alertsSent = 0;
+            const CentralizedMatchingService = require('./centralized-matching').default;
+            await CentralizedMatchingService.invalidateStudentCache(studentId);
 
             // Check each active job for matches
             for (const job of activeJobs) {
                 try {
-                    const match = await AIMatchingService.calculateAdvancedMatch(studentId, job._id);
+                    const match = await CentralizedMatchingService.getOrCalculateMatch(studentId, job._id, true);
                     
-                    if (match.finalMatchScore >= 0.70) {
+                    if (match && match.matchScore >= this.minimumAlertScore) {
                         const studentPhone = student.userId.whatsappNumber || student.userId.phone;
                         
-                        if (studentPhone) {
+                        {
                             const alertData: AlertData = {
                                 studentId,
                                 jobId: job._id,
-                                matchScore: match.finalMatchScore,
-                                matchedSkills: match.matchedSkills,
+                                matchScore: match.displayMatchScore || match.matchScore,
+                                matchedSkills: match.skillsMatched || match.matchedSkills,
                                 matchedTools: match.matchedTools,
                                 jobTitle: job.title,
                                 companyName: job.companyName,
-                                workMode: 'hybrid', // Default, would need to get from job data
+                                workMode: job.workMode || 'onsite',
                                 studentName: `${student.firstName} ${student.lastName}`,
                                 studentPhone,
-                                jobUrl: `${process.env.FRONTEND_URL || 'https://campuspe.com'}/jobs/${job._id}`
+                                studentEmail: student.userId.email,
+                                studentUserId: student.userId._id,
+                                jobUrl: `${process.env.FRONTEND_URL || 'https://campuspe.com'}/jobs/${job._id}`,
+                                jobData: job
                             };
 
                             await this.sendJobMatchAlert(alertData);
@@ -429,26 +446,40 @@ Best of luck! 🍀
 
     private async saveNotificationRecord(data: {
         studentId: Types.ObjectId;
+        studentUserId?: Types.ObjectId;
         jobId: Types.ObjectId;
         message: string;
         matchScore: number;
         deliveryStatus: string;
         errorMessage?: string;
-    }): Promise<void> {
+    }): Promise<boolean> {
         try {
-            const notification = new Notification({
-                recipientId: data.studentId,
+            const existing = await Notification.exists({
+                recipientId: data.studentUserId || data.studentId,
+                relatedJobId: data.jobId,
+                notificationType: 'job_match'
+            });
+            if (existing) return false;
+            await Notification.findOneAndUpdate({
+                recipientId: data.studentUserId || data.studentId,
+                relatedJobId: data.jobId,
+                notificationType: 'job_match'
+            }, {
+                $setOnInsert: {
+                recipientId: data.studentUserId || data.studentId,
                 recipientType: 'student',
                 title: 'New Job Match Alert',
                 message: data.message,
                 notificationType: 'job_match',
                 channels: {
-                    platform: false,
-                    email: false,
+                    platform: true,
+                    email: true,
                     whatsapp: true,
                     push: false
                 },
                 deliveryStatus: {
+                    platform: 'sent',
+                    email: 'pending',
                     whatsapp: data.deliveryStatus
                 },
                 relatedJobId: data.jobId,
@@ -461,11 +492,41 @@ Best of luck! 🍀
                     alertType: 'career_opportunity',
                     errorMessage: data.errorMessage
                 }
-            });
-
-            await notification.save();
+                }
+            }, { upsert: true, new: true });
+            return true;
         } catch (error) {
             console.error('Error saving notification record:', error);
+            return false;
+        }
+    }
+
+    private async updateDeliveryStatus(recipientId: Types.ObjectId, jobId: Types.ObjectId, channel: 'email' | 'whatsapp', status: string): Promise<void> {
+        await Notification.updateOne(
+            { recipientId, relatedJobId: jobId, notificationType: 'job_match' },
+            { $set: { [`deliveryStatus.${channel}`]: status, sentAt: new Date() } }
+        );
+    }
+
+    private async sendJobMatchEmail(email: string | undefined, jobTitle: string, companyName: string, matchScore: number, jobUrl: string): Promise<'sent' | 'failed'> {
+        const connectionString = process.env.AZURE_COMMUNICATION_CONNECTION_STRING;
+        const senderAddress = process.env.AZURE_COMMUNICATION_EMAIL_FROM;
+        if (!email || !connectionString || !senderAddress) return 'failed';
+        try {
+            const client = new EmailClient(connectionString);
+            const poller = await client.beginSend({
+                senderAddress,
+                recipients: { to: [{ address: email }] },
+                content: {
+                    subject: `New ${matchScore}% job match: ${jobTitle}`,
+                    html: `<p>A <strong>${jobTitle}</strong> role at <strong>${companyName}</strong> matches your profile with a <strong>${matchScore}% Match Score</strong>.</p><p><a href="${jobUrl}">View and apply on CampusPe</a></p>`
+                }
+            });
+            const result = await poller.pollUntilDone();
+            return result.status === 'Succeeded' ? 'sent' : 'failed';
+        } catch (error) {
+            console.error('Job match email delivery failed:', error);
+            return 'failed';
         }
     }
 

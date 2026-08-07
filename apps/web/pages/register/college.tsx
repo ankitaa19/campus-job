@@ -1979,7 +1979,7 @@ export default function CollegeRegisterPage() {
             
             <p className="text-gray-600 text-center mb-8">
               {otpModalType === 'email' 
-                ? 'Enter the 6 digits code that we have send through your email' 
+                ? 'Enter the 6-digit code we sent to your email'
                 : 'Enter 6-digits code we sent to your mobile number'
               }
             </p>

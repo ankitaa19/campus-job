@@ -1,0 +1,3813 @@
+{
+  "sourceDocument": "India_Careers_Job_Portals_Directory.docx",
+  "generatedAt": "2026-08-05T07:09:55.916936+00:00",
+  "summary": {
+    "job_portal": 44,
+    "government_jobs": 62,
+    "company_career": 358,
+    "company_directory": 6,
+    "ats_pattern": 5
+  },
+  "sources": [
+    {
+      "slug": "naukri-com",
+      "name": "Naukri.com",
+      "url": "https://www.naukri.com",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "linkedin-jobs",
+      "name": "LinkedIn Jobs",
+      "url": "https://www.linkedin.com/jobs",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "indeed-india",
+      "name": "Indeed India",
+      "url": "https://in.indeed.com",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "foundit",
+      "name": "Foundit (ex-Monster India)",
+      "url": "https://www.foundit.in",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "glassdoor-india",
+      "name": "Glassdoor India",
+      "url": "https://www.glassdoor.co.in",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "shine-com",
+      "name": "Shine.com",
+      "url": "https://www.shine.com",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "timesjobs",
+      "name": "TimesJobs",
+      "url": "https://www.timesjobs.com",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "apna-co",
+      "name": "Apna.co",
+      "url": "https://apna.co",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "workindia",
+      "name": "WorkIndia",
+      "url": "https://www.workindia.in",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "internshala",
+      "name": "Internshala",
+      "url": "https://internshala.com",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "hirist",
+      "name": "Hirist",
+      "url": "https://www.hirist.com",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "wellfound",
+      "name": "Wellfound (AngelList)",
+      "url": "https://wellfound.com",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "upwork",
+      "name": "Upwork",
+      "url": "https://www.upwork.com",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "fiverr",
+      "name": "Fiverr",
+      "url": "https://www.fiverr.com",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "iim-jobs",
+      "name": "IIM Jobs",
+      "url": "https://www.iimjobs.com",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "cutshort",
+      "name": "Cutshort",
+      "url": "https://cutshort.io",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "freshersworld",
+      "name": "Freshersworld",
+      "url": "https://www.freshersworld.com",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "national-career-service",
+      "name": "National Career Service (Govt)",
+      "url": "https://www.ncs.gov.in",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "sarkari-result",
+      "name": "Sarkari Result",
+      "url": "https://www.sarkariresult.com",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "freejobalert",
+      "name": "FreeJobAlert",
+      "url": "https://www.freejobalert.com",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "monster-india",
+      "name": "Monster India",
+      "url": "https://www.monsterindia.com",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "jobsforher",
+      "name": "Jobsforher",
+      "url": "https://www.jobsforher.com",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "instahyre",
+      "name": "Instahyre",
+      "url": "https://www.instahyre.com",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "angellist-talent",
+      "name": "AngelList Talent",
+      "url": "https://angel.co/jobs",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "naukrigulf",
+      "name": "Naukrigulf",
+      "url": "https://www.naukrigulf.com",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "quikr-jobs",
+      "name": "Quikr Jobs",
+      "url": "https://www.quikr.com/jobs",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "babajob",
+      "name": "Babajob (now part of Quikr)",
+      "url": "https://www.babajob.com",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "rozgar-india",
+      "name": "Rozgar India",
+      "url": "https://www.rozgar.com",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "talentanywhere-ai",
+      "name": "Talentanywhere.ai",
+      "url": "https://talentanywhere.ai",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "hirect",
+      "name": "Hirect",
+      "url": "https://hirect.in",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "careerbuilder-india",
+      "name": "CareerBuilder India",
+      "url": "https://www.careerbuilder.co.in",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "jobstreet",
+      "name": "Jobstreet (SEA/India roles)",
+      "url": "https://www.jobstreet.com",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "vahan",
+      "name": "Vahan",
+      "url": "https://vahan.co",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "betterplace",
+      "name": "BetterPlace",
+      "url": "https://betterplace.co.in",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "skillbee",
+      "name": "Skillbee",
+      "url": "https://www.skillbee.com",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "aasaanjobs",
+      "name": "Aasaanjobs (now part of Awign)",
+      "url": "https://www.awign.com",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "firstnaukri",
+      "name": "Firstnaukri",
+      "url": "https://www.firstnaukri.com",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "jobsora-india",
+      "name": "Jobsora India",
+      "url": "https://in.jobsora.com",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "careerage",
+      "name": "CareerAge",
+      "url": "https://www.careerage.com",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "techgig",
+      "name": "Techgig",
+      "url": "https://www.techgig.com",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "placement-india",
+      "name": "Placement India",
+      "url": "https://www.placementindia.com",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "sulekha-jobs",
+      "name": "Sulekha Jobs",
+      "url": "https://jobs.sulekha.com",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "clickindia-jobs",
+      "name": "ClickIndia Jobs",
+      "url": "https://jobs.clickindia.com",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "hiring-cafe",
+      "name": "HiringCafe",
+      "url": "https://hiringcafe.com/",
+      "sourceKind": "job_portal",
+      "ingestionMode": "licensed_connector_required",
+      "enabled": false
+    },
+    {
+      "slug": "national-career-service-2",
+      "name": "National Career Service (Ministry of Labour)",
+      "url": "https://www.ncs.gov.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "upsc",
+      "name": "UPSC (Union Public Service Commission)",
+      "url": "https://upsc.gov.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "ssc",
+      "name": "SSC (Staff Selection Commission)",
+      "url": "https://ssc.nic.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "ibps",
+      "name": "IBPS (Banking recruitment)",
+      "url": "https://www.ibps.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "rrb",
+      "name": "RRB (Railway Recruitment Boards)",
+      "url": "https://www.rrbcdg.gov.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "indian-railways-careers",
+      "name": "Indian Railways Careers",
+      "url": "https://indianrailways.gov.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "drdo-careers",
+      "name": "DRDO Careers",
+      "url": "https://www.drdo.gov.in/careers",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "isro-careers",
+      "name": "ISRO Careers",
+      "url": "https://www.isro.gov.in/Careers.html",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "defence-civilian-jobs",
+      "name": "Defence Civilian Jobs (MoD)",
+      "url": "https://www.mod.gov.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "indian-army-careers",
+      "name": "Indian Army Careers",
+      "url": "https://joinindianarmy.nic.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "indian-navy-careers",
+      "name": "Indian Navy Careers",
+      "url": "https://www.joinindiannavy.gov.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "indian-air-force-careers",
+      "name": "Indian Air Force Careers",
+      "url": "https://afcat.cdac.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "aiims-recruitment",
+      "name": "AIIMS Recruitment",
+      "url": "https://www.aiims.edu/en/recruitment.html",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "reserve-bank-of-india-careers",
+      "name": "Reserve Bank of India Careers",
+      "url": "https://opportunities.rbi.org.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "sebi-careers",
+      "name": "SEBI Careers",
+      "url": "https://www.sebi.gov.in/sebiweb/careers/careers.jsp",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "lic-careers",
+      "name": "LIC Careers",
+      "url": "https://licindia.in/careers",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "epfo-recruitment",
+      "name": "EPFO Recruitment",
+      "url": "https://www.epfindia.gov.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "employment-news",
+      "name": "Employment News (Govt weekly gazette)",
+      "url": "https://employmentnews.gov.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "central-board-of-direct-taxes",
+      "name": "Central Board of Direct Taxes (Income Tax Dept.)",
+      "url": "https://www.incometaxindia.gov.in/pages/careers.aspx",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "postal-department-recruitment",
+      "name": "Postal Department (India Post) Recruitment",
+      "url": "https://www.indiapost.gov.in/VAS/Pages/Recruitment.aspx",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "bharat-electronics-careers",
+      "name": "Bharat Electronics (BEL) Careers",
+      "url": "https://bel-india.in/careers",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "airports-authority-of-india-careers",
+      "name": "Airports Authority of India Careers",
+      "url": "https://www.aai.aero/en/careers",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "food-corporation-of-india-careers",
+      "name": "Food Corporation of India Careers",
+      "url": "https://fci.gov.in/careers",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "ongc-careers",
+      "name": "ONGC Careers",
+      "url": "https://www.ongcindia.com/web/eng/careers",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "ntpc-careers",
+      "name": "NTPC Careers",
+      "url": "https://www.ntpc.co.in/careers",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "coal-india-careers",
+      "name": "Coal India Careers",
+      "url": "https://www.coalindia.in/career.aspx",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "bsnl-careers",
+      "name": "BSNL Careers",
+      "url": "https://www.bsnl.co.in/careers",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "steel-authority-of-india-careers",
+      "name": "Steel Authority of India Careers",
+      "url": "https://sail.co.in/en/careers",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "central-universities-recruitment",
+      "name": "Central Universities Recruitment (UGC)",
+      "url": "https://www.ugc.gov.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "nic-careers",
+      "name": "NIC (National Informatics Centre) Careers",
+      "url": "https://www.nic.in/recruitment",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "andhra-pradesh-psc",
+      "name": "Andhra Pradesh PSC",
+      "url": "https://psc.ap.gov.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "arunachal-pradesh-psc",
+      "name": "Arunachal Pradesh PSC",
+      "url": "https://apsc.gov.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "assam-psc",
+      "name": "Assam PSC",
+      "url": "https://apsc.nic.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "bihar-psc",
+      "name": "Bihar PSC",
+      "url": "https://bpsc.bih.nic.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "chhattisgarh-psc",
+      "name": "Chhattisgarh PSC",
+      "url": "https://psc.cg.gov.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "goa-psc",
+      "name": "Goa PSC",
+      "url": "https://goapsc.gov.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "gujarat-psc",
+      "name": "Gujarat PSC",
+      "url": "https://gpsc.gujarat.gov.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "haryana-psc",
+      "name": "Haryana PSC",
+      "url": "https://hpsc.gov.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "himachal-pradesh-psc",
+      "name": "Himachal Pradesh PSC",
+      "url": "https://hppsc.hp.gov.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "jharkhand-ssc",
+      "name": "Jharkhand SSC",
+      "url": "https://jssc.nic.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "karnataka-psc",
+      "name": "Karnataka PSC",
+      "url": "https://kpsc.karnataka.gov.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "kerala-psc",
+      "name": "Kerala PSC",
+      "url": "https://www.keralapsc.gov.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "madhya-pradesh-psc",
+      "name": "Madhya Pradesh PSC",
+      "url": "https://mppsc.mp.gov.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "maharashtra-psc",
+      "name": "Maharashtra PSC",
+      "url": "https://mpsc.gov.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "manipur-psc",
+      "name": "Manipur PSC",
+      "url": "https://mpscmanipur.gov.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "meghalaya-psc",
+      "name": "Meghalaya PSC",
+      "url": "https://mpsc.nic.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "mizoram-psc",
+      "name": "Mizoram PSC",
+      "url": "https://mpscmizoram.gov.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "nagaland-psc",
+      "name": "Nagaland PSC",
+      "url": "https://npsc.nagaland.gov.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "odisha-psc",
+      "name": "Odisha PSC",
+      "url": "https://opsc.gov.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "punjab-psc",
+      "name": "Punjab PSC",
+      "url": "https://ppsc.gov.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "rajasthan-psc",
+      "name": "Rajasthan PSC",
+      "url": "https://rpsc.rajasthan.gov.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "sikkim-psc",
+      "name": "Sikkim PSC",
+      "url": "https://spscskm.gov.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "tamil-nadu-psc",
+      "name": "Tamil Nadu PSC",
+      "url": "https://www.tnpsc.gov.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "telangana-state-psc",
+      "name": "Telangana State PSC",
+      "url": "https://tspsc.gov.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "tripura-psc",
+      "name": "Tripura PSC",
+      "url": "https://tpsc.tripura.gov.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "uttar-pradesh-psc",
+      "name": "Uttar Pradesh PSC",
+      "url": "https://uppsc.up.nic.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "uttarakhand-psc",
+      "name": "Uttarakhand PSC",
+      "url": "https://ukpsc.gov.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "west-bengal-psc",
+      "name": "West Bengal PSC",
+      "url": "https://wbpsc.gov.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "delhi-subordinate-services-selection-board",
+      "name": "Delhi Subordinate Services Selection Board",
+      "url": "https://dsssb.delhi.gov.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "jammu-kashmir-psc",
+      "name": "Jammu & Kashmir PSC",
+      "url": "https://jkpsc.nic.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "chandigarh-recruitment",
+      "name": "Chandigarh (UT) Recruitment",
+      "url": "https://chandigarh.gov.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "puducherry-psc",
+      "name": "Puducherry PSC",
+      "url": "https://psc.py.gov.in",
+      "sourceKind": "government_jobs",
+      "ingestionMode": "dedicated_adapter_required",
+      "enabled": false
+    },
+    {
+      "slug": "tata-consultancy-services",
+      "name": "Tata Consultancy Services (TCS)",
+      "url": "https://www.tcs.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "infosys",
+      "name": "Infosys",
+      "url": "https://www.infosys.com/careers.html",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "wipro",
+      "name": "Wipro",
+      "url": "https://careers.wipro.com",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "hcltech",
+      "name": "HCLTech",
+      "url": "https://www.hcltech.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "tech-mahindra",
+      "name": "Tech Mahindra",
+      "url": "https://careers.techmahindra.com",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "ltimindtree",
+      "name": "LTIMindtree",
+      "url": "https://www.ltimindtree.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "cognizant",
+      "name": "Cognizant",
+      "url": "https://careers.cognizant.com",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "mphasis",
+      "name": "Mphasis",
+      "url": "https://careers.mphasis.com",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "persistent-systems",
+      "name": "Persistent Systems",
+      "url": "https://www.persistent.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "hexaware-technologies",
+      "name": "Hexaware Technologies",
+      "url": "https://hexaware.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "coforge",
+      "name": "Coforge",
+      "url": "https://www.coforge.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "zensar-technologies",
+      "name": "Zensar Technologies",
+      "url": "https://www.zensar.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "l-t-technology-services",
+      "name": "L&T Technology Services",
+      "url": "https://www.ltts.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "cyient",
+      "name": "Cyient",
+      "url": "https://www.cyient.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "birlasoft",
+      "name": "Birlasoft",
+      "url": "https://www.birlasoft.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "happiest-minds",
+      "name": "Happiest Minds",
+      "url": "https://www.happiestminds.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "sonata-software",
+      "name": "Sonata Software",
+      "url": "https://www.sonata-software.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "quess-corp",
+      "name": "Quess Corp",
+      "url": "https://www.quesscorp.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "firstsource-solutions",
+      "name": "Firstsource Solutions",
+      "url": "https://www.firstsource.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "wns-global-services",
+      "name": "WNS Global Services",
+      "url": "https://www.wns.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "genpact",
+      "name": "Genpact",
+      "url": "https://www.genpact.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "exl-service",
+      "name": "EXL Service",
+      "url": "https://www.exlservice.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "microsoft-india",
+      "name": "Microsoft India",
+      "url": "https://careers.microsoft.com",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "google-india",
+      "name": "Google India",
+      "url": "https://careers.google.com",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "amazon-india",
+      "name": "Amazon India",
+      "url": "https://www.amazon.jobs",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "ibm-india",
+      "name": "IBM India",
+      "url": "https://www.ibm.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "accenture-india",
+      "name": "Accenture India",
+      "url": "https://www.accenture.com/in-en/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "capgemini-india",
+      "name": "Capgemini India",
+      "url": "https://www.capgemini.com/in-en/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "oracle-india",
+      "name": "Oracle India",
+      "url": "https://www.oracle.com/in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "sap-labs-india",
+      "name": "SAP Labs India",
+      "url": "https://jobs.sap.com",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "adobe-india",
+      "name": "Adobe India",
+      "url": "https://www.adobe.com/careers.html",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "salesforce-india",
+      "name": "Salesforce India",
+      "url": "https://www.salesforce.com/company/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "dell-technologies-india",
+      "name": "Dell Technologies India",
+      "url": "https://jobs.dell.com",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "intel-india",
+      "name": "Intel India",
+      "url": "https://jobs.intel.com",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "cisco-india",
+      "name": "Cisco India",
+      "url": "https://jobs.cisco.com",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "vmware-india",
+      "name": "VMware India",
+      "url": "https://careers.vmware.com",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "goldman-sachs-india",
+      "name": "Goldman Sachs India",
+      "url": "https://www.goldmansachs.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "jpmorgan-chase-india",
+      "name": "JPMorgan Chase India",
+      "url": "https://careers.jpmorgan.com",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "morgan-stanley-india",
+      "name": "Morgan Stanley India",
+      "url": "https://www.morganstanley.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "deutsche-bank-india",
+      "name": "Deutsche Bank India",
+      "url": "https://careers.db.com",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "barclays-india",
+      "name": "Barclays India",
+      "url": "https://home.barclays/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "american-express-india",
+      "name": "American Express India",
+      "url": "https://www.americanexpress.com/en-us/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "walmart-global-tech-india",
+      "name": "Walmart Global Tech India",
+      "url": "https://tech.walmart.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "target-india",
+      "name": "Target India",
+      "url": "https://india.target.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "samsung-r-d-india",
+      "name": "Samsung R&D India",
+      "url": "https://www.samsung.com/in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "qualcomm-india",
+      "name": "Qualcomm India",
+      "url": "https://www.qualcomm.com/company/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "servicenow-india",
+      "name": "ServiceNow India",
+      "url": "https://www.servicenow.com/careers.html",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "hdfc-bank",
+      "name": "HDFC Bank",
+      "url": "https://www.hdfcbank.com/personal/about-us/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "icici-bank",
+      "name": "ICICI Bank",
+      "url": "https://www.icicicareers.com",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "state-bank-of-india",
+      "name": "State Bank of India (SBI)",
+      "url": "https://bank.sbi/web/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "axis-bank",
+      "name": "Axis Bank",
+      "url": "https://www.axisbank.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "kotak-mahindra-bank",
+      "name": "Kotak Mahindra Bank",
+      "url": "https://www.kotak.com/en/about-us/careers.html",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "indusind-bank",
+      "name": "IndusInd Bank",
+      "url": "https://www.indusind.com/in/en/personal/careers.html",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "yes-bank",
+      "name": "Yes Bank",
+      "url": "https://www.yesbank.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "punjab-national-bank",
+      "name": "Punjab National Bank",
+      "url": "https://www.pnbindia.in/careers.html",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "bank-of-baroda",
+      "name": "Bank of Baroda",
+      "url": "https://www.bankofbaroda.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "canara-bank",
+      "name": "Canara Bank",
+      "url": "https://canarabank.com/user_pages/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "union-bank-of-india",
+      "name": "Union Bank of India",
+      "url": "https://www.unionbankofindia.co.in/english/careers.aspx",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "idfc-first-bank",
+      "name": "IDFC First Bank",
+      "url": "https://www.idfcfirstbank.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "federal-bank",
+      "name": "Federal Bank",
+      "url": "https://www.federalbank.co.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "rbl-bank",
+      "name": "RBL Bank",
+      "url": "https://www.rblbank.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "bandhan-bank",
+      "name": "Bandhan Bank",
+      "url": "https://www.bandhanbank.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "idbi-bank",
+      "name": "IDBI Bank",
+      "url": "https://www.idbibank.in/careers.aspx",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "bajaj-finance",
+      "name": "Bajaj Finance",
+      "url": "https://www.bajajfinserv.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "hdfc-life",
+      "name": "HDFC Life",
+      "url": "https://www.hdfclife.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "icici-prudential-life",
+      "name": "ICICI Prudential Life",
+      "url": "https://www.iciciprulife.com/about-us/careers.html",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "sbi-life-insurance",
+      "name": "SBI Life Insurance",
+      "url": "https://www.sbilife.co.in/en/about-us/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "lic-of-india",
+      "name": "LIC of India",
+      "url": "https://licindia.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "tata-aia-life",
+      "name": "Tata AIA Life",
+      "url": "https://www.tataaia.com/careers.html",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "max-life-insurance",
+      "name": "Max Life Insurance",
+      "url": "https://www.maxlifeinsurance.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "icici-lombard",
+      "name": "ICICI Lombard",
+      "url": "https://www.icicilombard.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "muthoot-finance",
+      "name": "Muthoot Finance",
+      "url": "https://www.muthootfinance.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "shriram-finance",
+      "name": "Shriram Finance",
+      "url": "https://www.shriramfinance.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "cholamandalam-investment",
+      "name": "Cholamandalam Investment",
+      "url": "https://www.cholamandalam.com/careers.aspx",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "l-t-finance",
+      "name": "L&T Finance",
+      "url": "https://www.ltfs.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "pnb-housing-finance",
+      "name": "PNB Housing Finance",
+      "url": "https://www.pnbhousing.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "tata-group",
+      "name": "Tata Group",
+      "url": "https://www.tata.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "reliance-industries",
+      "name": "Reliance Industries",
+      "url": "https://careers.ril.com",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "aditya-birla-group",
+      "name": "Aditya Birla Group",
+      "url": "https://www.adityabirlacareers.com",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "mahindra-group",
+      "name": "Mahindra Group",
+      "url": "https://www.mahindra.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "larsen-toubro",
+      "name": "Larsen & Toubro (L&T)",
+      "url": "https://www.larsentoubro.com/corporate/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "godrej-group",
+      "name": "Godrej Group",
+      "url": "https://www.godrejcareers.com",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "adani-group",
+      "name": "Adani Group",
+      "url": "https://www.adanicareers.com",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "bajaj-group",
+      "name": "Bajaj Group",
+      "url": "https://www.bajajgroup.co.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "jsw-group",
+      "name": "JSW Group",
+      "url": "https://www.jsw.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "hinduja-group",
+      "name": "Hinduja Group",
+      "url": "https://www.hindujagroup.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "itc-limited",
+      "name": "ITC Limited",
+      "url": "https://www.itcportal.com/careers/careers-landing-page.aspx",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "rpg-group",
+      "name": "RPG Group",
+      "url": "https://www.rpggroup.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "wadia-group",
+      "name": "Wadia Group",
+      "url": "https://www.wadiagroup.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "essar-group",
+      "name": "Essar Group",
+      "url": "https://www.essar.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "vedanta-group",
+      "name": "Vedanta Group",
+      "url": "https://www.vedantalimited.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "hindustan-unilever",
+      "name": "Hindustan Unilever (HUL)",
+      "url": "https://www.hul.co.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "itc-fmcg",
+      "name": "ITC FMCG",
+      "url": "https://www.itcportal.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "nestl-india",
+      "name": "Nestlé India",
+      "url": "https://www.nestle.in/jobs",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "britannia-industries",
+      "name": "Britannia Industries",
+      "url": "https://careers.britannia.co.in",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "dabur-india",
+      "name": "Dabur India",
+      "url": "https://www.dabur.com/in/en-us/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "marico",
+      "name": "Marico",
+      "url": "https://marico.com/india/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "godrej-consumer-products",
+      "name": "Godrej Consumer Products",
+      "url": "https://www.godrejcp.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "emami",
+      "name": "Emami",
+      "url": "https://www.emamiltd.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "colgate-palmolive-india",
+      "name": "Colgate-Palmolive India",
+      "url": "https://www.colgatepalmolive.co.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "procter-gamble-india",
+      "name": "Procter & Gamble India",
+      "url": "https://www.pgcareers.com",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "patanjali-ayurved",
+      "name": "Patanjali Ayurved",
+      "url": "https://www.patanjaliayurved.org/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "amul",
+      "name": "Amul (GCMMF)",
+      "url": "https://amul.com/careers.html",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "parle-products",
+      "name": "Parle Products",
+      "url": "https://www.parleproducts.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "haldiram-s",
+      "name": "Haldiram's",
+      "url": "https://haldiram.com/careers.html",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "pepsico-india",
+      "name": "PepsiCo India",
+      "url": "https://www.pepsicoindiajobs.com",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "coca-cola-india",
+      "name": "Coca-Cola India",
+      "url": "https://www.coca-colaindia.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "tata-motors",
+      "name": "Tata Motors",
+      "url": "https://careers.tatamotors.com",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "maruti-suzuki-india",
+      "name": "Maruti Suzuki India",
+      "url": "https://www.marutisuzuki.com/corporate/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "bajaj-auto",
+      "name": "Bajaj Auto",
+      "url": "https://www.bajajauto.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "hero-motocorp",
+      "name": "Hero MotoCorp",
+      "url": "https://www.heromotocorp.com/en-in/about-us/careers.html",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "tvs-motor-company",
+      "name": "TVS Motor Company",
+      "url": "https://www.tvsmotor.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "ashok-leyland",
+      "name": "Ashok Leyland",
+      "url": "https://www.ashokleyland.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "eicher-motors-royal-enfield",
+      "name": "Eicher Motors / Royal Enfield",
+      "url": "https://www.eichermotors.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "hyundai-motor-india",
+      "name": "Hyundai Motor India",
+      "url": "https://www.hyundai.com/in/en/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "honda-cars-india",
+      "name": "Honda Cars India",
+      "url": "https://www.hondacarindia.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "toyota-kirloskar-motor",
+      "name": "Toyota Kirloskar Motor",
+      "url": "https://www.toyotabharat.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "bosch-india",
+      "name": "Bosch India",
+      "url": "https://www.bosch.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "siemens-india",
+      "name": "Siemens India",
+      "url": "https://www.siemens.com/in/en/company/jobs.html",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "abb-india",
+      "name": "ABB India",
+      "url": "https://global.abb/group/en/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "cummins-india",
+      "name": "Cummins India",
+      "url": "https://www.cummins.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "bhel",
+      "name": "BHEL",
+      "url": "https://www.bhel.com/career",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "havells-india",
+      "name": "Havells India",
+      "url": "https://www.havells.com/en/corporate/careers.html",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "voltas",
+      "name": "Voltas",
+      "url": "https://www.voltas.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "bharat-forge",
+      "name": "Bharat Forge",
+      "url": "https://www.bharatforge.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "motherson-group",
+      "name": "Motherson Group",
+      "url": "https://www.motherson.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "sun-pharmaceutical",
+      "name": "Sun Pharmaceutical",
+      "url": "https://sunpharma.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "dr-reddy-s-laboratories",
+      "name": "Dr. Reddy's Laboratories",
+      "url": "https://careers.drreddys.com",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "cipla",
+      "name": "Cipla",
+      "url": "https://www.cipla.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "lupin",
+      "name": "Lupin",
+      "url": "https://www.lupin.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "aurobindo-pharma",
+      "name": "Aurobindo Pharma",
+      "url": "https://www.aurobindo.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "divi-s-laboratories",
+      "name": "Divi's Laboratories",
+      "url": "https://www.divislabs.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "torrent-pharmaceuticals",
+      "name": "Torrent Pharmaceuticals",
+      "url": "https://www.torrentpharma.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "zydus-lifesciences",
+      "name": "Zydus Lifesciences",
+      "url": "https://www.zyduslife.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "biocon",
+      "name": "Biocon",
+      "url": "https://www.biocon.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "mankind-pharma",
+      "name": "Mankind Pharma",
+      "url": "https://www.mankindpharma.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "apollo-hospitals",
+      "name": "Apollo Hospitals",
+      "url": "https://www.apollohospitals.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "fortis-healthcare",
+      "name": "Fortis Healthcare",
+      "url": "https://www.fortishealthcare.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "max-healthcare",
+      "name": "Max Healthcare",
+      "url": "https://www.maxhealthcare.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "narayana-health",
+      "name": "Narayana Health",
+      "url": "https://www.narayanahealth.org/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "manipal-hospitals",
+      "name": "Manipal Hospitals",
+      "url": "https://www.manipalhospitals.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "aiims",
+      "name": "AIIMS (govt hospitals)",
+      "url": "https://www.aiims.edu/en/recruitment.html",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "flipkart",
+      "name": "Flipkart",
+      "url": "https://www.flipkartcareers.com",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "amazon-india-2",
+      "name": "Amazon India",
+      "url": "https://www.amazon.jobs/en/locations/india",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "zomato",
+      "name": "Zomato",
+      "url": "https://www.zomato.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "swiggy",
+      "name": "Swiggy",
+      "url": "https://careers.swiggy.com",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "paytm",
+      "name": "Paytm",
+      "url": "https://paytm.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "phonepe",
+      "name": "PhonePe",
+      "url": "https://www.phonepe.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "ola",
+      "name": "Ola",
+      "url": "https://www.olacabs.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "uber-india",
+      "name": "Uber India",
+      "url": "https://www.uber.com/us/en/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "byju-s",
+      "name": "Byju's",
+      "url": "https://byjus.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "unacademy",
+      "name": "Unacademy",
+      "url": "https://unacademy.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "meesho",
+      "name": "Meesho",
+      "url": "https://www.meesho.io/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "nykaa",
+      "name": "Nykaa",
+      "url": "https://www.nykaa.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "cred",
+      "name": "CRED",
+      "url": "https://cred.club/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "razorpay",
+      "name": "Razorpay",
+      "url": "https://razorpay.com/jobs",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "zerodha",
+      "name": "Zerodha",
+      "url": "https://zerodha.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "groww",
+      "name": "Groww",
+      "url": "https://groww.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "urban-company",
+      "name": "Urban Company",
+      "url": "https://www.urbancompany.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "dream11",
+      "name": "Dream11",
+      "url": "https://dream11.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "delhivery",
+      "name": "Delhivery",
+      "url": "https://www.delhivery.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "bigbasket",
+      "name": "BigBasket",
+      "url": "https://www.bigbasket.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "zepto",
+      "name": "Zepto",
+      "url": "https://www.zeptonow.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "blinkit",
+      "name": "Blinkit",
+      "url": "https://blinkit.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "policybazaar",
+      "name": "PolicyBazaar",
+      "url": "https://www.policybazaar.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "lenskart",
+      "name": "Lenskart",
+      "url": "https://www.lenskart.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "freshworks",
+      "name": "Freshworks",
+      "url": "https://www.freshworks.com/company/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "zoho-corporation",
+      "name": "Zoho Corporation",
+      "url": "https://www.zoho.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "inmobi",
+      "name": "InMobi",
+      "url": "https://www.inmobi.com/company/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "sharechat",
+      "name": "ShareChat",
+      "url": "https://sharechat.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "upgrad",
+      "name": "upGrad",
+      "url": "https://www.upgrad.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "ather-energy",
+      "name": "Ather Energy",
+      "url": "https://www.atherenergy.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "ola-electric",
+      "name": "Ola Electric",
+      "url": "https://www.olaelectric.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "physics-wallah",
+      "name": "Physics Wallah (PW)",
+      "url": "https://www.pw.live/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "rapido",
+      "name": "Rapido",
+      "url": "https://www.rapido.bike/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "pine-labs",
+      "name": "Pine Labs",
+      "url": "https://www.pinelabs.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "cars24",
+      "name": "Cars24",
+      "url": "https://www.cars24.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "spinny",
+      "name": "Spinny",
+      "url": "https://www.spinny.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "licious",
+      "name": "Licious",
+      "url": "https://www.licious.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "dunzo",
+      "name": "Dunzo",
+      "url": "https://www.dunzo.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "myntra",
+      "name": "Myntra",
+      "url": "https://careers.myntra.com",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "snapdeal",
+      "name": "Snapdeal",
+      "url": "https://www.snapdeal.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "reliance-jio",
+      "name": "Reliance Jio",
+      "url": "https://www.jio.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "bharti-airtel",
+      "name": "Bharti Airtel",
+      "url": "https://www.airtel.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "vodafone-idea",
+      "name": "Vodafone Idea (Vi)",
+      "url": "https://www.myvi.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "bsnl",
+      "name": "BSNL",
+      "url": "https://www.bsnl.co.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "star-india-disney-hotstar",
+      "name": "Star India / Disney+ Hotstar",
+      "url": "https://www.disneycareers.com",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "zee-entertainment",
+      "name": "Zee Entertainment",
+      "url": "https://www.zee.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "sony-pictures-networks-india",
+      "name": "Sony Pictures Networks India",
+      "url": "https://www.sonypicturesnetworks.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "network18-tv18",
+      "name": "Network18 / TV18",
+      "url": "https://www.network18online.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "times-internet-times-group",
+      "name": "Times Internet / Times Group",
+      "url": "https://timesgroup.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "the-indian-express",
+      "name": "The Indian Express",
+      "url": "https://indianexpress.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "indigo",
+      "name": "IndiGo (InterGlobe Aviation)",
+      "url": "https://www.goindigo.in/information/careers.html",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "air-india",
+      "name": "Air India",
+      "url": "https://www.airindia.com/in/en/careers.html",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "spicejet",
+      "name": "SpiceJet",
+      "url": "https://www.spicejet.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "akasa-air",
+      "name": "Akasa Air",
+      "url": "https://www.akasaair.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "makemytrip",
+      "name": "MakeMyTrip",
+      "url": "https://careers.makemytrip.com",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "yatra-online",
+      "name": "Yatra Online",
+      "url": "https://www.yatra.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "cleartrip",
+      "name": "Cleartrip",
+      "url": "https://www.cleartrip.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "oyo-rooms",
+      "name": "OYO Rooms",
+      "url": "https://www.oyorooms.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "taj-hotels",
+      "name": "Taj Hotels (IHCL)",
+      "url": "https://www.ihcltata.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "oberoi-hotels",
+      "name": "Oberoi Hotels",
+      "url": "https://www.oberoihotels.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "itc-hotels",
+      "name": "ITC Hotels",
+      "url": "https://www.itchotels.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "marriott-india",
+      "name": "Marriott India",
+      "url": "https://careers.marriott.com",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "lemon-tree-hotels",
+      "name": "Lemon Tree Hotels",
+      "url": "https://www.lemontreehotels.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "future-retail",
+      "name": "Future Retail (Big Bazaar legacy)",
+      "url": "https://www.futuregroup.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "titan-company",
+      "name": "Titan Company",
+      "url": "https://www.titancompany.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "tata-cliq",
+      "name": "Tata CLiQ",
+      "url": "https://www.tatacliq.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "dmart",
+      "name": "DMart (Avenue Supermarts)",
+      "url": "https://www.dmartindia.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "trent",
+      "name": "Trent (Westside/Zudio)",
+      "url": "https://www.trentlimited.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "shoppers-stop",
+      "name": "Shoppers Stop",
+      "url": "https://www.shoppersstop.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "aditya-birla-fashion-retail",
+      "name": "Aditya Birla Fashion & Retail",
+      "url": "https://www.abfrl.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "v-mart-retail",
+      "name": "V-Mart Retail",
+      "url": "https://www.vmartretail.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "landmark-group-india",
+      "name": "Landmark Group India",
+      "url": "https://www.landmarkgroup.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "indian-oil-corporation",
+      "name": "Indian Oil Corporation (IOCL)",
+      "url": "https://iocl.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "bharat-petroleum",
+      "name": "Bharat Petroleum (BPCL)",
+      "url": "https://www.bharatpetroleum.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "hindustan-petroleum",
+      "name": "Hindustan Petroleum (HPCL)",
+      "url": "https://www.hindustanpetroleum.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "ongc",
+      "name": "ONGC",
+      "url": "https://www.ongcindia.com/web/eng/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "gail-india",
+      "name": "GAIL India",
+      "url": "https://www.gailonline.com/careers.html",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "ntpc-limited",
+      "name": "NTPC Limited",
+      "url": "https://www.ntpc.co.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "power-grid-corporation",
+      "name": "Power Grid Corporation",
+      "url": "https://www.powergrid.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "adani-green-energy",
+      "name": "Adani Green Energy",
+      "url": "https://www.adanigreenenergy.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "tata-power",
+      "name": "Tata Power",
+      "url": "https://www.tatapower.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "renew-power",
+      "name": "ReNew Power",
+      "url": "https://www.renewpower.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "tata-steel",
+      "name": "Tata Steel",
+      "url": "https://www.tatasteel.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "jsw-steel",
+      "name": "JSW Steel",
+      "url": "https://www.jsw.in/steel/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "steel-authority-of-india",
+      "name": "Steel Authority of India (SAIL)",
+      "url": "https://sail.co.in/en/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "hindalco-industries",
+      "name": "Hindalco Industries",
+      "url": "https://www.hindalco.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "ultratech-cement",
+      "name": "UltraTech Cement",
+      "url": "https://www.ultratechcement.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "ambuja-cements",
+      "name": "Ambuja Cements",
+      "url": "https://www.ambujacement.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "acc-limited",
+      "name": "ACC Limited",
+      "url": "https://www.acclimited.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "coal-india-limited",
+      "name": "Coal India Limited",
+      "url": "https://www.coalindia.in/career.aspx",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "nmdc-limited",
+      "name": "NMDC Limited",
+      "url": "https://www.nmdc.co.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "dlf-limited",
+      "name": "DLF Limited",
+      "url": "https://www.dlf.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "godrej-properties",
+      "name": "Godrej Properties",
+      "url": "https://www.godrejproperties.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "prestige-group",
+      "name": "Prestige Group",
+      "url": "https://www.prestigeconstructions.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "oberoi-realty",
+      "name": "Oberoi Realty",
+      "url": "https://www.oberoirealty.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "sobha-limited",
+      "name": "Sobha Limited",
+      "url": "https://www.sobha.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "brigade-group",
+      "name": "Brigade Group",
+      "url": "https://www.brigadegroup.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "lodha-group",
+      "name": "Lodha Group (Macrotech)",
+      "url": "https://www.lodhagroup.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "gmr-group",
+      "name": "GMR Group",
+      "url": "https://www.gmrgroup.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "gvk-group",
+      "name": "GVK Group",
+      "url": "https://www.gvk.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "irb-infrastructure",
+      "name": "IRB Infrastructure",
+      "url": "https://www.irb.co.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "hindustan-aeronautics-limited",
+      "name": "Hindustan Aeronautics Limited (HAL)",
+      "url": "https://hal-india.co.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "bharat-electronics",
+      "name": "Bharat Electronics (BEL)",
+      "url": "https://bel-india.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "bharat-dynamics-limited",
+      "name": "Bharat Dynamics Limited",
+      "url": "https://www.bdl-india.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "defence-research-development-organisation",
+      "name": "Defence Research & Development Organisation (DRDO)",
+      "url": "https://www.drdo.gov.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "indian-space-research-organisation",
+      "name": "Indian Space Research Organisation (ISRO)",
+      "url": "https://www.isro.gov.in/Careers.html",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "railway-recruitment-boards",
+      "name": "Railway Recruitment Boards",
+      "url": "https://www.rrbcdg.gov.in",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "staff-selection-commission",
+      "name": "Staff Selection Commission (SSC)",
+      "url": "https://ssc.nic.in",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "union-public-service-commission",
+      "name": "Union Public Service Commission (UPSC)",
+      "url": "https://upsc.gov.in",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "institute-of-banking-personnel-selection",
+      "name": "Institute of Banking Personnel Selection (IBPS)",
+      "url": "https://www.ibps.in",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "airports-authority-of-india",
+      "name": "Airports Authority of India (AAI)",
+      "url": "https://www.aai.aero/en/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "food-corporation-of-india",
+      "name": "Food Corporation of India (FCI)",
+      "url": "https://fci.gov.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "pidilite-industries",
+      "name": "Pidilite Industries",
+      "url": "https://www.pidilite.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "upl-limited",
+      "name": "UPL Limited",
+      "url": "https://www.upl-ltd.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "asian-paints",
+      "name": "Asian Paints",
+      "url": "https://www.asianpaints.com/careers.html",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "berger-paints",
+      "name": "Berger Paints",
+      "url": "https://www.bergerpaints.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "deepak-nitrite",
+      "name": "Deepak Nitrite",
+      "url": "https://www.deepakgroup.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "coromandel-international",
+      "name": "Coromandel International",
+      "url": "https://www.coromandel.biz/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "tata-chemicals",
+      "name": "Tata Chemicals",
+      "url": "https://www.tatachemicals.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "srf-limited",
+      "name": "SRF Limited",
+      "url": "https://www.srf.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "aarti-industries",
+      "name": "Aarti Industries",
+      "url": "https://www.aarti-industries.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "gnfc-limited",
+      "name": "GNFC Limited",
+      "url": "https://www.gnfc.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "arvind-limited",
+      "name": "Arvind Limited",
+      "url": "https://www.arvind.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "raymond-group",
+      "name": "Raymond Group",
+      "url": "https://www.raymond.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "welspun-group",
+      "name": "Welspun Group",
+      "url": "https://www.welspun.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "vardhman-textiles",
+      "name": "Vardhman Textiles",
+      "url": "https://www.vardhman.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "page-industries",
+      "name": "Page Industries (Jockey)",
+      "url": "https://www.pageind.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "trident-group",
+      "name": "Trident Group",
+      "url": "https://www.tridentindia.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "bombay-dyeing",
+      "name": "Bombay Dyeing",
+      "url": "https://www.bombaydyeing.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "vedantu",
+      "name": "Vedantu",
+      "url": "https://vedantu.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "simplilearn",
+      "name": "Simplilearn",
+      "url": "https://www.simplilearn.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "great-learning",
+      "name": "Great Learning",
+      "url": "https://www.mygreatlearning.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "toppr",
+      "name": "Toppr",
+      "url": "https://www.toppr.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "extramarks",
+      "name": "Extramarks",
+      "url": "https://www.extramarks.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "bharatpe",
+      "name": "BharatPe",
+      "url": "https://bharatpe.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "cashfree-payments",
+      "name": "Cashfree Payments",
+      "url": "https://www.cashfree.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "blue-dart-express",
+      "name": "Blue Dart Express",
+      "url": "https://www.bluedart.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "dtdc-express",
+      "name": "DTDC Express",
+      "url": "https://www.dtdc.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "ecom-express",
+      "name": "Ecom Express",
+      "url": "https://www.ecomexpress.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "mahindra-logistics",
+      "name": "Mahindra Logistics",
+      "url": "https://www.mahindralogistics.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "container-corporation-of-india",
+      "name": "Container Corporation of India (CONCOR)",
+      "url": "https://www.concorindia.co.in/career.aspx",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "gati-limited",
+      "name": "Gati Limited",
+      "url": "https://www.gati.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "xpressbees",
+      "name": "XpressBees",
+      "url": "https://www.xpressbees.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "adani-wilmar",
+      "name": "Adani Wilmar",
+      "url": "https://www.adaniwilmar.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "godrej-agrovet",
+      "name": "Godrej Agrovet",
+      "url": "https://www.godrejagrovet.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "jubilant-foodworks",
+      "name": "Jubilant FoodWorks (Domino's India)",
+      "url": "https://www.jubilantfoodworks.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "deloitte-india",
+      "name": "Deloitte India",
+      "url": "https://www2.deloitte.com/in/en/careers.html",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "pwc-india",
+      "name": "PwC India",
+      "url": "https://www.pwc.in/careers.html",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "ey-india",
+      "name": "EY India",
+      "url": "https://www.ey.com/en_in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "kpmg-india",
+      "name": "KPMG India",
+      "url": "https://home.kpmg/in/en/home/careers.html",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "mckinsey-company-india",
+      "name": "McKinsey & Company India",
+      "url": "https://www.mckinsey.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "boston-consulting-group-india",
+      "name": "Boston Consulting Group India",
+      "url": "https://careers.bcg.com",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "bain-company-india",
+      "name": "Bain & Company India",
+      "url": "https://www.bain.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "grant-thornton-india",
+      "name": "Grant Thornton India",
+      "url": "https://www.grantthornton.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "bdo-india",
+      "name": "BDO India",
+      "url": "https://www.bdo.in/en-gb/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "rsm-india",
+      "name": "RSM India",
+      "url": "https://www.rsm.global/india/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "protiviti-india",
+      "name": "Protiviti India",
+      "url": "https://www.protiviti.com/in-en/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "wtw-india",
+      "name": "WTW (Willis Towers Watson) India",
+      "url": "https://careers.wtwco.com",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "mercer-india",
+      "name": "Mercer India",
+      "url": "https://www.mercer.com/en-in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "aon-india",
+      "name": "Aon India",
+      "url": "https://careers.aon.com",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "new-india-assurance",
+      "name": "New India Assurance",
+      "url": "https://www.newindia.co.in/portal/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "national-insurance-company",
+      "name": "National Insurance Company",
+      "url": "https://nationalinsurance.nic.co.in/en/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "star-health-insurance",
+      "name": "Star Health Insurance",
+      "url": "https://www.starhealth.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "niva-bupa-health-insurance",
+      "name": "Niva Bupa Health Insurance",
+      "url": "https://www.nivabupa.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "hdfc-ergo-general-insurance",
+      "name": "HDFC ERGO General Insurance",
+      "url": "https://www.hdfcergo.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "bajaj-allianz-general-insurance",
+      "name": "Bajaj Allianz General Insurance",
+      "url": "https://www.bajajallianz.com/careers.html",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "tata-aig-general-insurance",
+      "name": "TATA AIG General Insurance",
+      "url": "https://www.tataaig.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "care-health-insurance",
+      "name": "Care Health Insurance",
+      "url": "https://www.careinsurance.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "go-digit-general-insurance",
+      "name": "Go Digit General Insurance",
+      "url": "https://www.godigit.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "reliance-general-insurance",
+      "name": "Reliance General Insurance",
+      "url": "https://www.reliancegeneral.co.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "netflix-india",
+      "name": "Netflix India",
+      "url": "https://jobs.netflix.com",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "nazara-technologies",
+      "name": "Nazara Technologies",
+      "url": "https://www.nazara.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "games24x7",
+      "name": "Games24x7",
+      "url": "https://games24x7.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "dream-sports",
+      "name": "Dream Sports (Dream11)",
+      "url": "https://dreamsports.group/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "mpl",
+      "name": "MPL (Mobile Premier League)",
+      "url": "https://www.mpl.live/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "zee5",
+      "name": "Zee5",
+      "url": "https://www.zee5.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "balaji-telefilms",
+      "name": "Balaji Telefilms",
+      "url": "https://www.balajitelefilms.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "red-chillies-entertainment",
+      "name": "Red Chillies Entertainment",
+      "url": "https://redchillies.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "t-series",
+      "name": "T-Series (Super Cassettes)",
+      "url": "https://www.tseries.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "tata-electronics",
+      "name": "Tata Electronics",
+      "url": "https://www.tataelectronics.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "micron-technology-india",
+      "name": "Micron Technology India",
+      "url": "https://www.micron.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "dixon-technologies",
+      "name": "Dixon Technologies",
+      "url": "https://www.dixoninfo.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "exide-industries",
+      "name": "Exide Industries",
+      "url": "https://www.exideindustries.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "amara-raja-batteries",
+      "name": "Amara Raja Batteries",
+      "url": "https://www.amararajabatteries.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "waaree-energies",
+      "name": "Waaree Energies",
+      "url": "https://www.waaree.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "suzlon-energy",
+      "name": "Suzlon Energy",
+      "url": "https://www.suzlon.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "premier-energies",
+      "name": "Premier Energies",
+      "url": "https://www.premierenergies.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "teamlease-services",
+      "name": "TeamLease Services",
+      "url": "https://www.teamlease.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "randstad-india",
+      "name": "Randstad India",
+      "url": "https://www.randstad.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "manpowergroup-india",
+      "name": "ManpowerGroup India",
+      "url": "https://www.manpowergroup.co.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "adecco-india",
+      "name": "Adecco India",
+      "url": "https://www.adecco.com/en-in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "innovsource",
+      "name": "Innovsource",
+      "url": "https://www.innovsource.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "abc-consultants",
+      "name": "ABC Consultants",
+      "url": "https://www.abcconsultants.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "kelly-services-india",
+      "name": "Kelly Services India",
+      "url": "https://www.kellyservices.co.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "michael-page-india",
+      "name": "Michael Page India",
+      "url": "https://www.michaelpage.co.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "antal-international-india",
+      "name": "Antal International India",
+      "url": "https://www.antal.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "boat-lifestyle",
+      "name": "Boat Lifestyle",
+      "url": "https://www.boat-lifestyle.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "mamaearth",
+      "name": "Mamaearth (Honasa Consumer)",
+      "url": "https://www.mamaearth.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "sugar-cosmetics",
+      "name": "Sugar Cosmetics",
+      "url": "https://www.sugarcosmetics.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "wow-skin-science",
+      "name": "Wow Skin Science",
+      "url": "https://www.wowskinscience.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "mokobara",
+      "name": "Mokobara",
+      "url": "https://www.mokobara.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "the-man-company",
+      "name": "The Man Company",
+      "url": "https://themancompany.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "country-delight",
+      "name": "Country Delight",
+      "url": "https://www.countrydelight.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "rebel-foods",
+      "name": "Rebel Foods",
+      "url": "https://www.rebelfoods.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "pharmeasy",
+      "name": "PharmEasy",
+      "url": "https://pharmeasy.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "1mg",
+      "name": "1mg (Tata 1mg)",
+      "url": "https://www.1mg.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "practo",
+      "name": "Practo",
+      "url": "https://www.practo.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "netmeds",
+      "name": "Netmeds",
+      "url": "https://www.netmeds.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "cure-fit",
+      "name": "Cure.fit (Cult.fit)",
+      "url": "https://www.cult.fit/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "dehaat",
+      "name": "DeHaat",
+      "url": "https://www.dehaat.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "ninjacart",
+      "name": "Ninjacart",
+      "url": "https://ninjacart.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "waycool-foods",
+      "name": "WayCool Foods",
+      "url": "https://waycool.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "skyroot-aerospace",
+      "name": "Skyroot Aerospace",
+      "url": "https://www.skyroot.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "agnikul-cosmos",
+      "name": "Agnikul Cosmos",
+      "url": "https://www.agnikul.in/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "ideaforge-technology",
+      "name": "Ideaforge Technology",
+      "url": "https://ideaforgetech.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "rocketium",
+      "name": "Rocketium",
+      "url": "https://www.rocketium.com/careers",
+      "sourceKind": "company_career",
+      "ingestionMode": "ats_or_jsonld_discovery",
+      "enabled": false
+    },
+    {
+      "slug": "nse-india-company-directory",
+      "name": "NSE India - Company Directory",
+      "url": "https://www.nseindia.com/companies-listing/corporate-filings-company-search",
+      "sourceKind": "company_directory",
+      "ingestionMode": "discovery_only",
+      "enabled": false
+    },
+    {
+      "slug": "bse-india-company-directory",
+      "name": "BSE India - Company Directory",
+      "url": "https://www.bseindia.com/corporates/List_Scrips.aspx",
+      "sourceKind": "company_directory",
+      "ingestionMode": "discovery_only",
+      "enabled": false
+    },
+    {
+      "slug": "mca",
+      "name": "MCA (Ministry of Corporate Affairs)",
+      "url": "https://www.mca.gov.in",
+      "sourceKind": "company_directory",
+      "ingestionMode": "discovery_only",
+      "enabled": false
+    },
+    {
+      "slug": "moneycontrol-company-directory",
+      "name": "Moneycontrol - Company Directory",
+      "url": "https://www.moneycontrol.com/india/stockpricequote",
+      "sourceKind": "company_directory",
+      "ingestionMode": "discovery_only",
+      "enabled": false
+    },
+    {
+      "slug": "zauba-corp-company-search",
+      "name": "Zauba Corp - Company Search",
+      "url": "https://www.zaubacorp.com",
+      "sourceKind": "company_directory",
+      "ingestionMode": "discovery_only",
+      "enabled": false
+    },
+    {
+      "slug": "tofler-company-database",
+      "name": "Tofler - Company Database",
+      "url": "https://www.tofler.in",
+      "sourceKind": "company_directory",
+      "ingestionMode": "discovery_only",
+      "enabled": false
+    },
+    {
+      "slug": "greenhouse",
+      "name": "Greenhouse",
+      "url": "boards-api.greenhouse.io/v1/boards/{company}/jobs",
+      "sourceKind": "ats_pattern",
+      "ingestionMode": "connector_pattern",
+      "enabled": false
+    },
+    {
+      "slug": "lever",
+      "name": "Lever",
+      "url": "api.lever.co/v0/postings/{company}",
+      "sourceKind": "ats_pattern",
+      "ingestionMode": "connector_pattern",
+      "enabled": false
+    },
+    {
+      "slug": "smartrecruiters",
+      "name": "SmartRecruiters",
+      "url": "api.smartrecruiters.com/v1/companies/{company}/postings",
+      "sourceKind": "ats_pattern",
+      "ingestionMode": "connector_pattern",
+      "enabled": false
+    },
+    {
+      "slug": "workday",
+      "name": "Workday",
+      "url": "{company}.wd1.myworkdayjobs.com/wday/cxs/{company}/jobs",
+      "sourceKind": "ats_pattern",
+      "ingestionMode": "connector_pattern",
+      "enabled": false
+    },
+    {
+      "slug": "icims",
+      "name": "iCIMS",
+      "url": "https://company career-site json endpoints (per-client)",
+      "sourceKind": "ats_pattern",
+      "ingestionMode": "connector_pattern",
+      "enabled": false
+    }
+  ]
+}

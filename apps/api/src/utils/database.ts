@@ -1,46 +1,78 @@
 import mongoose from 'mongoose';
 
-export const connectDB = async (): Promise<void> => {
-  try {
-    const MONGODB_URI = process.env.MONGODB_URI;
-    
-    if (!MONGODB_URI) {
-      throw new Error('MONGODB_URI environment variable is not defined');
+mongoose.set('bufferCommands', false);
+
+let connectionPromise: Promise<void> | null = null;
+let listenersRegistered = false;
+let reconnectTimer: NodeJS.Timeout | null = null;
+
+const connectionOptions = {
+  serverSelectionTimeoutMS: 10000,
+  connectTimeoutMS: 10000,
+  socketTimeoutMS: 45000,
+  heartbeatFrequencyMS: 10000,
+  maxPoolSize: Number(process.env.MONGODB_MAX_POOL_SIZE || 20),
+  minPoolSize: Number(process.env.MONGODB_MIN_POOL_SIZE || 1),
+  retryWrites: true
+};
+
+export const isDatabaseReady = (): boolean => mongoose.connection.readyState === 1;
+
+const scheduleReconnect = (): void => {
+  if (reconnectTimer || isDatabaseReady()) return;
+  reconnectTimer = setTimeout(async () => {
+    reconnectTimer = null;
+    try {
+      await connectDB();
+    } catch {
+      scheduleReconnect();
     }
+  }, 5000);
+  reconnectTimer.unref?.();
+};
 
-    console.log('🔗 Attempting to connect to MongoDB...');
-    
-    await mongoose.connect(MONGODB_URI, {
-      // Modern Mongoose doesn't need these options anymore, but keeping for compatibility
-      // useNewUrlParser: true,
-      // useUnifiedTopology: true,
-    });
+const registerConnectionListeners = (): void => {
+  if (listenersRegistered) return;
+  listenersRegistered = true;
+  mongoose.connection.on('connected', () => console.log('✅ MongoDB connection ready'));
+  mongoose.connection.on('reconnected', () => console.log('✅ MongoDB reconnected successfully'));
+  mongoose.connection.on('disconnected', () => {
+    console.error('❌ MongoDB disconnected; retrying in 5 seconds');
+    scheduleReconnect();
+  });
+  mongoose.connection.on('error', error => {
+    console.error('❌ MongoDB connection error:', error instanceof Error ? error.message : error);
+  });
+}
 
-    console.log('✅ MongoDB connected successfully');
-    
-    // Handle connection events
-    mongoose.connection.on('disconnected', () => {
-      console.log('❌ MongoDB disconnected');
-    });
+export const connectDB = async (): Promise<void> => {
+  if (isDatabaseReady()) return;
+  if (connectionPromise) return connectionPromise;
+  const uri = process.env.MONGODB_URI;
+  if (!uri) throw new Error('MONGODB_URI environment variable is not defined');
 
-    mongoose.connection.on('error', (err) => {
-      console.error('❌ MongoDB connection error:', err);
-    });
-
-  } catch (error) {
-    console.error('❌ Database connection failed:', error);
-    throw error;
-  }
+  registerConnectionListeners();
+  connectionPromise = (async () => {
+    try {
+      console.log('🔗 Connecting to MongoDB...');
+      await mongoose.connect(uri, connectionOptions);
+      console.log('✅ MongoDB connected successfully');
+    } catch (error) {
+      console.error('❌ Database connection failed:', error instanceof Error ? error.message : error);
+      scheduleReconnect();
+      throw error;
+    } finally {
+      connectionPromise = null;
+    }
+  })();
+  return connectionPromise;
 };
 
 export const disconnectDB = async (): Promise<void> => {
-  try {
-    await mongoose.disconnect();
-    console.log('✅ MongoDB disconnected successfully');
-  } catch (error) {
-    console.error('❌ Error disconnecting from MongoDB:', error);
-    throw error;
-  }
+  if (reconnectTimer) clearTimeout(reconnectTimer);
+  reconnectTimer = null;
+  await mongoose.disconnect();
+  console.log('✅ MongoDB disconnected successfully');
 };
 
-export default { connectDB, disconnectDB };
+export default { connectDB, disconnectDB, isDatabaseReady };

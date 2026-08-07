@@ -3296,7 +3296,7 @@ useEffect(() => {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {filteredCourses.map((course) => {
+                  {filteredCourses.map((course, index) => {
                     const enrollment = enrollmentData[course._id!] || { enrolledCount: 0, totalSeats: course.numberOfSeats || 0, progressPercent: 0 };
                     const totalSeats = enrollment.totalSeats || parseInt(course.numberOfSeats?.toString() || '60');
                     const enrolledStudents = enrollment.enrolledCount || 0;

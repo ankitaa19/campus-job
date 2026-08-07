@@ -698,47 +698,24 @@ const createStudentProfile = async (userId: any, profileData: any, email: string
     // Handle case where profileData is null or undefined
     const profile = profileData || {};
     
-    // If no college is selected, use the first available college as default
-    let collegeId = profile.collegeId && profile.collegeId.trim() !== '' ? profile.collegeId : null;
-    if (!collegeId) {
-        try {
-            const firstCollege = await College.findOne({});
-            collegeId = firstCollege ? firstCollege._id : null;
-        } catch (error) {
-            console.error('Error fetching default college:', error);
-        }
-    }
-    
-    // If collegeId is still null, we'll need to handle this in the Student model or create a default college
-    if (!collegeId) {
-        // Skip collegeId requirement for now - student can update later
-        console.warn('No college selected or available - student profile created without college assignment');
-    }
-    
+    const collegeId = profile.collegeId && profile.collegeId.trim() !== '' ? profile.collegeId : null;
+
+    // Registration intentionally creates a minimal profile. All other fields
+    // remain empty until supplied by a resume or explicitly entered by the user.
     const studentData: any = {
         userId,
-        firstName: profile.firstName || 'Student',
-        lastName: profile.lastName || 'User',
-        dateOfBirth: profile.dateOfBirth,
-        gender: profile.gender,
-        email: email || '',
+        firstName: profile.firstName || '',
+        lastName: profile.lastName || '',
         phoneNumber: profile.phoneNumber || profile.whatsappNumber || '',
-        linkedinUrl: profile.linkedinUrl,
-        githubUrl: profile.githubUrl,
-        portfolioUrl: profile.portfolioUrl,
-        studentId: profile.studentId || `STU${Date.now()}`,
-        enrollmentYear: profile.enrollmentYear || new Date().getFullYear(),
-        graduationYear: profile.graduationYear,
-        currentSemester: profile.currentSemester,
-        education: profile.education || [],
-        experience: profile.experience || [], 
-        skills: profile.skills || [],
-        jobPreferences: profile.jobPreferences || {
+        education: [],
+        experience: [],
+        skills: [],
+        jobPreferences: {
             jobTypes: [],
             preferredLocations: [],
             workMode: 'any'
         },
-        profileCompleteness: calculateStudentProfileCompleteness(profile),
+        profileCompleteness: 10,
         isActive: true,
         isPlacementReady: false
     };
@@ -749,7 +726,18 @@ const createStudentProfile = async (userId: any, profileData: any, email: string
     }
 
     const student = new Student(studentData);
-    await student.save()
+    await student.save();
+
+    // Create baseline scores for existing active jobs immediately. These are
+    // replaced with richer scores when the student uploads a resume.
+    setImmediate(async () => {
+        try {
+            const CareerAlertService = require('../services/career-alerts').default;
+            await CareerAlertService.processStudentProfileUpdate(student._id);
+        } catch (matchError) {
+            console.error('Initial hybrid job matching failed:', matchError);
+        }
+    });
     return student._id;
 };
 
@@ -1165,7 +1153,9 @@ export const forgotPassword = async (req: Request, res: Response) => {
             if (!phone) {
                 return res.status(400).json({ message: 'Phone number is required for phone OTP' });
             }
-            user = await User.findOne({ phone });
+            const digits = String(phone).replace(/\D/g, '');
+            const phoneCandidates = [...new Set([String(phone).trim(), digits, digits.slice(-10), `+91${digits.slice(-10)}`])];
+            user = await User.findOne({ phone: { $in: phoneCandidates } });
             if (!user) {
                 return res.status(404).json({ message: 'No account found with this phone number' });
             }
@@ -1206,43 +1196,17 @@ export const forgotPassword = async (req: Request, res: Response) => {
                 return res.status(400).json({ message: result.message || 'Failed to send email OTP' });
             }
         } else {
-            // Generate 6-digit OTP
-            const otp = Math.floor(100000 + Math.random() * 900000).toString();
-            const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-
-            // Save OTP to database
-            const otpVerification = new OTPVerification({
-                phoneNumber: phone,
-                userType: user.role,
-                otp: otp,
-                otpExpiry: otpExpiry,
-                isVerified: false,
-                attempts: 0,
-                maxAttempts: 3
-            });
-
-            await otpVerification.save();
-
-            // Send GET request to webhook URL with Number and OTP
-            const webhookUrl = 'https://api.wabb.in/api/v1/webhooks-automation/catch/220/4nVuxt446PLJ/';
-            const params = new URLSearchParams({
-                Number: phone,
-                OTP: otp
-            });
-            const fullUrl = `${webhookUrl}?${params.toString()}`;
-
-            try {
-                await axios.get(fullUrl);
-                console.log(`Webhook request sent successfully to ${fullUrl}`);
-            } catch (webhookError) {
-                console.error('Error sending webhook request:', webhookError);
+            // Password reset uses the same WhatsApp OTP storage, delivery,
+            // expiry, attempt limit, and development logging as registration.
+            const result = await sendWhatsAppOTP(phone, user.role === 'student' ? 'student' : user.role === 'recruiter' ? 'recruiter' : 'college', user.name || undefined);
+            if (!result.success || !result.otpId) {
+                return res.status(502).json({ message: result.message || 'Failed to send WhatsApp OTP' });
             }
-
             return res.status(200).json({
-                message: 'OTP has been sent to your phone number',
-                otpId: otpVerification._id.toString(),
-                method: 'webhook',
-                expiresIn: '10 minutes'
+                message: 'OTP has been sent to your WhatsApp number',
+                otpId: result.otpId,
+                method: 'whatsapp',
+                expiresIn: result.expiresIn || '10 minutes'
             });
         }
     } catch (error) {
@@ -1583,51 +1547,59 @@ export const verifyGoogleSignupPhone = async (req: Request, res: Response) => {
 };
 // Verify OTP for password reset
 export const verifyResetOTP = async (req: Request, res: Response) => {
-    const { email, otp } = req.body;
+    const { email, phone, otpId, otp, method, userType } = req.body;
 
     try {
-        if (!email || !otp) {
-            return res.status(400).json({ message: 'Email and OTP are required' });
+        if (!otpId || !otp || (!email && !phone)) {
+            return res.status(400).json({ message: 'OTP ID, OTP, and phone number or email are required' });
         }
 
-        // Find user
-        const user = await User.findOne({ email: email.toLowerCase().trim() });
+        const normalizedPhone = String(phone || '').replace(/\D/g, '');
+        const phoneCandidates = normalizedPhone
+            ? [...new Set([String(phone).trim(), normalizedPhone, normalizedPhone.slice(-10), `+91${normalizedPhone.slice(-10)}`])]
+            : [];
+        const user = email
+            ? await User.findOne({ email: String(email).toLowerCase().trim() })
+            : await User.findOne({ phone: { $in: phoneCandidates } });
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        // Find the OTP record
-        const otpRecord = await OTPVerification.findOne({
-            email: email.toLowerCase().trim(),
-            otp: otp,
-            isVerified: false,
-            otpExpiry: { $gt: new Date() }
-        }).sort({ createdAt: -1 });
+        const expectedRole = userType === 'company' ? 'recruiter' : userType === 'college_admin' ? 'college' : userType;
+        const userRoleGroup = ['college', 'college_admin', 'placement_officer'].includes(user.role) ? 'college' : user.role;
+        if (expectedRole && expectedRole !== userRoleGroup) {
+            return res.status(403).json({ message: 'The account type does not match this password reset request' });
+        }
 
+        const otpRecord = await OTPVerification.findById(otpId);
         if (!otpRecord) {
-            return res.status(400).json({ message: 'Invalid or expired OTP' });
+            return res.status(400).json({ message: 'Invalid OTP request' });
+        }
+        if (phone && String(otpRecord.phoneNumber || '').replace(/\D/g, '').slice(-10) !== normalizedPhone.slice(-10)) {
+            return res.status(400).json({ message: 'OTP request does not belong to this phone number' });
+        }
+        if (email && String(otpRecord.email || '').toLowerCase() !== String(email).toLowerCase().trim()) {
+            return res.status(400).json({ message: 'OTP request does not belong to this email' });
         }
 
-        if (otpRecord.attempts >= otpRecord.maxAttempts) {
-            return res.status(400).json({ message: 'Maximum OTP verification attempts reached' });
-        }
-
-        // Verify OTP
-        const result = await verifyEmailOTP(otpRecord._id.toString(), otp);
+        const result = method === 'email'
+            ? await verifyEmailOTP(otpRecord._id.toString(), String(otp))
+            : await verifyWhatsAppOTP(otpRecord._id.toString(), String(otp));
         
         if (result.success) {
+            const resetToken = jwt.sign(
+                { userId: user._id.toString(), otpId: otpRecord._id.toString(), purpose: 'password_reset' },
+                JWT_SECRET,
+                { expiresIn: '10m' }
+            );
             return res.status(200).json({ 
                 message: 'OTP verified successfully',
-                verified: true 
-            });
-        } else {
-            otpRecord.attempts += 1;
-            await otpRecord.save();
-            return res.status(400).json({ 
-                message: result.message || 'Invalid OTP',
-                verified: false 
+                verified: true,
+                resetToken,
+                expiresIn: '10 minutes'
             });
         }
+        return res.status(400).json({ message: result.message || 'Invalid OTP', verified: false });
     } catch (error) {
         console.error('Verify reset OTP error:', error);
         res.status(500).json({ message: 'Server error while verifying OTP' });
@@ -1636,11 +1608,11 @@ export const verifyResetOTP = async (req: Request, res: Response) => {
 
 // Reset password with verified OTP
 export const resetPassword = async (req: Request, res: Response) => {
-    const { email, otp, newPassword } = req.body;
+    const { resetToken, newPassword } = req.body;
 
     try {
-        if (!email || !otp || !newPassword) {
-            return res.status(400).json({ message: 'Email, OTP, and new password are required' });
+        if (!resetToken || !newPassword) {
+            return res.status(400).json({ message: 'Verified password reset session and new password are required' });
         }
 
         // Validate password strength
@@ -1664,22 +1636,28 @@ export const resetPassword = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'Password must contain at least one special character' });
         }
 
-        // Find user
-        const user = await User.findOne({ email: email.toLowerCase().trim() });
-        if (!user) {
-            return res.status(404).json({ message: 'User not found' });
+        let payload: any;
+        try {
+            payload = jwt.verify(resetToken, JWT_SECRET);
+        } catch {
+            return res.status(400).json({ message: 'Password reset session has expired. Please request a new OTP.' });
+        }
+        if (payload?.purpose !== 'password_reset' || !payload?.userId || !payload?.otpId) {
+            return res.status(400).json({ message: 'Invalid password reset session' });
         }
 
-        // Verify OTP is still valid
         const otpRecord = await OTPVerification.findOne({
-            email: email.toLowerCase().trim(),
-            otp: otp,
+            _id: payload.otpId,
             isVerified: true,
             otpExpiry: { $gt: new Date() }
-        }).sort({ createdAt: -1 });
-
+        });
         if (!otpRecord) {
-            return res.status(400).json({ message: 'Invalid or expired OTP. Please request a new OTP.' });
+            return res.status(400).json({ message: 'Password reset session has already been used or expired' });
+        }
+
+        const user = await User.findById(payload.userId);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
         }
 
         // Hash new password
@@ -1687,6 +1665,8 @@ export const resetPassword = async (req: Request, res: Response) => {
 
         // Update user password
         user.password = hashedPassword;
+        user.failedLoginAttempts = 0;
+        user.lockedUntil = undefined;
         await user.save();
 
         // Invalidate the OTP record

@@ -1532,31 +1532,13 @@ router.post('/analyze-resume', authMiddleware, upload.single('resume'), async (r
       console.log(`🗃️ Resume text length: ${resumeText.length} characters`);
       console.log(`🤖 Extraction method: ${student.resumeAnalysis.extractionMethod}`);
       
-      // Update personal information if extracted
-      if (analysis.extractedDetails?.personalInfo?.name) {
-        const nameParts = analysis.extractedDetails.personalInfo.name.split(' ');
-        if (nameParts.length >= 2) {
-          student.firstName = nameParts[0];
-          student.lastName = nameParts.slice(1).join(' ');
-        }
-      }
-      
-      // Enhanced: Update contact information using AI structured data first
+      // Registered name and phone number are authoritative. Resume processing
+      // may populate other contact fields but must never replace those two.
       try {
         if (analysis.structuredData?.personalInfo) {
           const personalInfo = analysis.structuredData.personalInfo;
           if (personalInfo.email && !student.email) {
             student.email = personalInfo.email;
-          }
-          if (personalInfo.phone && !student.phoneNumber) {
-            student.phoneNumber = personalInfo.phone;
-          }
-          if (personalInfo.name && (!student.firstName || !student.lastName)) {
-            const nameParts = personalInfo.name.split(' ');
-            if (nameParts.length >= 2) {
-              student.firstName = nameParts[0];
-              student.lastName = nameParts.slice(1).join(' ');
-            }
           }
           console.log('✅ Updated contact info from AI data');
         }
@@ -1565,9 +1547,6 @@ router.post('/analyze-resume', authMiddleware, upload.single('resume'), async (r
           const contact = analysis.extractedDetails.contactInfo;
           if (contact.email && !student.email) {
             student.email = contact.email;
-          }
-          if (contact.phone && !student.phoneNumber) {
-            student.phoneNumber = contact.phone;
           }
           if (contact.linkedin) {
             student.linkedinUrl = contact.linkedin;
@@ -1871,21 +1850,18 @@ router.get('/profile', authMiddleware, async (req, res) => {
         // Create a basic student profile
         const newStudent = new Student({
           userId: user._id,
-          firstName: user.name?.split(' ')[0] || user.firstName || 'Student',
+          firstName: user.name?.split(' ')[0] || user.firstName || '',
           lastName: user.name?.split(' ')[1] || user.lastName || '',
-          email: user.email,
-          collegeId: new mongoose.Types.ObjectId(), // Temporary placeholder
-          studentId: `STU${Date.now()}`,
-          enrollmentYear: new Date().getFullYear(),
+          phoneNumber: user.phone || '',
           education: [],
           experience: [],
           skills: [],
           jobPreferences: {
             jobTypes: [],
-            preferredLocations: ['Any'],
+            preferredLocations: [],
             workMode: 'any'
           },
-          profileCompleteness: 30,
+          profileCompleteness: 10,
           isActive: true,
           isPlacementReady: false
         });
@@ -1900,9 +1876,9 @@ router.get('/profile', authMiddleware, async (req, res) => {
           success: true,
           data: {
             personalInfo: {
-              firstName: user.name?.split(' ')[0] || user.firstName || 'Student',
+              firstName: user.name?.split(' ')[0] || user.firstName || '',
               lastName: user.name?.split(' ')[1] || user.lastName || '',
-              email: user.email
+              email: ''
             },
             resumeAnalysis: null,
             profileExists: false
@@ -1921,9 +1897,9 @@ router.get('/profile', authMiddleware, async (req, res) => {
       userId: studentData.userId,
       
       // Personal Information
-      firstName: studentData.firstName || user.name?.split(' ')[0] || 'Student',
+      firstName: studentData.firstName || user.name?.split(' ')[0] || '',
       lastName: studentData.lastName || user.name?.split(' ')[1] || '',
-      email: studentData.email || user.email,
+      email: studentData.email || '',
       phoneNumber: studentData.phoneNumber || '',
       dateOfBirth: studentData.dateOfBirth || '',
       gender: studentData.gender || '',
@@ -1935,9 +1911,9 @@ router.get('/profile', authMiddleware, async (req, res) => {
       
       // Academic Info
       studentId: studentData.studentId || '',
-      enrollmentYear: studentData.enrollmentYear || new Date().getFullYear(),
-      graduationYear: studentData.graduationYear || new Date().getFullYear() + 4,
-      currentSemester: studentData.currentSemester || 1,
+      enrollmentYear: studentData.enrollmentYear || '',
+      graduationYear: studentData.graduationYear || '',
+      currentSemester: studentData.currentSemester || '',
       collegeId: studentData.collegeId,
       
       // Profile Arrays - ensure they exist and map to frontend format
@@ -1971,15 +1947,15 @@ router.get('/profile', authMiddleware, async (req, res) => {
       lastJobMatchUpdate: studentData.lastJobMatchUpdate,
       
       // Status fields
-      profileCompleteness: studentData.profileCompleteness || 30,
+      profileCompleteness: studentData.profileCompleteness || 0,
       isActive: studentData.isActive !== false,
       isPlacementReady: studentData.isPlacementReady || false,
       
       // Personal info for backward compatibility
       personalInfo: {
-        firstName: studentData.firstName || user.name?.split(' ')[0] || 'Student',
+        firstName: studentData.firstName || user.name?.split(' ')[0] || '',
         lastName: studentData.lastName || user.name?.split(' ')[1] || '',
-        email: studentData.email || user.email
+        email: studentData.email || ''
       },
       profileExists: true
     };
@@ -2257,30 +2233,18 @@ router.put('/profile', authMiddleware, async (req, res) => {
     
     console.log('Profile updated successfully');
     
-    // If skills were updated, trigger job matching in background using unified service
-    if (updateData.skills && updateData.skills.length > 0) {
-      setImmediate(async () => {
-        try {
-          console.log('Triggering background unified job matching after profile update');
-          const skillNames = updateData.skills.map((skill: any) => skill.name || skill);
-          const category = 'General'; // You might want to derive this from skills
-          
-          // Use unified matching service for consistent logic and 70% threshold
-          const { matchingJobs } = require('../services/unified-matching');
-          const mockAnalysis = {
-            skills: skillNames,
-            category: category,
-            experienceLevel: 'Entry Level', // Default or derive from profile
-            extractedYears: 0
-          };
-          
-          await matchingJobs.handleResumeUpload(user._id.toString(), mockAnalysis);
-          console.log(`Updated job matches using unified service`);
-        } catch (error) {
-          console.error('Background unified job matching failed:', error);
-        }
-      });
-    }
+    // Education, experience, projects, certifications, location and preferences
+    // all affect the hybrid score, not only skills. Recalculate after any
+    // successful profile update without delaying the API response.
+    setImmediate(async () => {
+      try {
+        const CareerAlertService = require('../services/career-alerts').default;
+        await CareerAlertService.processStudentProfileUpdate(updatedStudent._id);
+        console.log('✅ Hybrid job matches refreshed after profile update');
+      } catch (matchError) {
+        console.error('❌ Hybrid match refresh after profile update failed:', matchError);
+      }
+    });
     
     // Return the updated profile in the same format as the GET endpoint
     const responseData = {
@@ -2566,6 +2530,10 @@ router.get('/resume/file/:studentId', authMiddleware, async (req, res) => {
         error: 'Resume file not found'
       });
     }
+
+    if (/^https?:\/\//i.test(student.resumeFile)) {
+      return res.redirect(student.resumeFile);
+    }
     
     // Check if file exists
     if (!fs.existsSync(student.resumeFile)) {
@@ -2609,13 +2577,17 @@ router.get('/resume/status', authMiddleware, async (req, res) => {
     }
     
     const hasResume = !!student.resumeFile;
-    const resumeExists = hasResume && student.resumeFile && fs.existsSync(student.resumeFile);
+    const resumeExists = Boolean(
+      hasResume && student.resumeFile &&
+      (/^https?:\/\//i.test(student.resumeFile) || fs.existsSync(student.resumeFile))
+    );
     
     res.json({
       success: true,
       data: {
         hasResume,
         resumeExists,
+        resumeUrl: /^https?:\/\//i.test(student.resumeFile || '') ? student.resumeFile : undefined,
         fileName: student.resumeAnalysis?.fileName,
         originalFileName: student.resumeAnalysis?.originalFileName,
         uploadDate: student.resumeAnalysis?.uploadDate,

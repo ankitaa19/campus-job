@@ -224,8 +224,7 @@ const GeneratedResumeSchema = new Schema({
   lastSharedAt: { type: Date },
   expiresAt: { 
     type: Date, 
-    default: () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
-    index: true 
+    default: () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
   }
 }, {
   timestamps: true
@@ -233,7 +232,6 @@ const GeneratedResumeSchema = new Schema({
 
 // Indexes for optimization
 GeneratedResumeSchema.index({ studentId: 1, generatedAt: -1 }); // Student's resume history
-GeneratedResumeSchema.index({ resumeId: 1 }); // Quick lookup by resume ID
 GeneratedResumeSchema.index({ jobDescriptionHash: 1, studentId: 1 }); // Detect similar jobs
 GeneratedResumeSchema.index({ status: 1, generatedAt: -1 }); // Status-based queries
 GeneratedResumeSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 }); // Auto cleanup

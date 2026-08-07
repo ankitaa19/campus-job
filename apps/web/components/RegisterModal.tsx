@@ -909,7 +909,7 @@ export default function RegisterModal({ isOpen, onClose, initialUserType = 'stud
                     <div className="w-full max-w-sm mx-auto">
                       <h2 className="text-2xl font-bold text-gray-900 mb-2">Verification code</h2>
                       <p className="text-gray-600 mb-8">
-                        Enter the 6 digits code that we have send through your {activeTab === 'student' ? 'mobile number' :  'email'}
+                        Enter the 6-digit code we sent to your {activeTab === 'student' ? 'mobile number' : 'email'}
                       </p>
 
                       <div className="flex justify-center gap-3 mb-8">

@@ -108,7 +108,6 @@ OTPVerificationSchema.index({ email: 1, userType: 1, isVerified: 1 });
 OTPVerificationSchema.index({ phoneNumber: 1, userType: 1, isVerified: 1 });
 OTPVerificationSchema.index({ whatsappNumber: 1, userType: 1, isVerified: 1 });
 OTPVerificationSchema.index({ userType: 1, createdAt: -1 });
-OTPVerificationSchema.index({ sessionId: 1 }, { sparse: true });
 OTPVerificationSchema.index({ createdAt: 1 }, { expireAfterSeconds: 900 }); // 15 minutes TTL
 
 // Validation: Ensure appropriate fields are present based on userType

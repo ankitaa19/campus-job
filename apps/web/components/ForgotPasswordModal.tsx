@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, ArrowLeft } from 'lucide-react';
 import axios from 'axios';
 import { API_BASE_URL } from '../utils/api';
-import { useRouter } from 'next/router';
 
 type UserType = 'student' | 'college' | 'company';
 
@@ -14,7 +13,6 @@ interface ForgotPasswordModalProps {
 }
 
 export default function ForgotPasswordModal({ isOpen, onClose, userType }: ForgotPasswordModalProps) {
-  const router = useRouter();
   const [step, setStep] = useState<'email' | 'otp' | 'newPassword'>('email');
   const [formData, setFormData] = useState({
     email: '',
@@ -24,7 +22,9 @@ export default function ForgotPasswordModal({ isOpen, onClose, userType }: Forgo
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [otpId, setOtpId] = useState('');
   const [otpMethod, setOtpMethod] = useState('');
+  const [resetToken, setResetToken] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
 
@@ -38,6 +38,17 @@ export default function ForgotPasswordModal({ isOpen, onClose, userType }: Forgo
     }
     return () => clearInterval(interval);
   }, [resendTimer]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setStep('email');
+    setFormData({ email: '', newPassword: '', confirmPassword: '' });
+    setOtp(['', '', '', '', '', '']);
+    setOtpId('');
+    setResetToken('');
+    setError('');
+    setSuccess('');
+  }, [isOpen, userType]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -67,6 +78,7 @@ export default function ForgotPasswordModal({ isOpen, onClose, userType }: Forgo
 
   const sendOtp = async () => {
     setError('');
+    setSuccess('');
     setLoading(true);
 
     try {
@@ -74,7 +86,7 @@ export default function ForgotPasswordModal({ isOpen, onClose, userType }: Forgo
       const response = await axios.post(`${API_BASE_URL}/api/auth/forgot-password`, {
         email: userType === 'student' ? undefined : formData.email,
         phone: userType === 'student' ? formData.email : undefined, // For students, email field contains phone
-        preferredMethod: userType === 'student' ? 'phone' : 'email'
+        preferredMethod: userType === 'student' ? 'whatsapp' : 'email'
       });
 
       // Store OTP ID and method for verification
@@ -94,6 +106,7 @@ export default function ForgotPasswordModal({ isOpen, onClose, userType }: Forgo
 
   const verifyOtp = async () => {
     setError('');
+    setSuccess('');
     setLoading(true);
 
     try {
@@ -119,29 +132,12 @@ export default function ForgotPasswordModal({ isOpen, onClose, userType }: Forgo
         requestPayload.email = formData.email;
       }
 
-      const response = await axios.post(`${API_BASE_URL}/api/auth/verify-otp-login`, requestPayload);
+      const response = await axios.post(`${API_BASE_URL}/api/auth/verify-reset-otp`, requestPayload);
 
       const data = response.data;
-      if (data && data.token) {
-        localStorage.setItem('token', data.token);
-        if (data.user) {
-          localStorage.setItem('userId', data.user.id);
-          localStorage.setItem('role', data.user.role);
-        }
-
-        // Use shared login success helper for consistent redirects
-        try {
-          const mod = await import('../utils/auth');
-          await mod.handleLoginSuccess(data, router);
-        } catch {
-          // Fallback manual redirect
-          const role = data?.user?.role || userType;
-          if (role === 'student') router.push('/dashboard/student');
-          else if (role === 'recruiter') router.push('/dashboard/recruiter');
-          else router.push('/dashboard/college');
-        }
-
-        onClose();
+      if (data?.verified && data?.resetToken) {
+        setResetToken(data.resetToken);
+        setStep('newPassword');
       } else {
         setError('OTP verification failed');
       }
@@ -154,6 +150,7 @@ export default function ForgotPasswordModal({ isOpen, onClose, userType }: Forgo
 
   const resetPassword = async () => {
     setError('');
+    setSuccess('');
     setLoading(true);
 
     if (formData.newPassword !== formData.confirmPassword) {
@@ -167,17 +164,19 @@ export default function ForgotPasswordModal({ isOpen, onClose, userType }: Forgo
       setLoading(false);
       return;
     }
+    if (!/[A-Z]/.test(formData.newPassword) || !/[a-z]/.test(formData.newPassword) || !/[0-9]/.test(formData.newPassword) || !/[!@#$%^&*]/.test(formData.newPassword)) {
+      setError('Use uppercase, lowercase, number, and special character (!@#$%^&*)');
+      setLoading(false);
+      return;
+    }
 
     try {
       await axios.post(`${API_BASE_URL}/api/auth/reset-password`, {
-        email: formData.email,
-        newPassword: formData.newPassword,
-        userType
+        resetToken,
+        newPassword: formData.newPassword
       });
-
-      // Success - close modal
-      onClose();
-      // You might want to show a success toast here
+      setSuccess('Password reset successfully. You can now log in with your new password.');
+      window.setTimeout(onClose, 1500);
     } catch (err: any) {
       setError(err?.response?.data?.message || 'Failed to reset password');
     } finally {
@@ -235,6 +234,7 @@ export default function ForgotPasswordModal({ isOpen, onClose, userType }: Forgo
           </div>
 
           {/* Identifier Step (email for college/company, phone for students) */}
+          {success && <div className="mb-5 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-center text-sm font-medium text-green-700">{success}</div>}
           {step === 'email' && (
             <div className="text-center">
               <h2 className="text-2xl font-bold text-gray-900 mb-2">

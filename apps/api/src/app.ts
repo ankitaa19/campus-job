@@ -37,7 +37,7 @@ import fileUploadRoutes from './routes/fileUpload';
 import eventRoutes from './routes/events';
 import placementRoutes from './routes/placements';
 
-import { connectDB } from './utils/database';
+import { connectDB, isDatabaseReady } from './utils/database';
 import SimpleScheduler from './services/simple-scheduler';
 import mongoose from 'mongoose';
 
@@ -46,6 +46,16 @@ const app = express();
 // Azure: bind to 0.0.0.0 and use provided PORT (falls back to 8080 in prod)
 const PORT = Number(process.env.PORT || (process.env.NODE_ENV === 'production' ? 8080 : 5001));
 const HOST = process.env.HOST || '0.0.0.0';
+let serverListening = false;
+let schedulerInitialized = false;
+
+const startSchedulerWhenReady = () => {
+  if (!serverListening || schedulerInitialized || !isDatabaseReady()) return;
+  schedulerInitialized = true;
+  SimpleScheduler.init();
+};
+
+mongoose.connection.on('connected', startSchedulerWhenReady);
 
 // Trust proxy so secure cookies & req.protocol work behind Azure’s ELB
 app.set('trust proxy', 1);
@@ -133,11 +143,23 @@ console.log('🏥 Registering health route...');
 app.get('/health', (_req, res) => {
   console.log('📍 Health route accessed!');
   const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
-  res.json({
-    status: 'OK',
+  res.status(dbStatus === 'connected' ? 200 : 503).json({
+    status: dbStatus === 'connected' ? 'OK' : 'DEGRADED',
     message: 'CampusPe API with Job Matching is running',
     database: dbStatus,
     timestamp: new Date().toISOString(),
+  });
+});
+
+// Never let Mongoose buffer API operations while Atlas is reconnecting. The
+// client receives a fast, retryable response instead of a misleading 10s wait.
+app.use('/api', (_req: Request, res: Response, next: NextFunction) => {
+  if (isDatabaseReady()) return next();
+  res.setHeader('Retry-After', '5');
+  return res.status(503).json({
+    success: false,
+    code: 'DATABASE_UNAVAILABLE',
+    message: 'CampusPe is reconnecting to the database. Please retry in a few seconds.'
   });
 });
 
@@ -206,38 +228,42 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
   res.status(500).json({ error: 'Internal Server Error' });
 });
 
-// ---- Start server (try DB, but start anyway) ----
-(async () => {
-  let dbConnected = false;
-  
-  try {
-    console.log('🔌 Connecting to database...');
-    await connectDB();
-    console.log('✅ Database connected successfully');
-    dbConnected = true;
-  } catch (e) {
-    console.error('❌ Failed to connect to database:', e);
-    console.log('⚠️  Starting server without database connection...');
-  }
+// ---- Start server first, then connect MongoDB in the background ----
+// Binding first makes duplicate dev processes fail immediately and keeps the
+// health endpoint available while Atlas is temporarily reconnecting.
+if (require.main === module) {
+  const server = app.listen(PORT, HOST);
 
-  // Only start the server if this file is run directly
-  if (require.main === module) {
-    // Start server regardless of database connection
-    app.listen(PORT, HOST, () => {
-      console.log(`🚀 CampusPe API listening on http://${HOST}:${PORT}`);
-      console.log(`📊 Health: http://${HOST}:${PORT}/health`);
-      console.log(`🏠 Root: http://${HOST}:${PORT}/`);
-      console.log(`🗃️  Database: ${dbConnected ? 'Connected' : 'Disconnected'}`);
-      console.log('🎯 Server startup completed successfully!');
-      
-      if (dbConnected) {
-        SimpleScheduler.init();
-      } else {
-        console.log('⚠️  Scheduler not started due to missing database connection');
-      }
-    });
-  }
-})();
+  server.once('error', (error: NodeJS.ErrnoException) => {
+    if (error.code === 'EADDRINUSE') {
+      console.error(`❌ Port ${PORT} is already in use. Stop the other CampusPe API process before starting another dev server.`);
+    } else {
+      console.error('❌ CampusPe API failed to start:', error);
+    }
+    process.exitCode = 1;
+  });
+
+  server.once('listening', async () => {
+    serverListening = true;
+    console.log(`🚀 CampusPe API listening on http://${HOST}:${PORT}`);
+    console.log(`📊 Health: http://${HOST}:${PORT}/health`);
+    console.log(`🏠 Root: http://${HOST}:${PORT}/`);
+    console.log('🗃️  Database: Connecting');
+
+    try {
+      console.log('🔌 Connecting to database...');
+      await connectDB();
+      console.log('✅ Database connected successfully');
+      console.log('🗃️  Database: Connected');
+      startSchedulerWhenReady();
+    } catch (error) {
+      console.error('❌ Initial database connection failed; automatic retry is active:', error);
+      console.log('🗃️  Database: Reconnecting');
+    }
+
+    console.log('🎯 Server startup completed successfully!');
+  });
+}
 
 // Export the Express app
 export default app;

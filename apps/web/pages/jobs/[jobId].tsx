@@ -5,8 +5,8 @@ import { useRouter } from 'next/router';
 import axios from 'axios';
 import Navbar from '../../components/Navbar';
 import Footer from '../../components/Footer';
-import { API_BASE_URL } from '../../utils/api';
-import { Briefcase, MapPin, Clock, Globe2 } from 'lucide-react';
+import { apiClient, API_BASE_URL } from '../../utils/api';
+import { Briefcase, MapPin, Clock, CheckCircle2, Sparkles, Loader2 } from 'lucide-react';
 import Image from 'next/image';
 
 interface JobDetails {
@@ -55,286 +55,8 @@ interface JobDetails {
   specialRequirements?: string;
 }
 
-// Dummy job data that matches the 6 job listings
-const getDummyJobData = (id: string): JobDetails | null => {
-  const dummyJobs: { [key: string]: JobDetails } = {
-    '1': {
-      _id: '1',
-      title: 'Software Developer',
-      companyName: 'TechFront',
-      companyLogo: '/company-logos/techfront.png',
-      companyBanner: 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=1200&q=80',
-      companyAbout: 'Deal Jobs is Indonesia\'s largest job portal & mentoring platform. We help people easily find jobs to top Indonesian companies for internship and full-time roles. As you might have already heard about us, we are revolutionizing how Indonesian engage with employers. Many Indonesian students are talented, ambitious, but never found a better opportunity for themselves.',
-      locations: [{ city: 'Karnataka', state: 'Bangalore', country: 'India' }],
-      workMode: 'Remote',
-      jobType: 'internship',
-      salary: { min: 2000, max: 15000, currency: 'INR' },
-      postedAt: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
-      experienceLevel: 'Fresher',
-      educationQualification: 'Graduate',
-      internshipDuration: '3 months',
-      certificateProvided: 'Internship Certificate',
-      compensationType: 'Unpaid',
-      conversionPossibility: 'Yes - Performance Based',
-      numberOfOpenings: 1,
-      description: `<strong>What You'll Do</strong>
-• Design the systems for scale with high availability and reliability.
-• Identify the chocking points in the current system; suggest; own and deliver the System enhancements as a part of Tech initiatives.
-• Performance analysis and improvements.
-• Collaborate with Engineering Manager, Team members, Product Manager and other stakeholders, as may be required
-• Raise the bar on Engineering quality and speed.
-• Show high accountability and ownership.
-• Mentor and guide team members.
 
-<strong>Who You Are</strong>
-Significant Backend and (4 years) experience: designing, building and maintaining enterprise web applications and/or APIs with the following technologies:
 
-Will be nice to have experience and knowledge also in the following two:
-• Kubernetes
-• Transform
-• Mongo
-• Familiarity with modern DevOps techniques: CI/CD, TDD, infrastructure as code (IAC), etc.
-• High accountability and ownership.
-• We uphold our values and set aside personal ego in the workplace. We expect the same commitment from our employees.
-• High proficiency with relational databases and ability to profile and optimize queries.
-• Production experience with Django Rest Framework, Restful, or other API framework.
-• Experience working closely with the product team to help prioritize the best solutions to the largest problems.
-• Experience designing and architecting distributed systems to meet high standards of reliability and ease of use
-• Attention to detail and ability to identify ambiguities in specifications.
-• Experience in tech-mentoring/motivating colleagues; understanding if they need any help from you in technical and non-technical aspects; being available for them and being a good communicator when interacting with them and helping when required.
-• Able to effectively communicate ideas and concepts; within your team, across teams, and throughout the organization; even with non-technical audience, in both written and verbal forms.
-• Experience designing and managing distributed systems working closely to meet high standards of reliability and ease of use
-• Eagerness to work in a cross-functional team to help build end-to-end features`,
-      skills: ['React', 'Node.js', 'SQL', 'MongoDB', 'HTML', 'CSS', 'Java', 'JavaScript'],
-      benefits: [
-        { text: 'Professional development budget', enabled: true },
-        { text: 'Free Food and Snack', enabled: true },
-        { text: 'International Exposure', enabled: true },
-        { text: 'Health insurance', enabled: true },
-        { text: 'Flexible working hours', enabled: true },
-        { text: 'Casual Dress Code', enabled: true },
-        { text: 'Stocks options', enabled: true }
-      ]
-    },
-    '2': {
-      _id: '2',
-      title: 'Software Developer',
-      companyName: 'Wiseck',
-      companyLogo: '/company-logos/wiseck.png',
-      companyBanner: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1200&q=80',
-      companyAbout: 'Wiseck is a leading technology company focused on delivering innovative software solutions. We pride ourselves on our collaborative culture and commitment to excellence.',
-      locations: [{ city: 'New Delhi', state: 'Delhi', country: 'India' }],
-      workMode: 'Remote',
-      jobType: 'full-time',
-      salary: { min: 40000, max: 42000, currency: 'INR' },
-      postedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-      experienceLevel: '2 years',
-      educationQualification: 'Graduate',
-      compensationType: 'Paid',
-      noticePeriod: 'Immediate Joiner',
-      numberOfOpenings: 1,
-      description: `<strong>What You'll Do</strong>
-• Develop and maintain high-quality software solutions
-• Collaborate with cross-functional teams to define and implement features
-• Write clean, maintainable code following best practices
-• Participate in code reviews and knowledge sharing sessions
-• Contribute to architectural decisions and technical planning
-
-<strong>Who You Are</strong>
-• Bachelor's degree in Computer Science or related field
-• 2-4 years of professional software development experience
-• Strong problem-solving skills and attention to detail
-• Excellent communication and teamwork abilities
-• Experience with Agile development methodologies`,
-      skills: ['React', 'Node.js', 'SQL', 'MongoDB', 'HTML', 'CSS', 'Java', 'JavaScript'],
-      benefits: [
-        { text: 'Professional development budget', enabled: true },
-        { text: 'Free Food and Snack', enabled: true },
-        { text: 'International Exposure', enabled: true },
-        { text: 'Health insurance', enabled: true },
-        { text: 'Flexible working hours', enabled: true },
-        { text: 'Casual Dress Code', enabled: true },
-        { text: 'Stocks options', enabled: true }
-      ]
-    },
-    '3': {
-      _id: '3',
-      title: 'Software Developer',
-      companyName: 'Mind Inc.',
-      companyLogo: '/company-logos/mind-inc.png',
-      companyBanner: 'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&w=1200&q=80',
-      companyAbout: 'Mind Inc. is a creative technology studio that builds innovative digital products. We offer flexible work arrangements and value work-life balance.',
-      locations: [{ city: 'Mumbai', state: 'Maharashtra', country: 'India' }],
-      workMode: 'Remote',
-      jobType: 'freelance',
-      salary: { min: 5000, max: 0, currency: 'INR' },
-      postedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-      experienceLevel: '0-2 years',
-      educationQualification: 'Graduate',
-      compensationType: 'Freelance Jobs',
-      numberOfOpenings: 1,
-      contractDuration: 'Short Term',
-      paymentStructure: 'Monthly',
-      extensionPossibility: 'Yes - Performance Based',
-      description: `<strong>What You'll Do</strong>
-• Work on exciting freelance projects for diverse clients
-• Develop custom software solutions based on project requirements
-• Manage your own schedule and deliverables
-• Maintain high quality standards and meet project deadlines
-• Communicate effectively with clients and project stakeholders
-
-<strong>Who You Are</strong>
-• 2+ years of freelance or professional development experience
-• Self-motivated and able to work independently
-• Strong time management and organizational skills
-• Experience with modern web technologies
-• Portfolio of completed projects`,
-      skills: ['React', 'Node.js', 'SQL', 'MongoDB', 'HTML', 'CSS', 'Java', 'JavaScript'],
-      benefits: [
-        { text: 'Professional development budget', enabled: true },
-        { text: 'Free Food and Snack', enabled: true },
-        { text: 'International Exposure', enabled: true },
-        { text: 'Health insurance', enabled: true },
-        { text: 'Flexible working hours', enabled: true },
-        { text: 'Casual Dress Code', enabled: true },
-        { text: 'Stocks options', enabled: true }
-      ]
-    },
-    '4': {
-      _id: '4',
-      title: 'Software Developer',
-      companyName: 'Demo Company',
-      companyLogo: '/company-logos/demo.png',
-      companyBanner: 'https://images.unsplash.com/photo-1497366811353-6870744d04b2?auto=format&fit=crop&w=1200&q=80',
-      companyAbout: 'Demo Company is a fast-growing startup focused on innovative technology solutions. We offer a collaborative environment perfect for career growth.',
-      locations: [{ city: 'Uttar Pradesh', state: 'Noida', country: 'India' }],
-      workMode: 'On-site',
-      jobType: 'full-time',
-      salary: { min: 40000, max: 42000, currency: 'INR' },
-      postedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-      experienceLevel: '0-2 years',
-      educationQualification: 'Graduate',
-      compensationType: 'Full-Time',
-      noticePeriod: 'Immediate Joiner',
-      numberOfOpenings: 1,
-      description: `<strong>What You'll Do</strong>
-• Learn and grow in a supportive team environment
-• Contribute to real-world projects from day one
-• Participate in training and mentorship programs
-• Develop skills in modern software development practices
-• Work on exciting new features and products
-
-<strong>Who You Are</strong>
-• Recent graduate or early career professional
-• Strong foundation in computer science fundamentals
-• Eager to learn and adapt to new technologies
-• Good problem-solving abilities
-• Team player with excellent communication skills`,
-      skills: ['React', 'Node.js', 'SQL', 'MongoDB', 'HTML', 'CSS', 'Java', 'JavaScript'],
-      benefits: [
-        { text: 'Professional development budget', enabled: true },
-        { text: 'Free Food and Snack', enabled: true },
-        { text: 'International Exposure', enabled: true },
-        { text: 'Health insurance', enabled: true },
-        { text: 'Flexible working hours', enabled: true },
-        { text: 'Casual Dress Code', enabled: true },
-        { text: 'Stocks options', enabled: true }
-      ]
-    },
-    '5': {
-      _id: '5',
-      title: 'Software Developer',
-      companyName: 'Fintech',
-      companyLogo: '/company-logos/fintech.png',
-      companyBanner: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1200&q=80',
-      companyAbout: 'Fintech is revolutionizing the financial services industry with cutting-edge technology. Join our team of innovators shaping the future of finance.',
-      locations: [{ city: 'Uttar Pradesh', state: 'Noida', country: 'India' }],
-      workMode: 'Remote',
-      jobType: 'part-time',
-      salary: { min: 8000, max: 15000, currency: 'INR' },
-      postedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-      experienceLevel: '0-2 years',
-      educationQualification: 'Graduate',
-      compensationType: 'Monthly Salary',
-      dailyTimings: 'Morning Shifts (9 AM - 12 PM)',
-      preferredWorkingDays: ['Yes - Performance Based'],
-      numberOfOpenings: 1,
-      description: `<strong>What You'll Do</strong>
-• Work on critical financial technology systems part-time
-• Maintain high code quality and security standards
-• Collaborate with full-time team members on key projects
-• Flexible schedule aligned with your availability
-• Contribute your expertise to important initiatives
-
-<strong>Who You Are</strong>
-• 5+ years of professional software development experience
-• Experience in financial services or fintech preferred
-• Strong understanding of security best practices
-• Ability to work independently with minimal supervision
-• Excellent time management skills`,
-      skills: ['React', 'Node.js', 'SQL', 'MongoDB', 'HTML', 'CSS', 'Java', 'JavaScript'],
-      benefits: [
-        { text: 'Professional development budget', enabled: true },
-        { text: 'Free Food and Snack', enabled: true },
-        { text: 'International Exposure', enabled: true },
-        { text: 'Health insurance', enabled: true },
-        { text: 'Flexible working hours', enabled: true },
-        { text: 'Casual Dress Code', enabled: true },
-        { text: 'Stocks options', enabled: true }
-      ]
-    },
-    '6': {
-      _id: '6',
-      title: 'Software Developer',
-      companyName: 'Miller Group',
-      companyLogo: '/company-logos/miller.png',
-      companyBanner: 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&w=1200&q=80',
-      companyAbout: 'Miller Group offers flexible gig opportunities for talented developers. Work on your own terms and choose projects that match your interests.',
-      locations: [{ city: 'Karnataka', state: 'Bangalore', country: 'India' }],
-      workMode: 'Remote',
-      jobType: 'contract',
-      salary: { min: 600, max: 0, currency: 'INR' },
-      postedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-      experienceLevel: '0-2 years',
-      educationQualification: 'Gig Type',
-      compensationType: 'One-time Gig',
-      workSchedule: 'Morning Shifts (9 AM - 12 PM)',
-      numberOfOpenings: 1,
-      dailyTimings: 'Morning (9AM-PM)',
-      preferredWorkingDays: ['Mon, Tue, Wed, Fri'],
-      hoursPerSession: '2 hours/session',
-      paymentStructure: 'Hourly Rate',
-      gigType: 'Delivery & Logistics',
-      commitmentLevel: 'One-time Gig',
-      specialRequirements: 'Lorem ipsum dolor sit amet consecte adipisicing elit sed do eiusmod tempor incididunt ut labore ut aliqure.',
-      description: `<strong>What You'll Do</strong>
-• Take on flexible gig assignments as per your availability
-• Deliver high-quality work on time
-• Work independently on well-defined tasks
-• Build your portfolio with diverse projects
-• Enjoy the freedom of gig-based work
-
-<strong>Who You Are</strong>
-• Self-starter with proven track record
-• Experience in relevant technologies
-• Strong time management skills
-• Reliable and professional
-• Comfortable with remote work`,
-      skills: ['React', 'Node.js', 'SQL', 'MongoDB', 'HTML', 'CSS', 'Java', 'JavaScript'],
-      benefits: [
-        { text: 'Professional development budget', enabled: true },
-        { text: 'Free Food and Snack', enabled: true },
-        { text: 'International Exposure', enabled: true },
-        { text: 'Health insurance', enabled: true },
-        { text: 'Flexible working hours', enabled: true },
-        { text: 'Casual Dress Code', enabled: true },
-        { text: 'Stocks options', enabled: true }
-      ]
-    }
-  };
-
-  return dummyJobs[id] || null;
-};
 
 export default function JobDetailsPage() {
   const router = useRouter();
@@ -342,6 +64,15 @@ export default function JobDetailsPage() {
   const [job, setJob] = useState<JobDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSaved, setIsSaved] = useState(false);
+  const [matchScore, setMatchScore] = useState<number | null>(null);
+  const [matchedSkills, setMatchedSkills] = useState<string[]>([]);
+  const [skillsGap, setSkillsGap] = useState<string[]>([]);
+  const [scoreBreakdown, setScoreBreakdown] = useState<Record<string, { score: number; weight: number; evidence: string }>>({});
+  const [studentProfile, setStudentProfile] = useState<{ firstName?: string; lastName?: string; collegeName?: string; profileCompleteness?: number; isPlacementReady?: boolean } | null>(null);
+  const [applying, setApplying] = useState(false);
+  const [applicationStatus, setApplicationStatus] = useState<'idle' | 'submitted' | 'already_applied'>('idle');
+  const [submissionMessage, setSubmissionMessage] = useState('');
+  const [loadingMatch, setLoadingMatch] = useState(false);
 
   useEffect(() => {
     if (!jobId) return;
@@ -351,12 +82,10 @@ export default function JobDetailsPage() {
         // Try to fetch from API
         const response = await axios.get(`${API_BASE_URL}/api/jobs/${jobId}`);
         setJob(response.data);
+        setSubmissionMessage('');
       } catch {
-        // Fall back to dummy data
-        const dummyJob = getDummyJobData(jobId as string);
-        if (dummyJob) {
-          setJob(dummyJob);
-        }
+        setJob(null);
+        setSubmissionMessage('This job is unavailable or has expired.');
       } finally {
         setLoading(false);
       }
@@ -365,11 +94,109 @@ export default function JobDetailsPage() {
     fetchJobDetails();
   }, [jobId]);
 
+  useEffect(() => {
+    const fetchCurrentMatch = async () => {
+      if (typeof window === 'undefined' || !jobId) return;
+
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      setLoadingMatch(true);
+      try {
+        try {
+          const analysisResponse = await apiClient.get(`/api/jobs/${jobId}/resume-analysis/current`);
+          const payload = analysisResponse.data?.data || analysisResponse.data;
+          const analysis = payload?.analysis || payload;
+
+          setMatchScore(typeof analysis?.matchScore === 'number' ? analysis.matchScore : null);
+          setMatchedSkills(Array.isArray(analysis?.skillsMatched) ? analysis.skillsMatched : []);
+          setSkillsGap(Array.isArray(analysis?.skillsGap) ? analysis.skillsGap : []);
+          setScoreBreakdown(analysis?.scoreBreakdown || {});
+          if (payload?.studentProfile) {
+            setStudentProfile(payload.studentProfile);
+          }
+          return;
+        } catch (analysisError: any) {
+          if (analysisError?.response?.status !== 404) {
+            throw analysisError;
+          }
+        }
+
+        const response = await apiClient.get('/api/jobs/recommendations', {
+          params: { minimumScore: 70, limit: 100 },
+        });
+
+        const matches = response.data?.data || response.data || [];
+        const currentMatch = Array.isArray(matches)
+          ? matches.find((item: any) => String(item._id || item.id) === String(jobId))
+          : null;
+
+        if (currentMatch) {
+          setMatchScore(typeof currentMatch.matchScore === 'number' ? currentMatch.matchScore : null);
+          setMatchedSkills(Array.isArray(currentMatch.matchedSkills) ? currentMatch.matchedSkills : []);
+          setSkillsGap(Array.isArray(currentMatch.skillsGap) ? currentMatch.skillsGap : []);
+          setScoreBreakdown(currentMatch.scoreBreakdown || {});
+        }
+      } catch (error) {
+        console.error('Failed to load job match score:', error);
+      } finally {
+        setLoadingMatch(false);
+      }
+    };
+
+    fetchCurrentMatch();
+  }, [jobId]);
+
   // Toggle save job
   const toggleSaveJob = () => {
+    if (!isSaved && jobId) apiClient.post(`/api/jobs/${jobId}/interactions`, { type: 'save' }).catch(() => undefined);
     setIsSaved(!isSaved);
     // Here you can add localStorage or API call to persist the saved state
     // localStorage.setItem(`saved-job-${jobId}`, JSON.stringify(!isSaved));
+  };
+
+  useEffect(() => {
+    if (!jobId || typeof window === 'undefined' || !localStorage.getItem('token')) return;
+    apiClient.post(`/api/jobs/${jobId}/interactions`, { type: 'view' }).catch(() => undefined);
+  }, [jobId]);
+
+  const handleApplyJob = async () => {
+    if (!jobId) return;
+
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      router.push(`/login?redirect=/jobs/${jobId}`);
+      return;
+    }
+
+    setApplying(true);
+    setSubmissionMessage('');
+
+    try {
+      const response = await apiClient.post(
+        `/api/jobs/${jobId}/apply`,
+        { skipNotification: false },
+      );
+
+      if (response.data?.success) {
+        const score = response.data?.data?.matchScore;
+        if (typeof score === 'number') {
+          setMatchScore(score);
+        }
+        setApplicationStatus('submitted');
+        setSubmissionMessage(response.data?.message || 'Application submitted within CampusPe.');
+      } else {
+        setSubmissionMessage(response.data?.message || 'Unable to submit application at the moment.');
+      }
+    } catch (error: any) {
+      const message = error.response?.data?.message || 'Failed to submit the application.';
+      if (message.toLowerCase().includes('already applied')) {
+        setApplicationStatus('already_applied');
+      }
+      setSubmissionMessage(message);
+    } finally {
+      setApplying(false);
+    }
   };
 
   if (loading) {
@@ -554,9 +381,6 @@ export default function JobDetailsPage() {
                     {getTimeAgo(job.postedAt)}
                   </span>
                   <div className="flex gap-2">
-                    <button className="p-2 border border-gray-200 rounded-lg hover:bg-gray-50" aria-label="Company website">
-                      <Globe2 className="w-5 h-5 text-gray-600" strokeWidth={1.5} />
-                    </button>
                     <button 
                       onClick={toggleSaveJob}
                       className={`p-2 border rounded-lg transition-colors ${
@@ -632,6 +456,72 @@ export default function JobDetailsPage() {
           </div>
 
           <div className="space-y-6 md:space-y-8">
+            <div className="bg-[#f6fbff] border border-[#d9ecff] rounded-xl p-5 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">AI Job Match</h3>
+                  <p className="text-sm text-gray-600">Your score is generated from CampusPe profile, resume, skills, and job preference data.</p>
+                </div>
+                <div className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#1484F3] shadow-sm border border-[#d9ecff]">
+                  {loadingMatch ? 'Calculating...' : matchScore !== null ? `${matchScore}% match` : 'Sign in to calculate'}
+                </div>
+              </div>
+
+              {matchScore !== null && (
+                <div className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  {Object.entries(scoreBreakdown).map(([dimension, detail]) => (
+                    <div key={dimension} className="rounded-lg bg-white p-3 border border-[#e5eefc]">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs font-semibold capitalize text-gray-700">{dimension.replace(/([A-Z])/g, ' $1')}</p>
+                        <span className="text-xs font-semibold text-[#1484F3]">{detail.score}%</span>
+                      </div>
+                      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-gray-100">
+                        <div className="h-full rounded-full bg-[#1484F3]" style={{ width: `${Math.max(0, Math.min(100, detail.score))}%` }} />
+                      </div>
+                      <p className="mt-2 text-xs text-gray-500">{detail.evidence}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="rounded-lg bg-white p-4 border border-[#e5eefc]">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Matched skills</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {matchedSkills.length > 0 ? matchedSkills.map((skill) => (
+                        <span key={skill} className="rounded-full bg-[#e8f3ff] px-3 py-1 text-xs font-medium text-[#0d6edb]">{skill}</span>
+                      )) : <span className="text-sm text-gray-500">No skills inferred yet.</span>}
+                    </div>
+                  </div>
+                  <div className="rounded-lg bg-white p-4 border border-[#e5eefc]">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Skills gap</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {skillsGap.length > 0 ? skillsGap.map((skill) => (
+                        <span key={skill} className="rounded-full bg-orange-50 px-3 py-1 text-xs font-medium text-orange-700">{skill}</span>
+                      )) : <span className="text-sm text-gray-500">No major gaps detected.</span>}
+                    </div>
+                  </div>
+                </div>
+                </div>
+              )}
+
+              {studentProfile && (
+                <div className="rounded-lg bg-white p-4 border border-[#e5eefc] text-sm text-gray-700">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-semibold text-gray-900">
+                      {studentProfile.firstName || 'Student'} {studentProfile.lastName || ''}
+                    </p>
+                    <span className="text-xs text-[#1484F3]">
+                      {studentProfile.profileCompleteness ?? 0}% profile complete
+                    </span>
+                  </div>
+                  <p className="mt-1 text-gray-600">
+                    {studentProfile.collegeName || 'College details unavailable'}
+                    {studentProfile.isPlacementReady ? ' • Placement ready' : ' • Profile review pending'}
+                  </p>
+                </div>
+              )}
+            </div>
+
             <div className="bg-white border border-[#e1ecfb] rounded-xl p-5 space-y-4">
               <h3 className="text-xl font-semibold text-gray-900">Job Description:</h3>
               <div
@@ -678,10 +568,24 @@ export default function JobDetailsPage() {
             )}
 
             <div className="flex justify-center">
-              <button className="w-full md:w-auto bg-[#1484F3] hover:bg-[#0d6edb] text-white font-semibold py-3 px-10 rounded-lg transition-colors">
-                Apply Job
+              <button
+                onClick={handleApplyJob}
+                disabled={applying}
+                className="w-full md:w-auto inline-flex items-center justify-center gap-2 bg-[#1484F3] hover:bg-[#0d6edb] disabled:opacity-70 disabled:cursor-not-allowed text-white font-semibold py-3 px-10 rounded-lg transition-colors"
+              >
+                {applying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                {applicationStatus === 'already_applied' ? 'Already Applied' : applicationStatus === 'submitted' ? 'Application Submitted' : 'Apply in CampusPe'}
               </button>
             </div>
+
+            {submissionMessage && (
+              <div className="rounded-xl border border-[#d9ecff] bg-[#f6fbff] px-5 py-4 text-sm text-gray-700">
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="mt-0.5 h-5 w-5 text-[#1484F3]" />
+                  <p>{submissionMessage}</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </main>

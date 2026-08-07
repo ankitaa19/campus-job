@@ -51,10 +51,10 @@ const MyCollegeSection: React.FC<MyCollegeSectionProps> = ({ studentInfo }) => {
   
   // Editable student info
   const [isEditingInfo, setIsEditingInfo] = useState(false);
-  const [editableStudentId, setEditableStudentId] = useState(studentInfo?.studentId || "STU-022-589");
-  const [editableCourse, setEditableCourse] = useState(studentInfo?.course || "Bachelor of Science in Computer Science");
-  const [editableSemester, setEditableSemester] = useState(studentInfo?.currentSemester || "1st Semester");
-  const [editableBatch, setEditableBatch] = useState(studentInfo?.currentBatch || "Batch A");
+  const [editableStudentId, setEditableStudentId] = useState(studentInfo?.studentId || '');
+  const [editableCourse, setEditableCourse] = useState(studentInfo?.course || '');
+  const [editableSemester, setEditableSemester] = useState(studentInfo?.currentSemester || '');
+  const [editableBatch, setEditableBatch] = useState(studentInfo?.currentBatch || '');
 
   // Dummy data for documents
   const dummyDocuments: Document[] = [
@@ -162,6 +162,10 @@ const MyCollegeSection: React.FC<MyCollegeSectionProps> = ({ studentInfo }) => {
   ];
 
   useEffect(() => {
+    setEditableStudentId(studentInfo?.studentId || '');
+    setEditableCourse(studentInfo?.course || '');
+    setEditableSemester(studentInfo?.currentSemester || '');
+    setEditableBatch(studentInfo?.currentBatch || '');
     if (studentInfo?.collegeId) {
       fetchCollegeInfo();
     } else {
@@ -270,13 +274,13 @@ const MyCollegeSection: React.FC<MyCollegeSectionProps> = ({ studentInfo }) => {
       <div className="flex items-start gap-4">
         <div className="w-20 h-20 bg-gray-100 rounded-xl flex items-center justify-center">
           <span className="text-3xl font-semibold text-gray-400">
-            {collegeInfo?.name?.charAt(0) || "A"}
+            {collegeInfo?.name?.charAt(0) || "—"}
           </span>
         </div>
 
         <div className="flex-1">
           <h2 className="text-lg lg:text-xl font-semibold text-gray-900">
-            {collegeInfo?.name || "ABC University"}
+            {collegeInfo?.name || "Not provided"}
           </h2>
           {!isEditingInfo ? (
             <p className="text-gray-600 text-sm mt-1">
@@ -382,10 +386,10 @@ const MyCollegeSection: React.FC<MyCollegeSectionProps> = ({ studentInfo }) => {
             <button
               onClick={() => {
                 // Cancel and revert changes
-                setEditableStudentId(studentInfo?.studentId || "STU-022-589");
-                setEditableCourse(studentInfo?.course || "Bachelor of Science in Computer Science");
-                setEditableSemester(studentInfo?.currentSemester || "1st Semester");
-                setEditableBatch(studentInfo?.currentBatch || "Batch A");
+                setEditableStudentId(studentInfo?.studentId || '');
+                setEditableCourse(studentInfo?.course || '');
+                setEditableSemester(studentInfo?.currentSemester || '');
+                setEditableBatch(studentInfo?.currentBatch || '');
                 setIsEditingInfo(false);
               }}
               className="inline-flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 text-sm text-gray-700 rounded-lg hover:bg-gray-50 transition"
