@@ -86,7 +86,10 @@ const JobsSection: React.FC<JobsSectionProps> = ({ studentInfo }) => {
       setJobsError('');
       try {
         const response = await apiClient.get('/api/jobs/recommendations', {
-          params: { minimumScore: 70, limit: 500, search: searchQuery.trim() || undefined }
+          // The dashboard displays a small paginated set. Requesting 500
+          // matches forced the API to evaluate the entire imported catalogue
+          // after each login and could leave this view loading until timeout.
+          params: { minimumScore: 70, limit: 100, search: searchQuery.trim() || undefined }
         });
         const jobs = response.data?.data;
         if (Array.isArray(jobs)) {

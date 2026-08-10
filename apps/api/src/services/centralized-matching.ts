@@ -98,6 +98,14 @@ class CentralizedMatchingService {
     console.log(`   📊 Threshold: ${Math.round(threshold * 100)}%, Limit: ${limit}, Refresh: ${forceRefresh}`);
 
     try {
+      // A dashboard needs a concise, high-quality set of suggestions, not an
+      // exhaustive score for every vacancy in the catalogue.  Scoring every
+      // full job document made a login request exceed Express' 30 second
+      // response timeout once the imported catalogue grew beyond a few
+      // thousand jobs.
+      const resultLimit = Math.min(100, Math.max(1, Number(limit) || 20));
+      const candidateLimit = Math.min(800, Math.max(100, resultLimit * 8));
+
       // 1. Get student and validate
       const student = await Student.findById(objStudentId).lean();
       if (!student) {
@@ -125,7 +133,18 @@ class CentralizedMatchingService {
         }
       }
 
-      const activeJobs = await Job.find(jobQuery).lean();
+      const activeJobs = await Job.find(jobQuery)
+        .select([
+          'title', 'companyName', 'description', 'requirements',
+          'requiredSkills', 'canonicalSkills', 'featureVector', 'industry',
+          'department', 'jobType', 'workMode', 'locations', 'minExperience',
+          'maxExperience', 'experienceLevel', 'educationRequirements',
+          'certifications', 'salary', 'postedAt', 'applicationDeadline',
+          'source', 'sourceLifecycleStatus', 'isPublic', 'allowDirectApplications'
+        ].join(' '))
+        .sort({ postedAt: -1 })
+        .limit(candidateLimit)
+        .lean();
       console.log(`   💼 Found ${activeJobs.length} active jobs to analyze`);
 
       // 3. Read the complete cache in one query. Missing rows receive the
@@ -140,7 +159,7 @@ class CentralizedMatchingService {
         isActive: true,
         matchingModel: { $in: ['hybrid-ai-v2', 'hybrid-local-v2'] },
         analyzedAt: { $gt: cacheExpiry }
-      }).lean();
+      }).select('jobId matchScore ruleBasedScore aiScore explanation suggestions skillsMatched skillsGap matchingModel scoreBreakdown atsEvaluation analyzedAt').lean();
       const cacheByJob = new Map(cachedAnalyses.map(analysis => [analysis.jobId.toString(), analysis]));
       const behaviorAdjustments = await Promise.all(activeJobs.map(job => JobBehaviorService.adjustment(objStudentId, job)));
       const resumeContent = this.buildResumeContent(student);
@@ -209,7 +228,7 @@ class CentralizedMatchingService {
       matches.sort((a, b) => b.finalMatchScore - a.finalMatchScore);
       
       // 5. Apply limit
-      const limitedMatches = matches.slice(0, limit);
+      const limitedMatches = matches.slice(0, resultLimit);
       
       const processingTime = Date.now() - startTime;
       

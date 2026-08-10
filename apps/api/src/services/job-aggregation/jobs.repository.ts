@@ -180,31 +180,48 @@ class JobsRepository {
     const requestedPage = Math.max(1, Number(query.page) || 1);
     const requestedLimit = Math.min(60, Math.max(1, Number(query.limit) || 12));
     const { filter, sort } = JobQueryBuilder.build({ ...query, page: 1, limit: 200 }, publicOnly);
-    const [jobs, totalJobs] = await Promise.all([
-      Job.find(filter)
-        .populate('recruiterId', 'companyInfo.name companyInfo.logo')
-        .sort(sort)
-        .limit(5000),
+    const start = (requestedPage - 1) * requestedLimit;
+
+    // Do not load the entire catalogue just to build one page of company
+    // cards.  Populating thousands of recruiters made this public endpoint
+    // exceed the browser's 20-second timeout.  First select the requested
+    // employers using only MongoDB fields, then fetch up to 20 vacancies for
+    // each selected employer.
+    const companyKey = {
+      $toLower: {
+        $trim: { input: { $ifNull: ['$companyName', 'Company not specified'] } }
+      }
+    };
+    const [companies, totalJobs] = await Promise.all([
+      Job.aggregate<{ _id: string; companyName: string; jobCount: number }>([
+        { $match: filter },
+        { $sort: sort },
+        { $group: { _id: companyKey, companyName: { $first: '$companyName' }, jobCount: { $sum: 1 } } },
+        { $skip: start },
+        { $limit: requestedLimit }
+      ]),
       Job.countDocuments(filter)
     ]);
 
-    // The query sort determines company order while every vacancy for a
-    // selected employer stays together. This gives carousel cards real jobs
-    // to navigate without allowing a large employer to consume the page.
-    const grouped = new Map<string, CompanyJobGroup>();
-    jobs.forEach(job => {
-      const companyName = String(job.companyName || 'Company not specified').trim() || 'Company not specified';
-      const companyKey = companyName.toLocaleLowerCase();
-      const group = grouped.get(companyKey) || { companyName, jobs: [], jobCount: 0 };
-      group.jobs.push(job);
-      group.jobCount += 1;
-      grouped.set(companyKey, group);
-    });
-    const allGroups = [...grouped.values()].map(group => ({ ...group, jobs: group.jobs.slice(0, 20) }));
-    const start = (requestedPage - 1) * requestedLimit;
+    const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const groups = await Promise.all(companies.map(async company => {
+      const companyName = String(company.companyName || 'Company not specified').trim() || 'Company not specified';
+      const jobs = await Job.find({
+        ...filter,
+        companyName: new RegExp(`^${escapeRegex(companyName)}$`, 'i')
+      })
+        .populate('recruiterId', 'companyInfo.name companyInfo.logo')
+        .sort(sort)
+        .limit(20);
+      return { companyName, jobs, jobCount: company.jobCount };
+    }));
+
     return {
-      groups: allGroups.slice(start, start + requestedLimit),
-      totalCompanies: allGroups.length,
+      groups,
+      // The query only needs the number of companies represented in the
+      // catalogue; derive it without returning every job document.
+      totalCompanies: await Job.aggregate([{ $match: filter }, { $group: { _id: companyKey } }, { $count: 'count' }])
+        .then(result => result[0]?.count || 0),
       totalJobs,
       page: requestedPage,
       limit: requestedLimit
