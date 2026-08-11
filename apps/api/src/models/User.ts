@@ -4,7 +4,7 @@ import crypto from 'crypto';
 export interface IUser extends Document {
   _id: Types.ObjectId;
   tenantId?: Types.ObjectId; // Multi-tenant reference
-  
+
   // Authentication
   email: string;
   emailVerified: boolean;
@@ -12,43 +12,45 @@ export interface IUser extends Document {
   phone?: string;
   phoneVerified: boolean;
   whatsappNumber?: string;
-  
+
   // Google Authentication
   googleId?: string;
   name?: string;
   profilePicture?: string;
-  
+
   // Encrypted PII fields (enterprise security)
   firstNameEncrypted?: Buffer;
   lastNameEncrypted?: Buffer;
   dateOfBirthEncrypted?: Buffer;
-  
+
   // Role-based access
   role: 'student' | 'recruiter' | 'college' | 'college_admin' | 'placement_officer' | 'super_admin' | 'admin';
   permissions: Record<string, any>; // Fine-grained permissions
-  
-  // Account status  
+
+  // Account status
   status: 'active' | 'inactive' | 'suspended' | 'pending_verification' | 'deleted';
   lastLoginAt?: Date;
   failedLoginAttempts: number;
   lockedUntil?: Date;
-  
+
   // GDPR compliance
   consentGiven: boolean;
   consentDate?: Date;
   deletionRequestedAt?: Date;
   anonymizedAt?: Date;
-  
+
   // AI/ML features
   profileVector?: number[]; // For semantic search
   matchingPreferences: Record<string, any>;
-  
+  autoApplyThreshold: number;
+  requireReview: boolean;
+
   // Legacy fields (for backward compatibility)
   isVerified: boolean;
   lastLogin?: Date;
   createdAt: Date;
   updatedAt: Date;
-  
+
   // Instance methods
   encryptField(value: string): Buffer;
   decryptField(encryptedValue: Buffer): string;
@@ -69,6 +71,7 @@ const UserSchema = new Schema<IUser>({
     unique: true,
     lowercase: true,
     trim: true,
+    match: [/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Invalid email address'],
     index: true
   },
   emailVerified: {
@@ -77,13 +80,12 @@ const UserSchema = new Schema<IUser>({
     index: true
   },
   password: {
-    type: String,
-    required: function() {
-      // Password is required only if googleId is not present
-      return !this.googleId;
-    },
-    minlength: 8
+  type: String,
+  required: function (this: any): boolean {
+    return !this.googleId;
   },
+  minlength: 8
+},
   phone: {
     type: String,
     trim: true,
@@ -99,7 +101,7 @@ const UserSchema = new Schema<IUser>({
     trim: true,
     index: true
   },
-  
+
   // Google Authentication
   googleId: {
     type: String,
@@ -115,12 +117,12 @@ const UserSchema = new Schema<IUser>({
     type: String,
     trim: true
   },
-  
+
   // Encrypted PII fields
   firstNameEncrypted: Buffer,
   lastNameEncrypted: Buffer,
   dateOfBirthEncrypted: Buffer,
-  
+
   role: {
     type: String,
     enum: ['student', 'recruiter', 'college'],
@@ -145,7 +147,7 @@ const UserSchema = new Schema<IUser>({
     default: 0
   },
   lockedUntil: Date,
-  
+
   // GDPR compliance
   consentGiven: {
     type: Boolean,
@@ -154,14 +156,24 @@ const UserSchema = new Schema<IUser>({
   consentDate: Date,
   deletionRequestedAt: Date,
   anonymizedAt: Date,
-  
+
   // AI/ML features
   profileVector: [Number], // Array of numbers for embeddings
   matchingPreferences: {
     type: Schema.Types.Mixed,
     default: {}
   },
-  
+  autoApplyThreshold: {
+    type: Number,
+    min: 0,
+    max: 1,
+    default: 0.85
+  },
+  requireReview: {
+    type: Boolean,
+    default: true
+  },
+
   // Legacy fields (backward compatibility)
   isVerified: {
     type: Boolean,
@@ -186,10 +198,10 @@ UserSchema.methods.encryptField = function(value: string): Buffer {
   const key = process.env.ENCRYPTION_KEY || crypto.randomBytes(32);
   const iv = crypto.randomBytes(16);
   const cipher = crypto.createCipher(algorithm, key);
-  
+
   let encrypted = cipher.update(value, 'utf8', 'hex');
   encrypted += cipher.final('hex');
-  
+
   return Buffer.from(encrypted, 'hex');
 };
 
@@ -197,10 +209,10 @@ UserSchema.methods.decryptField = function(encryptedValue: Buffer): string {
   const algorithm = 'aes-256-gcm';
   const key = process.env.ENCRYPTION_KEY || crypto.randomBytes(32);
   const decipher = crypto.createDecipher(algorithm, key);
-  
+
   let decrypted = decipher.update(encryptedValue.toString('hex'), 'hex', 'utf8');
   decrypted += decipher.final('utf8');
-  
+
   return decrypted;
 };
 

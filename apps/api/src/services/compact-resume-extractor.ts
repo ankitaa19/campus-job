@@ -1,5 +1,7 @@
 import axios from 'axios';
-import AIResumeMatchingService, { ComprehensiveResumeAnalysis } from './ai-resume-matching';
+import { ComprehensiveResumeAnalysis } from './ai-resume-matching';
+import { requireOpenAIKey } from './openai-client';
+import { sanitizeForLog } from '../utils/safe-logging';
 
 const cleanResumeText = (value: string): string => {
   const seen = new Set<string>();
@@ -110,74 +112,29 @@ class CompactResumeExtractor {
     const compactText = cleanResumeText(resumeText);
     const exhaustedProviders: string[] = [];
     const providerWarnings: string[] = [];
-    const openAIKey = process.env.OPENAI_API_KEY?.trim();
-    if (openAIKey) {
-      try {
-        const response = await axios.post('https://api.openai.com/v1/chat/completions', {
-          model: process.env.OPENAI_RESUME_MODEL || 'gpt-4o-mini',
-          temperature: 0,
-          max_tokens: 2500,
-          messages: [
-            { role: 'system', content: this.instruction() },
-            { role: 'user', content: compactText }
-          ],
-          response_format: { type: 'json_schema', json_schema: schema }
-        }, {
-          timeout: 30000,
-          headers: { Authorization: `Bearer ${openAIKey}`, 'Content-Type': 'application/json' }
-        });
-        const content = response.data?.choices?.[0]?.message?.content;
-        if (!content) throw new Error('OpenAI returned no resume analysis');
-        return this.normalize(JSON.parse(content), 'openai-gpt-4o-mini', exhaustedProviders, providerWarnings);
-      } catch (error) {
-        if (this.isCreditError(error)) {
-          exhaustedProviders.push('OpenAI');
-          providerWarnings.push('OpenAI API credits are exhausted. CampusPe used the next available resume analyzer.');
-        }
-        console.warn('Compact OpenAI resume extraction failed:', this.errorMessage(error));
-      }
+    const openAIKey = requireOpenAIKey('resume extraction');
+    try {
+      const response = await axios.post('https://api.openai.com/v1/chat/completions', {
+        model: process.env.OPENAI_RESUME_MODEL || 'gpt-4o-mini',
+        temperature: 0,
+        max_tokens: 2500,
+        messages: [
+          { role: 'system', content: this.instruction() },
+          { role: 'user', content: compactText }
+        ],
+        response_format: { type: 'json_schema', json_schema: schema }
+      }, {
+        timeout: 30000,
+        headers: { Authorization: `Bearer ${openAIKey}`, 'Content-Type': 'application/json' }
+      });
+      const content = response.data?.choices?.[0]?.message?.content;
+      if (!content) throw new Error('OpenAI returned no resume analysis');
+      return this.normalize(JSON.parse(content), 'openai-gpt-4o-mini', exhaustedProviders, providerWarnings);
+    } catch (error) {
+      console.error('Resume extraction OpenAI call failed:', sanitizeForLog(error));
+      throw new Error(`Resume extraction failed: ${this.errorMessage(error)}`);
     }
 
-    const geminiKey = process.env.GEMINI_API_KEY?.trim();
-    if (geminiKey) {
-      try {
-        const model = process.env.GEMINI_RESUME_MODEL || 'gemini-2.5-flash-lite';
-        const response = await axios.post(
-          `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
-          {
-            contents: [{ role: 'user', parts: [{ text: `${this.instruction()}\n\nRESUME:\n${compactText}` }] }],
-            generationConfig: {
-              temperature: 0,
-              maxOutputTokens: 2500,
-              responseMimeType: 'application/json',
-              responseJsonSchema: schema.schema
-            }
-          },
-          { timeout: 30000, headers: { 'x-goog-api-key': geminiKey, 'Content-Type': 'application/json' } }
-        );
-        const content = response.data?.candidates?.[0]?.content?.parts?.map((part: any) => part.text || '').join('');
-        if (!content) throw new Error('Gemini returned no resume analysis');
-        return this.normalize(JSON.parse(content), 'gemini-flash-lite', exhaustedProviders, providerWarnings);
-      } catch (error) {
-        if (this.isCreditError(error)) {
-          exhaustedProviders.push('Gemini');
-          providerWarnings.push('Gemini API credits are exhausted. CampusPe used the next available resume analyzer.');
-        }
-        console.warn('Compact Gemini resume extraction failed:', this.errorMessage(error));
-      }
-    }
-
-    const analysis = await AIResumeMatchingService.analyzeCompleteResume(resumeText);
-    analysis.analysisMetadata = {
-      ...analysis.analysisMetadata,
-      provider: analysis.analysisMetadata?.extractionMethod === 'AI' ? 'claude-fallback' : 'local-fallback',
-      creditStatus: exhaustedProviders.length
-        ? analysis.analysisMetadata?.extractionMethod === 'AI' ? 'fallback' : 'exhausted'
-        : 'available',
-      exhaustedProviders,
-      providerWarnings
-    };
-    return analysis;
   }
 
   private instruction(): string {

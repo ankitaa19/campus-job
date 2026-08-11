@@ -101,11 +101,13 @@ export const applyForJob = async (req: Request, res: Response) => {
     let application;
     try {
       application = new Application({
+        userId: new Types.ObjectId(userId),
         studentId: student._id,
         jobId: new Types.ObjectId(jobId),
         recruiterId: linkedRecruiterId,
         collegeId: student.collegeId,
         coverLetter: typeof coverLetter === 'string' ? coverLetter.trim() : undefined,
+        coverLetterUsed: typeof coverLetter === 'string' ? coverLetter.trim() : undefined,
         portfolioLinks: Array.isArray(portfolioLinks) ? portfolioLinks : [],
         resumeFile: student.resumeFile,
         resumeVersionUsed: {
@@ -114,6 +116,8 @@ export const applyForJob = async (req: Request, res: Response) => {
           analysisVersion: 1
         },
         sourcePlatform: job.sourceProvider || job.source || 'campuspe',
+        status: 'confirmed',
+        submittedVia: 'this_portal',
         submissionChannel: 'campuspe',
         employerDeliveryStatus,
         externalSubmissionAttempted: false,
@@ -147,6 +151,21 @@ export const applyForJob = async (req: Request, res: Response) => {
         }],
         matchScore: matchResult.matchScore,
         skillsMatchPercentage: matchResult.matchScore,
+        submittedFieldsJson: {
+          submittedVia: 'this_portal',
+          studentId: String(student._id),
+          userId: String(userId),
+          jobId: String(job._id),
+          coverLetter: typeof coverLetter === 'string' ? coverLetter.trim() : undefined,
+          portfolioLinks: Array.isArray(portfolioLinks) ? portfolioLinks : [],
+          resumeFile: student.resumeFile,
+          resumeVersionUsed: {
+            file: student.resumeFile,
+            uploadedAt: student.resumeAnalysis?.uploadDate,
+            analysisVersion: 1
+          },
+          submittedAt: new Date()
+        },
         source: 'platform',
         appliedAt: new Date(),
         whatsappNotificationSent: false,

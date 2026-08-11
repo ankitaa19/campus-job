@@ -14,6 +14,8 @@ export interface ISalaryRange {
   negotiable: boolean;
 }
 
+export type ATSPlatform = 'greenhouse' | 'lever' | 'workday' | 'ashby' | 'smartrecruiters' | 'other';
+
 export interface IJobLocation {
   city: string;
   state: string;
@@ -63,11 +65,14 @@ export interface IJob extends Document {
   // Location & Work Mode
   locations: IJobLocation[];
   workMode: 'remote' | 'onsite' | 'hybrid';
+  location?: string;
+  remoteType?: 'remote' | 'onsite' | 'hybrid';
   
   // Requirements
   requirements: IJobRequirement[];
   requiredSkills: string[]; // Simple array for matching
   experienceLevel: 'entry' | 'mid' | 'senior' | 'lead' | 'executive';
+  seniority?: 'entry' | 'mid' | 'senior' | 'lead' | 'executive';
   minExperience: number; // in years
   maxExperience?: number;
   noticePeriodDays?: number;
@@ -82,6 +87,7 @@ export interface IJob extends Document {
   
   // Compensation
   salary: ISalaryRange;
+  salaryBand?: ISalaryRange;
   benefits: string[];
   
   // Application Details
@@ -94,6 +100,9 @@ export interface IJob extends Document {
   targetColleges: Types.ObjectId[];
   targetCourses: string[];
   allowDirectApplications: boolean;
+  atsPlatform?: ATSPlatform;
+  atsJobId?: string;
+  applyUrl?: string;
   
   // Visibility
   isPublic: boolean; // If true, job is visible on public jobs page
@@ -150,6 +159,8 @@ const JobLocationSchema = new Schema({
   hybrid: { type: Boolean, default: false }
 });
 
+const AtsPlatformValues: ATSPlatform[] = ['greenhouse', 'lever', 'workday', 'ashby', 'smartrecruiters', 'other'];
+
 const InterviewProcessSchema = new Schema({
   rounds: [{ type: String, required: true }],
   duration: { type: String, required: true },
@@ -203,6 +214,8 @@ const JobSchema = new Schema<IJob>({
     required: true,
     index: true 
   },
+  location: { type: String, trim: true, index: true },
+  remoteType: { type: String, enum: ['remote', 'onsite', 'hybrid'], index: true },
   
   // Requirements
   requirements: [JobRequirementSchema],
@@ -213,6 +226,7 @@ const JobSchema = new Schema<IJob>({
     required: true,
     index: true 
   },
+  seniority: { type: String, enum: ['entry', 'mid', 'senior', 'lead', 'executive'], index: true },
   minExperience: { type: Number, required: true, min: 0 },
   maxExperience: { type: Number, min: 0 },
   noticePeriodDays: { type: Number, min: 0, index: true },
@@ -222,6 +236,7 @@ const JobSchema = new Schema<IJob>({
   
   // Compensation
   salary: { type: SalaryRangeSchema, required: true },
+  salaryBand: { type: SalaryRangeSchema },
   benefits: [{ type: String }],
   
   // Application Details
@@ -234,6 +249,9 @@ const JobSchema = new Schema<IJob>({
   targetColleges: [{ type: Schema.Types.ObjectId, ref: 'College' }],
   targetCourses: [{ type: String }],
   allowDirectApplications: { type: Boolean, default: true },
+  atsPlatform: { type: String, enum: AtsPlatformValues, default: 'other', index: true },
+  atsJobId: { type: String, trim: true, index: true },
+  applyUrl: { type: String, trim: true, select: false },
   
   // Visibility
   isPublic: { type: Boolean, default: false, index: true }, // If true, job is visible on public jobs page
@@ -283,6 +301,7 @@ JobSchema.index({ 'requirements.skill': 1 });
 JobSchema.index({ targetColleges: 1, status: 1 });
 JobSchema.index({ companyName: 1, status: 1 });
 JobSchema.index({ workMode: 1, status: 1 });
+JobSchema.index({ atsPlatform: 1, atsJobId: 1 });
 // An upstream vacancy can be refreshed safely without creating a second job.
 JobSchema.index({ source: 1, sourceExternalId: 1 }, { unique: true, sparse: true });
 JobSchema.index({ sourceProvider: 1, sourceCompanySlug: 1, status: 1 });

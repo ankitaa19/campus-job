@@ -2,11 +2,76 @@ import express from 'express';
 import { Application } from '../models/Application';
 import { Job } from '../models/Job';
 import { Student } from '../models/Student';
+import { User } from '../models/User';
 import authMiddleware from '../middleware/auth';
 import { checkRecruiterAccess } from '../middleware/entityAccess';
 import { sendApplicationStatusNotification } from '../services/notifications';
+import ApplicationSubmissionService from '../services/application-submission';
 
 const router = express.Router();
+
+router.get('/', authMiddleware, async (req: any, res: any) => {
+    try {
+        const userId = req.user?._id || req.user?.userId;
+        const statusParam = String(req.query.status || '').trim();
+        const query: any = { userId };
+        if (statusParam) query.status = { $in: statusParam.split(',').map(status => status.trim()).filter(Boolean) };
+        const applications = await Application.find(query)
+            .populate('jobId', 'title companyName location locations workMode salary atsPlatform description requiredSkills jobType experienceLevel totalPositions')
+            .sort({ createdAt: -1 });
+        return res.json({ success: true, data: applications });
+    } catch (error) {
+        console.error('Error fetching applications:', error);
+        return res.status(500).json({ success: false, message: 'Failed to fetch applications' });
+    }
+});
+
+router.patch('/auto-apply-settings', authMiddleware, async (req: any, res: any) => {
+    try {
+        const userId = req.user?._id || req.user?.userId;
+        const updates: any = {};
+        if (req.body.autoApplyThreshold !== undefined) {
+            const threshold = Number(req.body.autoApplyThreshold);
+            if (!Number.isFinite(threshold) || threshold < 0 || threshold > 1) {
+                return res.status(400).json({ success: false, message: 'autoApplyThreshold must be between 0 and 1' });
+            }
+            updates.autoApplyThreshold = threshold;
+        }
+        if (req.body.requireReview !== undefined) updates.requireReview = Boolean(req.body.requireReview);
+        const user = await User.findByIdAndUpdate(userId, { $set: updates }, { new: true }).select('autoApplyThreshold requireReview');
+        if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+        return res.json({ success: true, data: user });
+    } catch (error) {
+        console.error('Error updating auto-apply settings:', error);
+        return res.status(500).json({ success: false, message: 'Failed to update auto-apply settings' });
+    }
+});
+
+router.get('/pending-review', authMiddleware, async (req: any, res: any) => {
+    try {
+        const userId = req.user?._id || req.user?.userId;
+        const applications = await Application.find({ userId, status: 'pending_review' })
+            .populate('jobId', 'title companyName location remoteType salaryBand atsPlatform')
+            .sort({ createdAt: -1 });
+        return res.json({ success: true, data: applications });
+    } catch (error) {
+        console.error('Error fetching pending review applications:', error);
+        return res.status(500).json({ success: false, message: 'Failed to fetch pending review applications' });
+    }
+});
+
+router.post('/:applicationId/approve', authMiddleware, async (req: any, res: any) => {
+    try {
+        const userId = req.user?._id || req.user?.userId;
+        const application = await ApplicationSubmissionService.approveApplication(req.params.applicationId, userId);
+        return res.json({ success: true, data: application });
+    } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to approve application';
+        const status = /not found/i.test(message) ? 404 : /belong|pending review/i.test(message) ? 400 : 500;
+        console.error('Error approving application:', error);
+        return res.status(status).json({ success: false, message });
+    }
+});
 
 // Route to get all applications for a recruiter across all their jobs
 router.get('/my-applications', authMiddleware, checkRecruiterAccess, async (req: any, res: any) => {

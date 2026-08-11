@@ -3,6 +3,8 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 import {
   User, Student, College, Recruiter, Job, Application, Course, Message, Notification
 } from '../models';
+import { enrichJob } from '../services/job-intelligence';
+import { buildStudentStructuredFields } from '../services/profile-normalization';
 
 describe('Database Schema Tests', () => {
   let mongoServer: MongoMemoryServer;
@@ -111,6 +113,7 @@ describe('Database Schema Tests', () => {
           city: 'Test City',
           state: 'Test State',
           zipCode: '12345',
+          district: 'Test District',
           country: 'India'
         },
         primaryContact: {
@@ -188,6 +191,52 @@ describe('Database Schema Tests', () => {
       const student = new Student(studentData);
       await expect(student.save()).rejects.toThrow();
     });
+
+    test('should persist normalized resume matching fields', async () => {
+      const student = new Student({
+        userId,
+        firstName: 'Maya',
+        lastName: 'Iyer',
+        collegeId,
+        skills: [
+          { name: 'TypeScript', level: 'advanced', category: 'technical' },
+          { name: 'React', level: 'advanced', category: 'technical' }
+        ],
+        experience: [{
+          title: 'Frontend Engineer',
+          company: 'Product Co',
+          location: 'Bangalore',
+          startDate: new Date('2021-01-01'),
+          endDate: new Date('2024-01-01'),
+          description: 'Built React applications',
+          isCurrentJob: false
+        }],
+        education: [{
+          degree: 'Bachelor of Technology',
+          field: 'Computer Science',
+          institution: 'Test College',
+          startDate: new Date('2017-01-01'),
+          endDate: new Date('2021-01-01'),
+          isCompleted: true
+        }],
+        jobPreferences: {
+          jobTypes: ['full-time'],
+          preferredLocations: ['Bangalore', 'Remote'],
+          preferredRoles: ['Frontend Engineer'],
+          expectedSalary: { min: 1200000, max: 1800000, currency: 'INR' },
+          workMode: 'hybrid'
+        }
+      });
+
+      Object.assign(student, buildStudentStructuredFields(student));
+      const savedStudent = await student.save();
+
+      expect(savedStudent.titles).toContain('Frontend Engineer');
+      expect(savedStudent.yearsExperience).toBe(3);
+      expect(savedStudent.locations).toEqual(expect.arrayContaining(['Bangalore', 'Remote']));
+      expect(savedStudent.salaryExpectation?.min).toBe(1200000);
+      expect(savedStudent.profileFeatureVector?.length).toBe(64);
+    });
   });
 
   describe('College Model Tests', () => {
@@ -214,6 +263,7 @@ describe('Database Schema Tests', () => {
           city: 'Mumbai',
           state: 'Maharashtra',
           zipCode: '400001',
+          district: 'Mumbai',
           country: 'India'
         },
         primaryContact: {
@@ -249,6 +299,7 @@ describe('Database Schema Tests', () => {
           city: 'City',
           state: 'State',
           zipCode: '12345',
+          district: 'Test District',
           country: 'India'
         },
         primaryContact: {
@@ -349,6 +400,7 @@ describe('Database Schema Tests', () => {
           city: 'Test City',
           state: 'Test State',
           zipCode: '12345',
+          district: 'Test District',
           country: 'India'
         },
         primaryContact: {
@@ -459,6 +511,58 @@ describe('Database Schema Tests', () => {
       const job = new Job(jobData);
       await expect(job.save()).rejects.toThrow();
     });
+
+    test('should persist normalized job and ATS fields', async () => {
+      const jobData = {
+        title: 'Senior React Engineer',
+        description: 'Greenhouse role requiring React and TypeScript. 5+ years experience.',
+        jobType: 'full-time',
+        department: 'Engineering',
+        recruiterId,
+        companyName: 'Tech Corp',
+        source: 'company_careers',
+        sourceProvider: 'greenhouse',
+        sourceExternalId: 'gh-123',
+        sourceUrl: 'https://boards.greenhouse.io/tech/jobs/gh-123',
+        locations: [{
+          city: 'Bangalore',
+          state: 'Karnataka',
+          country: 'India',
+          isRemote: false,
+          hybrid: true
+        }],
+        workMode: 'hybrid',
+        requirements: [],
+        requiredSkills: ['React'],
+        experienceLevel: 'entry',
+        minExperience: 0,
+        salary: {
+          min: 1800000,
+          max: 2600000,
+          currency: 'INR',
+          negotiable: true
+        },
+        applicationDeadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        totalPositions: 2,
+        interviewProcess: {
+          rounds: ['Technical'],
+          duration: '2 weeks',
+          mode: 'online'
+        },
+        status: 'active'
+      };
+
+      const savedJob = await new Job({ ...jobData, ...enrichJob(jobData) }).save();
+
+      expect(savedJob.requiredSkills).toEqual(expect.arrayContaining(['react', 'typescript']));
+      expect(savedJob.seniority).toBe('senior');
+      expect(savedJob.location).toBe('Bangalore, Karnataka, India');
+      expect(savedJob.remoteType).toBe('hybrid');
+      expect(savedJob.salaryBand?.min).toBe(1800000);
+      expect(savedJob.atsPlatform).toBe('greenhouse');
+      expect(savedJob.atsJobId).toBe('gh-123');
+      expect(savedJob.applyUrl).toBe('https://boards.greenhouse.io/tech/jobs/gh-123');
+    });
   });
 
   describe('Application Model Tests', () => {
@@ -491,6 +595,7 @@ describe('Database Schema Tests', () => {
           city: 'Test City',
           state: 'Test State',
           zipCode: '12345',
+          district: 'Test District',
           country: 'India'
         },
         primaryContact: {
@@ -618,6 +723,7 @@ describe('Database Schema Tests', () => {
           updatedAt: new Date(),
           updatedBy: studentId
         }],
+        employerDeliveryStatus: 'delivered_to_campuspe_employer',
         collegeApprovalRequired: false,
         matchScore: 85,
         whatsappNotificationSent: false,
@@ -631,6 +737,8 @@ describe('Database Schema Tests', () => {
 
       expect(savedApplication._id).toBeDefined();
       expect(savedApplication.currentStatus).toBe('applied');
+      expect(savedApplication.status).toBe('queued');
+      expect(savedApplication.submittedVia).toBe('this_portal');
       expect(savedApplication.matchScore).toBe(85);
       expect(savedApplication.statusHistory).toHaveLength(1);
     });
@@ -645,7 +753,8 @@ describe('Database Schema Tests', () => {
           status: 'applied',
           updatedAt: new Date(),
           updatedBy: studentId
-        }]
+        }],
+        employerDeliveryStatus: 'delivered_to_campuspe_employer'
       };
 
       const application1 = new Application(applicationData);
@@ -653,6 +762,24 @@ describe('Database Schema Tests', () => {
 
       const application2 = new Application(applicationData);
       await expect(application2.save()).rejects.toThrow();
+    });
+
+    test('should reject non-portal submittedVia values', async () => {
+      const application = new Application({
+        studentId,
+        jobId,
+        recruiterId,
+        currentStatus: 'applied',
+        statusHistory: [{
+          status: 'applied',
+          updatedAt: new Date(),
+          updatedBy: studentId
+        }],
+        employerDeliveryStatus: 'delivered_to_campuspe_employer',
+        submittedVia: 'external_ats'
+      });
+
+      await expect(application.save()).rejects.toThrow();
     });
   });
 
@@ -675,6 +802,7 @@ describe('Database Schema Tests', () => {
           city: 'Mumbai',
           state: 'Maharashtra',
           zipCode: '400001',
+          district: 'Mumbai',
           country: 'India'
         },
         primaryContact: {
@@ -694,19 +822,18 @@ describe('Database Schema Tests', () => {
         name: 'Computer Science Engineering',
         code: 'CSE2024',
         description: 'Bachelor of Technology in Computer Science',
-        degree: 'Bachelor',
-        stream: 'Engineering',
-        specialization: 'Computer Science',
-        duration: 4,
+        duration: '4 Years',
+        type: 'undergraduate',
+        category: 'undergraduate',
+        studyMode: 'full-time',
         totalSemesters: 8,
         credits: 180,
         collegeId: savedCollege._id,
+        department: 'Computer Science',
+        streamType: 'Engineering',
         subjects: ['Programming', 'Data Structures', 'Algorithms'],
         keySkills: ['Programming', 'Problem Solving', 'Software Development'],
-        eligibilityCriteria: {
-          minimumMarks: 60,
-          requiredSubjects: ['Mathematics', 'Physics', 'Chemistry']
-        },
+        eligibilityCriteria: 'Minimum 60% with Mathematics, Physics, and Chemistry',
         careerProspects: ['Software Engineer', 'Data Scientist', 'Product Manager']
       });
       const savedCourse = await course.save();
@@ -833,6 +960,7 @@ describe('Database Schema Tests', () => {
           updatedAt: new Date(),
           updatedBy: savedStudent._id
         }],
+        employerDeliveryStatus: 'delivered_to_campuspe_employer',
         matchScore: 90,
         source: 'platform'
       });

@@ -24,6 +24,7 @@ export interface IApplication extends Document {
   _id: Types.ObjectId;
   
   // Core References
+  userId?: Types.ObjectId;
   studentId: Types.ObjectId;
   jobId: Types.ObjectId;
   recruiterId?: Types.ObjectId;
@@ -31,11 +32,17 @@ export interface IApplication extends Document {
   
   // Application Details
   coverLetter?: string;
+  coverLetterUsed?: string;
   resumeFile?: string; // Specific resume for this job
   portfolioLinks?: string[];
   jobSnapshot?: Record<string, unknown>;
   resumeVersionUsed?: { file?: string; uploadedAt?: Date; analysisVersion?: number };
+  atsResponseRaw?: Record<string, unknown>;
+  submittedFieldsJson?: Record<string, unknown>;
+  failureReason?: string;
   sourcePlatform?: string;
+  status: 'queued' | 'pending_review' | 'submitted' | 'confirmed' | 'failed';
+  submittedVia: 'this_portal';
   submissionChannel: 'campuspe';
   employerDeliveryStatus: 'delivered_to_campuspe_employer' | 'awaiting_employer_connection';
   externalSubmissionAttempted: boolean;
@@ -125,6 +132,7 @@ const InterviewScheduleSchema = new Schema({
 
 const ApplicationSchema = new Schema<IApplication>({
   // Core References
+  userId: { type: Schema.Types.ObjectId, ref: 'User', index: true },
   studentId: { type: Schema.Types.ObjectId, ref: 'Student', required: true, index: true },
   jobId: { type: Schema.Types.ObjectId, ref: 'Job', required: true, index: true },
   recruiterId: { type: Schema.Types.ObjectId, ref: 'Recruiter', index: true },
@@ -132,6 +140,7 @@ const ApplicationSchema = new Schema<IApplication>({
   
   // Application Details
   coverLetter: { type: String },
+  coverLetterUsed: { type: String },
   resumeFile: { type: String },
   portfolioLinks: [{ type: String }],
   // Immutable application-time data preserves history after a job expires.
@@ -141,7 +150,18 @@ const ApplicationSchema = new Schema<IApplication>({
     uploadedAt: Date,
     analysisVersion: { type: Number, default: 1 }
   },
+  atsResponseRaw: { type: Schema.Types.Mixed },
+  submittedFieldsJson: { type: Schema.Types.Mixed },
+  failureReason: { type: String, index: true },
   sourcePlatform: { type: String, default: 'campuspe' },
+  status: {
+    type: String,
+    enum: ['queued', 'pending_review', 'submitted', 'confirmed', 'failed'],
+    default: 'queued',
+    required: true,
+    index: true
+  },
+  submittedVia: { type: String, enum: ['this_portal'], default: 'this_portal', required: true },
   submissionChannel: { type: String, enum: ['campuspe'], default: 'campuspe', required: true },
   employerDeliveryStatus: {
     type: String,
@@ -217,6 +237,7 @@ const ApplicationSchema = new Schema<IApplication>({
 
 // Indexes for optimization
 ApplicationSchema.index({ studentId: 1, jobId: 1 }, { unique: true }); // Prevent duplicate applications
+ApplicationSchema.index({ userId: 1, status: 1, createdAt: -1 });
 ApplicationSchema.index({ jobId: 1, currentStatus: 1 });
 ApplicationSchema.index({ recruiterId: 1, currentStatus: 1 });
 ApplicationSchema.index({ collegeId: 1, currentStatus: 1 });

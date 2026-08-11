@@ -10,6 +10,7 @@ import AIResumeMatchingService from '../services/ai-resume-matching';
 import BunnyStorageService from '../services/bunny-storage.service';
 import { createFeatureVector } from '../services/job-intelligence';
 import CompactResumeExtractor, { extractResumeContacts } from '../services/compact-resume-extractor';
+import { buildStudentStructuredFields } from '../services/profile-normalization';
 
 const router = express.Router();
 
@@ -1405,6 +1406,13 @@ router.post('/analyze-resume-ai', authMiddleware, upload.single('resume'), async
         analysisMetadata: finalAnalysis.analysisMetadata
       }
     };
+    const structuredFields = buildStudentStructuredFields(student);
+    student.titles = structuredFields.titles;
+    student.yearsExperience = structuredFields.yearsExperience;
+    student.locations = structuredFields.locations;
+    student.salaryExpectation = structuredFields.salaryExpectation;
+    student.structuredResumeUpdatedAt = structuredFields.structuredResumeUpdatedAt;
+    student.profileFeatureVector = structuredFields.profileFeatureVector;
 
     await student.save();
     console.log('✅ All data updated successfully in database');

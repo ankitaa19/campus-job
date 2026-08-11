@@ -132,7 +132,7 @@ class GeneratedResumeService {
    */
   async getResumeById(resumeId: string): Promise<IGeneratedResume | null> {
     try {
-      return await GeneratedResume.findOne({ resumeId, status: 'completed' }).lean();
+      return await GeneratedResume.findOne({ resumeId, status: 'completed' });
     } catch (error) {
       console.error('❌ Error fetching resume by ID:', error);
       return null;
@@ -396,8 +396,7 @@ class GeneratedResumeService {
       return await GeneratedResume.find(query)
         .sort({ generatedAt: -1 })
         .limit(criteria.limit || 20)
-        .skip(criteria.skip || 0)
-        .lean();
+        .skip(criteria.skip || 0);
         
     } catch (error) {
       console.error('❌ Error searching resumes:', error);

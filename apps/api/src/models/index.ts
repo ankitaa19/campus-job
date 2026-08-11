@@ -8,6 +8,9 @@ export { Recruiter, IRecruiter, ICompanyInfo, IRecruiterProfile, IHiringInfo } f
 export { Admin, IAdmin } from './Admin';
 export { Job, IJob, IJobRequirement, ISalaryRange, IJobLocation, IInterviewProcess } from './Job';
 export { Application, IApplication, IApplicationStatus, IInterviewSchedule } from './Application';
+export { JobMatch, IJobMatch } from './JobMatch';
+export { BulkAutoApplyRun, IBulkAutoApplyRun } from './BulkAutoApplyRun';
+export { BulkAutoApplyTask, IBulkAutoApplyTask } from './BulkAutoApplyTask';
 export { ResumeJobAnalysis, IResumeJobAnalysis } from './ResumeJobAnalysis';
 export { GeneratedResume, IGeneratedResume } from './GeneratedResume';
 export { Course, ICourse } from './Course';
@@ -29,6 +32,9 @@ export const MODEL_NAMES = {
   ADMIN: 'Admin',
   JOB: 'Job',
   APPLICATION: 'Application',
+  JOB_MATCH: 'JobMatch',
+  BULK_AUTO_APPLY_RUN: 'BulkAutoApplyRun',
+  BULK_AUTO_APPLY_TASK: 'BulkAutoApplyTask',
   COURSE: 'Course',
   MESSAGE: 'Message',
   NOTIFICATION: 'Notification',

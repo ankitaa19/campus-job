@@ -39,6 +39,9 @@ import placementRoutes from './routes/placements';
 
 import { connectDB, isDatabaseReady } from './utils/database';
 import SimpleScheduler from './services/simple-scheduler';
+import { checkRedisHealth } from './services/redis-client';
+import { checkOpenAIHealth } from './services/openai-client';
+import { checkCohereHealth } from './services/cohere-client';
 import mongoose from 'mongoose';
 
 const app = express();
@@ -53,6 +56,18 @@ const startSchedulerWhenReady = () => {
   if (!serverListening || schedulerInitialized || !isDatabaseReady()) return;
   schedulerInitialized = true;
   SimpleScheduler.init();
+};
+
+const checkExternalDependencies = async () => {
+  const checks = [
+    checkRedisHealth(),
+    checkOpenAIHealth(),
+    checkCohereHealth()
+  ];
+  const results = await Promise.allSettled(checks);
+  if (results.some(result => result.status === 'rejected')) {
+    console.error('❌ One or more external dependencies failed startup health checks. Bulk auto-apply or matching may fail until configuration is fixed.');
+  }
 };
 
 mongoose.connection.on('connected', startSchedulerWhenReady);
@@ -249,6 +264,8 @@ if (require.main === module) {
     console.log(`📊 Health: http://${HOST}:${PORT}/health`);
     console.log(`🏠 Root: http://${HOST}:${PORT}/`);
     console.log('🗃️  Database: Connecting');
+
+    await checkExternalDependencies();
 
     try {
       console.log('🔌 Connecting to database...');

@@ -1,5 +1,6 @@
 import axios from 'axios';
 import FormData from 'form-data';
+import { sanitizeForLog } from '../utils/safe-logging';
 
 // BunnyNet Configuration
 const BUNNY_STORAGE_CONFIG = {
@@ -91,7 +92,7 @@ class BunnyNetService {
         };
       }
     } catch (error: any) {
-      console.error('BunnyNet upload error:', error);
+      console.error('BunnyNet upload error:', sanitizeForLog(error));
       return { 
         success: false, 
         error: error.message || 'Upload failed' 
@@ -274,7 +275,7 @@ class BunnyNetService {
 
       return response.status === 200;
     } catch (error: any) {
-      console.error('BunnyNet delete error:', error);
+      console.error('BunnyNet delete error:', sanitizeForLog(error));
       return false;
     }
   }

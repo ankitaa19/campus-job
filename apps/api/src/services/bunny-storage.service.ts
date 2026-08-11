@@ -1,6 +1,7 @@
 import axios from 'axios';
 import fs from 'fs';
 import crypto from 'crypto';
+import { sanitizeForLog } from '../utils/safe-logging';
 
 export interface BunnyUploadResponse {
   success: boolean;
@@ -122,7 +123,7 @@ class BunnyStorageService {
       }
 
     } catch (error) {
-      console.error('❌ Bunny.net upload failed:', error);
+      console.error('❌ Bunny.net upload failed:', sanitizeForLog(error));
       
       return {
         success: false,
@@ -192,7 +193,7 @@ class BunnyStorageService {
       }
 
     } catch (error) {
-      console.error('❌ Bunny.net delete error:', error);
+      console.error('❌ Bunny.net delete error:', sanitizeForLog(error));
       return false;
     }
   }

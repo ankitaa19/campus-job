@@ -332,7 +332,7 @@ const JobDetailsModal: React.FC<JobDetailsModalProps> = ({ job, isOpen, onClose,
           </div>
 
           {onApply && <div className="mt-6 flex items-center justify-end">
-            <button onClick={onApply} className="rounded-lg bg-blue-500 px-6 py-2.5 text-sm font-medium text-white transition hover:bg-blue-600">Apply in CampusPe</button>
+            <button onClick={onApply} className="rounded-lg bg-blue-500 px-6 py-2.5 text-sm font-medium text-white transition hover:bg-blue-600">Auto Apply</button>
           </div>}
         </div>
       </div>

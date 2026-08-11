@@ -270,6 +270,19 @@ export const enrichJob = (job: any): Record<string, unknown> => {
   ].filter(Boolean);
   const noticeMatch = combined.match(/notice\s+period\D{0,12}(\d{1,3})\s*(day|days|month|months)/i);
   const noticePeriodDays = job.noticePeriodDays ?? (noticeMatch ? Number(noticeMatch[1]) * (/month/i.test(noticeMatch[2]) ? 30 : 1) : undefined);
+  const sourceProvider = normalize(job.sourceProvider || job.provider || '');
+  const atsPlatform = ['greenhouse', 'lever', 'workday', 'ashby', 'smartrecruiters'].includes(sourceProvider)
+    ? sourceProvider
+    : 'other';
+  const location = (job.locations || [])
+    .map((item: any) => [item.city, item.state, item.country].filter(Boolean).join(', '))
+    .filter(Boolean)
+    .join(' | ');
+  const remoteType = ['remote', 'onsite', 'hybrid'].includes(String(job.workMode))
+    ? job.workMode
+    : (job.locations || []).some((item: any) => item?.isRemote)
+      ? 'remote'
+      : undefined;
   return {
     description,
     normalizedTitle: normalizedJobTitle,
@@ -284,7 +297,13 @@ export const enrichJob = (job: any): Record<string, unknown> => {
     experienceLevel: job.experienceLevel && job.experienceLevel !== 'entry' ? job.experienceLevel : inferredExperience.experienceLevel,
     educationRequirements,
     ...(noticePeriodDays != null ? { noticePeriodDays } : {}),
-    featureVector: createFeatureVector(`${normalizedJobTitle} ${canonicalSkills.join(' ')} ${industry} ${description}`),
+    seniority: job.experienceLevel && job.experienceLevel !== 'entry' ? job.experienceLevel : inferredExperience.experienceLevel,
+    location,
+    remoteType,
+    salaryBand: job.salary,
+    atsPlatform,
+    atsJobId: job.atsJobId || job.sourceExternalId,
+    applyUrl: job.applyUrl || job.sourceUrl,
     normalizationVersion: 5,
     dedupFingerprint: crypto.createHash('sha256').update(`${normalizedJobTitle}|${normalize(job.companyName)}|${normalize((job.locations || []).map((item: any) => item.city).join(' '))}`).digest('hex')
   };

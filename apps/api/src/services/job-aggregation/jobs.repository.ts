@@ -26,6 +26,7 @@ export interface JobsQuery {
   postedWithinDays?: number;
   noticePeriodDays?: number;
   includeRemote?: boolean | string;
+  balanced?: boolean | string;
 }
 
 export interface CompanyJobGroup {
@@ -140,7 +141,7 @@ class JobsRepository {
 
   async findAll(query: JobsQuery = {}, publicOnly = true): Promise<{ jobs: IJob[]; total: number; page: number; limit: number }> {
     const { filter, page, limit, sort } = JobQueryBuilder.build(query, publicOnly);
-    const shouldBalanceCompanies = publicOnly && !query.provider && !query.source;
+    const shouldBalanceCompanies = publicOnly && query.balanced !== false && query.balanced !== 'false' && !query.provider && !query.source;
     if (shouldBalanceCompanies) {
       const [candidates, total] = await Promise.all([
         Job.find(filter).populate('recruiterId', 'companyInfo.name companyInfo.logo').sort(sort).limit(5000),

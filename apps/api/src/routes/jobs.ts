@@ -35,11 +35,99 @@ import { roleMiddleware } from '../middleware/roleMiddleware';
 import { Types } from 'mongoose';
 import JobBehaviorService from '../services/job-behavior';
 import { freshnessCutoff } from '../services/job-intelligence';
+import JobMatchingRagService from '../services/job-matching-rag';
+import AutoApplyService from '../services/auto-apply';
+import BulkAutoApplyService, { BulkAutoApplyStartDependencyError } from '../services/bulk-auto-apply';
 import { MATCH_VISIBILITY_THRESHOLD } from '../services/hybrid-resume-matching';
+import { sanitizeForLog } from '../utils/safe-logging';
+import { withApplicationCapability } from '../services/ats/application-capability';
 import axios from 'axios';
 
 const router = express.Router();
 const reverseGeocodeCache = new Map<string, { city: string; state: string; country: string; displayName: string }>();
+
+const isMongoWriteFailure = (error: any): boolean => {
+    if (error instanceof BulkAutoApplyStartDependencyError && error.code === 'BULK_AUTO_APPLY_MONGO_UNAVAILABLE') return true;
+    const name = String(error?.name || error?.originalError?.name || '');
+    const message = String(error?.message || error?.originalError?.message || '');
+    return /Mongo|Mongoose|E11000|quota|not master|primary|write/i.test(`${name} ${message}`);
+};
+
+const isOpenAIFailure = (error: any): boolean => {
+    if (error instanceof BulkAutoApplyStartDependencyError && error.code === 'BULK_AUTO_APPLY_OPENAI_UNAVAILABLE') return true;
+    const url = String(error?.config?.url || error?.originalError?.config?.url || '');
+    const message = String(error?.message || error?.originalError?.message || '');
+    return /api\.openai\.com/i.test(url) || /OpenAI/i.test(message);
+};
+
+const isCohereFailure = (error: any): boolean => {
+    if (error instanceof BulkAutoApplyStartDependencyError && error.code === 'BULK_AUTO_APPLY_COHERE_UNAVAILABLE') return true;
+    const url = String(error?.config?.url || error?.originalError?.config?.url || '');
+    const message = String(error?.message || error?.originalError?.message || '');
+    return /api\.cohere\.com/i.test(url) || /Cohere/i.test(message);
+};
+
+const bulkAutoApplyErrorResponse = (error: unknown) => {
+    const detailedError = error instanceof BulkAutoApplyStartDependencyError ? error.originalError : error;
+    if (isMongoWriteFailure(error)) {
+        console.error('[INFRA][BULK_AUTO_APPLY][MONGO_WRITE] Unable to create bulk auto-apply run:', sanitizeForLog(detailedError));
+        return {
+            status: 503,
+            body: {
+                success: false,
+                code: 'BULK_AUTO_APPLY_MONGO_UNAVAILABLE',
+                message: 'Unable to save data right now — please try again shortly.'
+            }
+        };
+    }
+    if (isOpenAIFailure(error)) {
+        console.error('[INFRA][BULK_AUTO_APPLY][OPENAI] Unable to create bulk auto-apply run:', sanitizeForLog(detailedError));
+        return {
+            status: 503,
+            body: {
+                success: false,
+                code: 'BULK_AUTO_APPLY_OPENAI_UNAVAILABLE',
+                message: 'AI matching is temporarily unavailable — please try again shortly.'
+            }
+        };
+    }
+    if (isCohereFailure(error)) {
+        console.error('[INFRA][BULK_AUTO_APPLY][COHERE] Unable to create bulk auto-apply run:', sanitizeForLog(detailedError));
+        return {
+            status: 503,
+            body: {
+                success: false,
+                code: 'BULK_AUTO_APPLY_COHERE_UNAVAILABLE',
+                message: 'AI matching is temporarily unavailable — please try again shortly.'
+            }
+        };
+    }
+    const message = error instanceof Error ? error.message : 'Failed to start bulk auto-apply';
+    console.error('[APP][BULK_AUTO_APPLY] Bulk auto-apply start failed:', sanitizeForLog(error));
+    return { status: 500, body: { success: false, code: 'BULK_AUTO_APPLY_START_FAILED', message } };
+};
+
+const withFallbackTimeout = async <T>(promise: Promise<T>, fallback: T, timeoutMs: number, label: string): Promise<T> => {
+    return new Promise(resolve => {
+        const timer = setTimeout(() => {
+            console.warn(`${label} exceeded ${timeoutMs}ms; returning unannotated jobs`);
+            resolve(fallback);
+        }, timeoutMs);
+        promise
+            .then(value => {
+                clearTimeout(timer);
+                resolve(value);
+            })
+            .catch(error => {
+                clearTimeout(timer);
+                console.warn(`${label} failed; returning unannotated jobs:`, error instanceof Error ? error.message : error);
+                resolve(fallback);
+            });
+    });
+};
+
+const plainJob = (job: any): any => typeof job?.toObject === 'function' ? job.toObject() : job;
+const addApplicationCapabilities = (jobs: any[]): any[] => jobs.map(job => withApplicationCapability(plainJob(job)));
 
 // Route to get all jobs
 router.get('/', getAllJobs);
@@ -50,7 +138,7 @@ router.get('/public', async (req: any, res: any) => {
         const result = await JobsRepository.findAll(req.query, true);
         res.setHeader('X-Total-Count', String(result.total));
         res.setHeader('Access-Control-Expose-Headers', 'X-Total-Count');
-        res.status(200).json(result.jobs);
+        res.status(200).json(addApplicationCapabilities(result.jobs));
     } catch (error) {
         console.error('Error fetching public jobs:', error);
         res.status(500).json({ message: 'Server error' });
@@ -157,6 +245,142 @@ router.get('/recommendations', authMiddleware, async (req: any, res: any) => {
     } catch (error) {
         console.error('Error fetching recommendations:', error);
         return res.status(500).json({ success: false, message: 'Failed to fetch recommendations' });
+    }
+});
+
+router.get('/matches', authMiddleware, async (req: any, res: any) => {
+    try {
+        const userId = req.user?._id || req.user?.userId;
+        if (!userId || !Types.ObjectId.isValid(String(userId))) {
+            return res.status(401).json({ success: false, message: 'Authenticated user is required' });
+        }
+        const result = await JobsRepository.findAll({ ...req.query, balanced: false }, true);
+        const plainJobs = addApplicationCapabilities(result.jobs);
+        const jobs = await withFallbackTimeout(
+            JobMatchingRagService.annotateJobsForUser(userId, plainJobs),
+            plainJobs,
+            1500,
+            'Job match annotation'
+        );
+        res.setHeader('X-Total-Count', String(result.total));
+        res.setHeader('X-Page', String(result.page));
+        res.setHeader('X-Page-Size', String(result.limit));
+        res.setHeader('Access-Control-Expose-Headers', 'X-Total-Count, X-Page, X-Page-Size');
+        return res.json({
+            success: true,
+            total: result.total,
+            page: result.page,
+            limit: result.limit,
+            data: jobs
+        });
+    } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to fetch jobs with match scores';
+        const status = message === 'Student profile not found' ? 404 : 500;
+        console.error('Error fetching jobs with match scores:', error);
+        return res.status(status).json({ success: false, message });
+    }
+});
+
+router.get('/auto-apply/preview-count', authMiddleware, async (req: any, res: any) => {
+    try {
+        const userId = req.user?._id || req.user?.userId;
+        if (!userId || !Types.ObjectId.isValid(String(userId))) {
+            return res.status(401).json({ success: false, message: 'Authenticated user is required' });
+        }
+        const result = await BulkAutoApplyService.previewCount(userId, req.query);
+        return res.json({ success: true, ...result });
+    } catch (error) {
+        if (isCohereFailure(error) || isOpenAIFailure(error)) {
+            console.error('[INFRA][BULK_AUTO_APPLY][AI_PROVIDER] Bulk auto-apply preview failed:', sanitizeForLog(error));
+            return res.status(503).json({
+                success: false,
+                code: isCohereFailure(error) ? 'BULK_AUTO_APPLY_COHERE_UNAVAILABLE' : 'BULK_AUTO_APPLY_OPENAI_UNAVAILABLE',
+                message: 'AI matching is temporarily unavailable — please try again shortly.'
+            });
+        }
+        const message = error instanceof Error ? error.message : 'Failed to calculate bulk auto-apply preview';
+        console.error('Bulk auto-apply preview failed:', sanitizeForLog(error));
+        return res.status(/not found/i.test(message) ? 404 : 500).json({ success: false, message });
+    }
+});
+
+router.post('/auto-apply/bulk', authMiddleware, async (req: any, res: any) => {
+    try {
+        const userId = req.user?._id || req.user?.userId;
+        if (!userId || !Types.ObjectId.isValid(String(userId))) {
+            return res.status(401).json({ success: false, message: 'Authenticated user is required' });
+        }
+        await BulkAutoApplyService.assertStartDependencies();
+        const run = await BulkAutoApplyService.createRun(userId, req.body?.filters || {});
+        return res.status(202).json({ success: true, runId: run._id });
+    } catch (error) {
+        const response = bulkAutoApplyErrorResponse(error);
+        return res.status(response.status).json(response.body);
+    }
+});
+
+router.get('/auto-apply/runs/:runId', authMiddleware, async (req: any, res: any) => {
+    try {
+        const userId = req.user?._id || req.user?.userId;
+        if (!userId || !Types.ObjectId.isValid(String(userId)) || !Types.ObjectId.isValid(req.params.runId)) {
+            return res.status(400).json({ success: false, message: 'Valid user and run ID are required' });
+        }
+        const run = await BulkAutoApplyService.getRunForUser(req.params.runId, userId);
+        if (!run) return res.status(404).json({ success: false, message: 'Bulk auto-apply run not found' });
+        return res.json({ success: true, data: run });
+    } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to fetch bulk auto-apply run';
+        console.error('Bulk auto-apply run fetch failed:', sanitizeForLog(error));
+        return res.status(500).json({ success: false, message });
+    }
+});
+
+router.post('/auto-apply/runs/:runId/cancel', authMiddleware, async (req: any, res: any) => {
+    try {
+        const userId = req.user?._id || req.user?.userId;
+        if (!userId || !Types.ObjectId.isValid(String(userId)) || !Types.ObjectId.isValid(req.params.runId)) {
+            return res.status(400).json({ success: false, message: 'Valid user and run ID are required' });
+        }
+        const run = await BulkAutoApplyService.cancelRun(req.params.runId, userId);
+        if (!run) return res.status(404).json({ success: false, message: 'Bulk auto-apply run not found' });
+        return res.json({ success: true, data: run });
+    } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to cancel bulk auto-apply run';
+        console.error('Bulk auto-apply cancel failed:', sanitizeForLog(error));
+        return res.status(500).json({ success: false, message });
+    }
+});
+
+router.post('/:jobId/auto-apply', authMiddleware, async (req: any, res: any) => {
+    try {
+        if (!Types.ObjectId.isValid(req.params.jobId)) {
+            return res.status(400).json({ success: false, message: 'Invalid job ID' });
+        }
+        const userId = req.user?._id || req.user?.userId;
+        if (!userId || !Types.ObjectId.isValid(String(userId))) {
+            return res.status(401).json({ success: false, message: 'Authenticated user is required' });
+        }
+        let score = Number(req.body.score ?? req.body.matchScore);
+        if (!Number.isFinite(score)) {
+            const job = await Job.findById(req.params.jobId)
+                .select('+featureVector +applyUrl title companyName description requiredSkills canonicalSkills requirements minExperience maxExperience experienceLevel seniority locations location workMode remoteType salary salaryBand atsPlatform atsJobId applyUrl applicationDeadline postedAt source sourceProvider sourceCompanySlug sourceExternalId')
+                .lean();
+            if (!job) return res.status(404).json({ success: false, message: 'Job not found' });
+            const [annotatedJob] = await JobMatchingRagService.annotateJobsForUser(userId, [job]);
+            score = Number(annotatedJob?.score ?? (Number(annotatedJob?.matchScore) / 100));
+            if (!Number.isFinite(score)) score = 0;
+        }
+        const result = await AutoApplyService.handleMatchedJob(userId, req.params.jobId, score);
+        return res.status(result.action === 'submitted' ? 201 : 202).json({ success: true, ...result });
+    } catch (error) {
+        const message = error instanceof Error ? error.message : 'Auto-apply failed';
+        console.error('Auto-apply failed:', sanitizeForLog(error));
+        const status = /not found/i.test(message)
+            ? 404
+            : /complete your profile|missing|not implemented|required/i.test(message)
+                ? 400
+                : 500;
+        return res.status(status).json({ success: false, message });
     }
 });
 
@@ -344,49 +568,6 @@ router.get('/recommendations/:studentId', authMiddleware, async (req: any, res: 
     } catch (error) {
         console.error('Error fetching job recommendations:', error);
         res.status(500).json({ message: 'Failed to fetch job recommendations' });
-    }
-});
-
-// Get job matches with query parameters
-router.get('/matches', authMiddleware, async (req: any, res: any) => {
-    try {
-        const { studentId, limit = 8 } = req.query;
-        
-        if (!studentId) {
-            return res.status(400).json({ message: 'Student ID is required' });
-        }
-
-        const { Student } = require('../models/Student');
-        const student = await Student.findById(studentId);
-        
-        if (!student) {
-            return res.status(404).json({ message: 'Student not found' });
-        }
-
-        // Build match criteria
-        const matchCriteria: any = {
-            status: 'active'
-        };
-
-        // Match by skills if available
-        if (student.skills && student.skills.length > 0) {
-            matchCriteria.requiredSkills = { $in: student.skills };
-        }
-
-        const jobs = await Job.find(matchCriteria)
-            .populate('recruiterId', 'name companyName')
-            .populate('collegeId', 'name')
-            .limit(parseInt(limit as string))
-            .sort({ createdAt: -1 });
-
-        res.json({
-            success: true,
-            data: jobs,
-            matches: jobs // For compatibility with frontend
-        });
-    } catch (error) {
-        console.error('Error fetching job matches:', error);
-        res.status(500).json({ message: 'Failed to fetch job matches' });
     }
 });
 

@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { OTPVerification } from '../models/OTPVerification';
+import { sanitizeForLog } from '../utils/safe-logging';
 
 const TWOFACTOR_BASE_URL = 'https://2factor.in/API/V1';
 
@@ -9,7 +10,7 @@ const getSMSConfig = () => {
     
     // Debug logging
     console.log('DEBUG - All env vars:', Object.keys(process.env).filter(key => key.includes('TWOFACTOR')));
-    console.log('DEBUG - TWOFACTOR_API_KEY value:', apiKey);
+    console.log('DEBUG - TWOFACTOR_API_KEY configured:', Boolean(apiKey));
     console.log('DEBUG - NODE_ENV:', process.env.NODE_ENV);
     
     if (!apiKey) {
@@ -57,7 +58,7 @@ export const sendSMSOTP = async (phoneNumber: string): Promise<{ success: boolea
 
         // Send OTP via 2Factor API (SMS endpoint, not call)
         const smsUrl = `${TWOFACTOR_BASE_URL}/${apiKey}/SMS/${cleanedPhoneNumber}/${otp}/CampusPe`;
-        console.log(`🔗 2Factor SMS URL: ${smsUrl}`);
+        console.log(`🔗 2Factor SMS URL: ${smsUrl.replace(apiKey, '[REDACTED]')}`);
         
         const response = await axios.get(smsUrl, {
             headers: {
@@ -90,7 +91,7 @@ export const sendSMSOTP = async (phoneNumber: string): Promise<{ success: boolea
             throw new Error(response.data.Details || 'Failed to send SMS');
         }
     } catch (error) {
-        console.error('Error sending SMS OTP:', error);
+        console.error('Error sending SMS OTP:', sanitizeForLog(error));
         
         // Handle specific 2Factor error responses
         if (axios.isAxiosError(error) && error.response) {
@@ -174,7 +175,7 @@ export const verifySMSOTP = async (otpId: string, providedOTP: string): Promise<
                     };
                 }
             } catch (verifyError) {
-                console.error('2Factor verification error:', verifyError);
+                console.error('2Factor verification error:', sanitizeForLog(verifyError));
                 // Fallback to local verification
             }
         }
@@ -197,7 +198,7 @@ export const verifySMSOTP = async (otpId: string, providedOTP: string): Promise<
             message: 'Phone number verified successfully'
         };
     } catch (error) {
-        console.error('Error verifying SMS OTP:', error);
+        console.error('Error verifying SMS OTP:', sanitizeForLog(error));
         return {
             success: false,
             message: 'Failed to verify OTP'
@@ -221,7 +222,7 @@ export const getSMSOTPStatus = async (phoneNumber: string): Promise<{isVerified:
             otpId: otpRecord?._id.toString()
         };
     } catch (error) {
-        console.error('Error checking SMS OTP status:', error);
+        console.error('Error checking SMS OTP status:', sanitizeForLog(error));
         return {
             isVerified: false
         };

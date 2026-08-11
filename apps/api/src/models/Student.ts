@@ -51,6 +51,12 @@ export interface IJobPreferences {
   availableFrom?: Date;
 }
 
+export interface ISalaryExpectation {
+  min?: number;
+  max?: number;
+  currency: string;
+}
+
 export interface IStudent extends Document {
   _id: Types.ObjectId;
   userId: Types.ObjectId;
@@ -79,6 +85,11 @@ export interface IStudent extends Document {
   education: IEducation[];
   experience: IExperience[];
   skills: ISkill[];
+  titles?: string[];
+  yearsExperience?: number;
+  locations?: string[];
+  salaryExpectation?: ISalaryExpectation;
+  structuredResumeUpdatedAt?: Date;
 
   // Resume
   resumeFile?: string; // File path/URL
@@ -231,6 +242,12 @@ const JobPreferencesSchema = new Schema({
   availableFrom: { type: Date }
 });
 
+const SalaryExpectationSchema = new Schema({
+  min: { type: Number, min: 0 },
+  max: { type: Number, min: 0 },
+  currency: { type: String, default: 'INR' }
+}, { _id: false });
+
 const StudentSchema = new Schema<IStudent>({
   userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
   firstName: { type: String, required: true, trim: true },
@@ -258,6 +275,11 @@ const StudentSchema = new Schema<IStudent>({
   education: [EducationSchema],
   experience: [ExperienceSchema],
   skills: [SkillSchema],
+  titles: [{ type: String, trim: true, index: true }],
+  yearsExperience: { type: Number, min: 0, default: 0, index: true },
+  locations: [{ type: String, trim: true, index: true }],
+  salaryExpectation: { type: SalaryExpectationSchema },
+  structuredResumeUpdatedAt: { type: Date },
   
   // Resume
   resumeFile: { type: String },
