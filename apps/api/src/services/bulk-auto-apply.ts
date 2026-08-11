@@ -60,6 +60,7 @@ const failureReasonFromError = (message: string): string => {
   if (/not implemented/i.test(message)) return 'unsupported_ats';
   if (/duplicate|E11000/i.test(message)) return 'already_applied';
   if (/complete your profile|missing/i.test(message)) return 'profile_incomplete';
+  if (/rate limit/i.test(message)) return 'rate_limited';
   return 'ats_submission_failed';
 };
 
@@ -91,7 +92,12 @@ class BulkAutoApplyService {
     }
 
     try {
-      await checkOpenAIHealth();
+      // A rate-limited key is reachable and valid. Tasks are queued and retried
+      // by the worker, so throttling must not block starting the run.
+      const status = await checkOpenAIHealth();
+      if (status === 'rate_limited') {
+        console.warn('⚠️  Starting bulk auto-apply while OpenAI is rate limited; tasks will retry as quota frees up.');
+      }
     } catch (error) {
       throw new BulkAutoApplyStartDependencyError(
         'BULK_AUTO_APPLY_OPENAI_UNAVAILABLE',
@@ -403,6 +409,15 @@ class BulkAutoApplyService {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const failureReason = failureReasonFromError(message);
+      if (failureReason === 'rate_limited') {
+        // Leave the task pending so BullMQ retries it once quota recovers; the
+        // Application stays queued and is never marked permanently failed.
+        await BulkAutoApplyTask.findByIdAndUpdate(task._id, {
+          $set: { status: 'pending', failureReason, errorMessage: message },
+          $unset: { completedAt: 1 }
+        });
+        throw error;
+      }
       const application = await Application.findOne({ userId: task.userId, jobId: task.jobId }).sort({ createdAt: -1 });
       if (application && application.status !== 'failed' && failureReason === 'unsupported_ats') {
         await Application.findByIdAndUpdate(application._id, {

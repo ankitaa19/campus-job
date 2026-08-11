@@ -61,6 +61,11 @@ const isOpenAIFailure = (error: any): boolean => {
     return /api\.openai\.com/i.test(url) || /OpenAI/i.test(message);
 };
 
+const isRateLimitFailure = (error: any): boolean => {
+    const status = Number(error?.response?.status || error?.status || 0);
+    return status === 429 || error?.name === 'OpenAIRateLimitError' || /rate limit/i.test(String(error?.message || ''));
+};
+
 const isCohereFailure = (error: any): boolean => {
     if (error instanceof BulkAutoApplyStartDependencyError && error.code === 'BULK_AUTO_APPLY_COHERE_UNAVAILABLE') return true;
     const url = String(error?.config?.url || error?.originalError?.config?.url || '');
@@ -70,6 +75,17 @@ const isCohereFailure = (error: any): boolean => {
 
 const bulkAutoApplyErrorResponse = (error: unknown) => {
     const detailedError = error instanceof BulkAutoApplyStartDependencyError ? error.originalError : error;
+    if (isRateLimitFailure(detailedError)) {
+        console.warn('[INFRA][BULK_AUTO_APPLY][RATE_LIMIT] AI provider quota exhausted:', sanitizeForLog(detailedError));
+        return {
+            status: 429,
+            body: {
+                success: false,
+                code: 'BULK_AUTO_APPLY_RATE_LIMITED',
+                message: 'AI usage limit reached. Auto Apply will be available again in a few minutes.'
+            }
+        };
+    }
     if (isMongoWriteFailure(error)) {
         console.error('[INFRA][BULK_AUTO_APPLY][MONGO_WRITE] Unable to create bulk auto-apply run:', sanitizeForLog(detailedError));
         return {
