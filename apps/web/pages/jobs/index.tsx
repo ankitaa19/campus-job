@@ -6,7 +6,7 @@ import axios from 'axios';
 import Navbar from '../../components/Navbar';
 import Footer from '../../components/Footer';
 import { Briefcase, MapPin, Search, MapPinIcon, Building2, Share2, Users, GraduationCap, BadgeCheck, X, CalendarDays, Upload, Gift, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
-import { API_BASE_URL, apiClient } from '../../utils/api';
+import { API_BASE_URL, apiClient, recordJobInteraction, recordTelemetryEvents } from '../../utils/api';
 import Image from 'next/image';
 import type { JobSeed } from '../../data/jobSeeds';
 
@@ -34,6 +34,9 @@ type Job = Omit<JobSeed, 'skills' | 'benefits' | 'locations'> & {
   recruiterId?: unknown;
   aiGeneratedDescription?: string;
   companyJobCount?: number;
+  matchingModel?: string;
+  ruleBasedScore?: number;
+  aiScore?: number;
 };
 
 const groupJobsByCompany = (jobs: Job[]): Array<{ companyName: string; jobs: Job[] }> => {
@@ -206,6 +209,21 @@ export default function JobsPage() {
         setTotalJobs(personalizedResponse && !groupedResponse ? liveJobs.length : Number.isFinite(responseTotal) ? responseTotal : liveJobs.length);
         setJobs(liveJobs);
         setFilteredJobs(liveJobs);
+        if (personalizedResponse) {
+          recordTelemetryEvents(liveJobs.map((job, rank) => ({
+            name: 'job_impression',
+            jobId: job._id,
+            rank,
+            candidateSetSize: liveJobs.length,
+            modelVersion: job.matchingModel || 'hybrid-local-v2',
+            scores: {
+              ...(typeof job.matchPercentage === 'number' ? { match: job.matchPercentage / 100 } : {}),
+              ...(typeof job.ruleBasedScore === 'number' ? { rules: job.ruleBasedScore / 100 } : {}),
+              ...(typeof job.aiScore === 'number' ? { semantic: job.aiScore / 100 } : {})
+            },
+            metadata: { surface: 'jobs_catalogue', page: currentPage }
+          }))).catch(() => undefined);
+        }
       } catch (error: any) {
         if (error?.code === 'ERR_CANCELED') return;
         console.error('Unable to load CampusPe jobs:', error);
@@ -313,6 +331,10 @@ export default function JobsPage() {
   };
 
   const openJobDetails = async (job: Job) => {
+    recordJobInteraction(job._id, 'click', {
+      surface: 'jobs_catalogue',
+      modelVersion: job.matchingModel
+    }).catch(() => undefined);
     setSelectedJob(job);
     setShowResumeStep(false);
     setApplicationMessage('');
