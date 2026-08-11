@@ -7,6 +7,7 @@ import { Student } from '../models/Student';
 import { User } from '../models/User';
 import TailoringService from './ats/tailoring.service';
 import { getAtsAdapter } from './ats/registry';
+import { inspectApplicationCapability } from './ats/application-capability';
 import ProductEventService from './product-events';
 
 class ApplicationSubmissionService {
@@ -171,17 +172,38 @@ class ApplicationSubmissionService {
     this.assertProfileReady(student, user);
     await this.assertConsent(user._id, true);
     const adapter = getAtsAdapter(job.atsPlatform || 'other');
-    const schema = await adapter.inspectApplication?.(job);
+    const deterministicInspection = inspectApplicationCapability(job);
+    const schema = deterministicInspection.capability === 'auto_apply'
+      ? await adapter.inspectApplication?.(job)
+      : deterministicInspection;
     if (schema && schema.capability !== 'auto_apply') {
-      const workflowState = schema.capability === 'unsupported' ? 'unsupported' : 'needs_user_input';
+      const reasons = schema.reasons || [];
+      const workflowState = schema.capability === 'unsupported'
+        ? 'unsupported'
+        : reasons.includes('authentication_required')
+          ? 'needs_authentication'
+          : reasons.includes('assessment_required')
+            ? 'needs_assessment'
+            : reasons.includes('additional_documents_required')
+              ? 'needs_document'
+              : 'needs_user_input';
+      const interventionType = workflowState === 'needs_authentication'
+        ? 'authentication'
+        : workflowState === 'needs_assessment'
+          ? 'assessment'
+          : workflowState === 'needs_document'
+            ? 'document'
+            : reasons.includes('captcha_required')
+              ? 'captcha'
+              : 'user_input';
       const paused = await Application.findByIdAndUpdate(application._id, {
         $set: {
           status: schema.capability === 'unsupported' ? 'failed' : 'pending_review',
           workflowState,
           failureReason: schema.capability === 'unsupported' ? 'unsupported_ats' : undefined,
           intervention: {
-            type: 'user_input',
-            reason: schema.reasons.join(',') || 'Application requires user input',
+            type: interventionType,
+            reason: reasons.join(',') || 'Application requires user input',
             requiredFields: schema.requiredFields,
             createdAt: new Date()
           }
@@ -194,7 +216,7 @@ class ApplicationSubmissionService {
         jobId: job._id,
         applicationId: application._id,
         sourceProvider: job.atsPlatform || job.sourceProvider,
-        reason: schema.reasons.join(',')
+        reason: reasons.join(',')
       });
       return paused;
     }

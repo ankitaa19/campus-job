@@ -385,11 +385,17 @@ class BulkAutoApplyService {
       const application = existingApplication?.status === 'queued'
         ? await ApplicationSubmissionService.submitQueuedApplication(existingApplication._id)
         : (await AutoApplyService.handleMatchedJob(task.userId, task.jobId, task.score)).application as any;
-      const taskStatus = application?.status === 'pending_review' ? 'pending_review' : 'succeeded';
+      const taskStatus: BulkAutoApplyTaskStatus = application?.status === 'pending_review'
+        ? 'pending_review'
+        : application?.status === 'failed'
+          ? 'failed'
+          : 'succeeded';
       await BulkAutoApplyTask.findByIdAndUpdate(task._id, {
         $set: {
           status: taskStatus,
           applicationId: application?._id,
+          failureReason: taskStatus === 'failed' ? (application?.failureReason || 'ats_submission_failed') : undefined,
+          errorMessage: taskStatus === 'failed' ? application?.atsResponseRaw?.error : undefined,
           completedAt: new Date()
         }
       });

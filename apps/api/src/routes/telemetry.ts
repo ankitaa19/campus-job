@@ -6,6 +6,22 @@ import { Student } from '../models/Student';
 import ProductEventService from '../services/product-events';
 
 const router = express.Router();
+type ClientEventPayload = {
+  eventId: string;
+  name: ProductEventName;
+  occurredAt?: string;
+  jobId?: string;
+  applicationId?: string;
+  sessionId?: string;
+  modelVersion?: string;
+  experimentId?: string;
+  experimentVariant?: string;
+  rank?: number;
+  candidateSetSize?: number;
+  scores?: Record<string, number>;
+  reason?: string;
+  metadata?: Record<string, unknown>;
+};
 const clientEventNames = new Set<ProductEventName>([
   'job_impression', 'job_opened', 'job_saved', 'job_hidden',
   'external_apply_clicked', 'application_started', 'user_withdrew'
@@ -13,7 +29,7 @@ const clientEventNames = new Set<ProductEventName>([
 
 router.post('/events', authMiddleware, async (req: any, res) => {
   const userId = req.user?._id || req.user?.userId;
-  const payload = Array.isArray(req.body?.events) ? req.body.events : [req.body];
+  const payload: ClientEventPayload[] = Array.isArray(req.body?.events) ? req.body.events : [req.body];
   if (!userId) return res.status(401).json({ success: false, message: 'Unauthorized' });
   if (!payload.length || payload.length > 100) {
     return res.status(400).json({ success: false, message: 'Submit between 1 and 100 events' });

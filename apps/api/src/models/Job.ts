@@ -31,6 +31,23 @@ export interface IInterviewProcess {
   additionalInfo?: string;
 }
 
+export interface IApplicationConfiguration {
+  requiredFields: string[];
+  customQuestions: Array<{
+    id: string;
+    label: string;
+    type: 'text' | 'textarea' | 'number' | 'boolean' | 'single_select' | 'multi_select' | 'file' | 'date' | 'unknown';
+    required: boolean;
+    options?: string[];
+  }>;
+  requiredDocuments: string[];
+  requiresAuthentication: boolean;
+  requiresAssessment: boolean;
+  requiresCaptcha: boolean;
+  unsupportedQuestionTypes: string[];
+  lastInspectedAt?: Date;
+}
+
 export interface IJob extends Document {
   _id: Types.ObjectId;
   
@@ -103,6 +120,7 @@ export interface IJob extends Document {
   atsPlatform?: ATSPlatform;
   atsJobId?: string;
   applyUrl?: string;
+  applicationConfiguration?: IApplicationConfiguration;
   
   // Visibility
   isPublic: boolean; // If true, job is visible on public jobs page
@@ -167,6 +185,27 @@ const InterviewProcessSchema = new Schema({
   mode: { type: String, enum: ['online', 'offline', 'hybrid'], required: true },
   additionalInfo: { type: String }
 });
+
+const ApplicationConfigurationSchema = new Schema({
+  requiredFields: [{ type: String, trim: true }],
+  customQuestions: [{
+    id: { type: String, required: true },
+    label: { type: String, required: true },
+    type: {
+      type: String,
+      enum: ['text', 'textarea', 'number', 'boolean', 'single_select', 'multi_select', 'file', 'date', 'unknown'],
+      default: 'unknown'
+    },
+    required: { type: Boolean, default: false },
+    options: [{ type: String }]
+  }],
+  requiredDocuments: [{ type: String, trim: true }],
+  requiresAuthentication: { type: Boolean, default: false },
+  requiresAssessment: { type: Boolean, default: false },
+  requiresCaptcha: { type: Boolean, default: false },
+  unsupportedQuestionTypes: [{ type: String, trim: true }],
+  lastInspectedAt: Date
+}, { _id: false });
 
 const EducationRequirementSchema = new Schema({
   degree: { type: String, required: true },
@@ -252,6 +291,7 @@ const JobSchema = new Schema<IJob>({
   atsPlatform: { type: String, enum: AtsPlatformValues, default: 'other', index: true },
   atsJobId: { type: String, trim: true, index: true },
   applyUrl: { type: String, trim: true, select: false },
+  applicationConfiguration: { type: ApplicationConfigurationSchema },
   
   // Visibility
   isPublic: { type: Boolean, default: false, index: true }, // If true, job is visible on public jobs page
