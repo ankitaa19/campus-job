@@ -82,7 +82,12 @@ class BulkAutoApplyService {
     }
 
     try {
-      await checkCohereHealth();
+      // Throttling still allows matching to proceed on skill overlap, so it
+      // must not block starting the run.
+      const status = await checkCohereHealth();
+      if (status === 'rate_limited') {
+        console.warn('⚠️  Starting bulk auto-apply while Cohere is rate limited; jobs without cached embeddings score on skill overlap.');
+      }
     } catch (error) {
       throw new BulkAutoApplyStartDependencyError(
         'BULK_AUTO_APPLY_COHERE_UNAVAILABLE',
