@@ -102,7 +102,7 @@ describe('bulk auto-apply embedding budget', () => {
     expect(selection.matches.length).toBeGreaterThan(0);
   });
 
-  test('a throttled key still produces a selection using skill-only scores', async () => {
+  test('a throttled key withholds auto-apply and explains why instead of submitting blind', async () => {
     const user = await new User({
       email: 'throttled@example.com',
       password: 'password123',
@@ -131,7 +131,66 @@ describe('bulk auto-apply embedding budget', () => {
 
     const selection = await JobMatchingRagService.findBulkAutoApplySelection(user._id, {});
 
-    expect(selection.totalMatchedAboveThreshold).toBe(10);
-    expect(selection.matches.length).toBeGreaterThan(0);
+    expect(selection.matches).toHaveLength(0);
+    expect(selection.needsYouCount).toBe(10);
+    expect(selection.diagnostics.scoredWithoutSemantics).toBe(10);
+    expect(selection.diagnostics.semanticScoringUnavailable).toBe(true);
+  });
+
+  test('a job with no extractable skills is not reported as a perfect match', async () => {
+    const user = await new User({
+      email: 'no-skills@example.com',
+      password: 'password123',
+      role: 'student',
+      autoApplyThreshold: 0
+    }).save();
+    await new Student({
+      userId: user._id,
+      firstName: 'Neha',
+      lastName: 'Singh',
+      email: user.email,
+      resumeText: 'Neha Singh React developer',
+      skills: [{ name: 'React', level: 'advanced', category: 'technical' }],
+      education: [],
+      experience: [],
+      jobPreferences: { jobTypes: ['full-time'], preferredLocations: [], workMode: 'any' }
+    }).save();
+    const data = {
+      title: 'Seasonal Full Time Hourly Warehouse Operations Openings',
+      description: 'Seasonal hourly warehouse work.',
+      jobType: 'full-time',
+      department: 'Operations',
+      companyName: 'Retailer',
+      locations: [{ city: 'Bengaluru', state: 'Karnataka', country: 'India', isRemote: false, hybrid: false }],
+      workMode: 'onsite',
+      requirements: [],
+      requiredSkills: [],
+      canonicalSkills: [],
+      experienceLevel: 'entry',
+      minExperience: 0,
+      salary: { min: 0, max: 0, currency: 'INR', negotiable: true },
+      applicationDeadline: new Date(Date.now() + 30 * 86400000),
+      totalPositions: 1,
+      interviewProcess: { rounds: ['Interview'], duration: '1 week', mode: 'online' },
+      status: 'active',
+      isPublic: true,
+      allowDirectApplications: true,
+      atsPlatform: 'greenhouse',
+      sourceProvider: 'greenhouse',
+      sourceCompanySlug: 'retailer',
+      atsJobId: 'warehouse-1',
+      source: 'company_careers',
+      sourceExternalId: 'warehouse-1',
+      sourceLifecycleStatus: 'active',
+      lastVerifiedAt: new Date()
+    };
+    // enrichJob may infer skills from text, so persist the fixture as-is.
+    await new Job(data).save();
+
+    const selection = await JobMatchingRagService.findBulkAutoApplySelection(user._id, {});
+
+    expect(selection.matches).toHaveLength(0);
+    expect(selection.diagnostics.withoutSkillEvidence).toBe(1);
+    expect(selection.diagnostics.bestScore).toBe(0);
   });
 });

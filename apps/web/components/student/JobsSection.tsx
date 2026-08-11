@@ -423,7 +423,7 @@ const JobsSection: React.FC<JobsSectionProps> = ({ studentInfo }) => {
       const preview = await apiClient.get('/api/jobs/auto-apply/preview-count', { params: currentFilters });
       const count = Number(preview.data?.count || 0);
       if (!count) {
-        setBulkAutoApplyError('No jobs match your auto-apply threshold and current filters.');
+        setBulkAutoApplyError(preview.data?.reason || 'No jobs match your auto-apply threshold and current filters.');
         return;
       }
       const confirmed = window.confirm(`This will submit applications to ${count.toLocaleString()} matched jobs. Continue?`);

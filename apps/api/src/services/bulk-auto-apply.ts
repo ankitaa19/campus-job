@@ -5,7 +5,7 @@ import { BulkAutoApplyRun } from '../models/BulkAutoApplyRun';
 import { BulkAutoApplyTask, BulkAutoApplyTaskStatus } from '../models/BulkAutoApplyTask';
 import AutoApplyService from './auto-apply';
 import ApplicationSubmissionService from './application-submission';
-import JobMatchingRagService from './job-matching-rag';
+import JobMatchingRagService, { BulkAutoApplySelection } from './job-matching-rag';
 import type { JobsQuery } from './job-aggregation/jobs.repository';
 import { createRedisConnection } from './redis-client';
 import { checkOpenAIHealth } from './openai-client';
@@ -118,8 +118,25 @@ class BulkAutoApplyService {
       count: selection.matches.length,
       needsYouCount: selection.needsYouCount,
       unsupportedCount: selection.unsupportedCount,
-      totalMatchedAboveThreshold: selection.totalMatchedAboveThreshold
+      totalMatchedAboveThreshold: selection.totalMatchedAboveThreshold,
+      diagnostics: selection.diagnostics,
+      reason: selection.matches.length ? undefined : this.emptySelectionReason(selection)
     };
+  }
+
+  /** Explains an empty preview so students are not told the catalogue is unsuitable. */
+  private emptySelectionReason(selection: BulkAutoApplySelection): string {
+    const { threshold, bestScore, semanticScoringUnavailable, scoredWithoutSemantics, scanned } = selection.diagnostics;
+    if (!scanned) return 'No open jobs matched the current filters.';
+    if (semanticScoringUnavailable || scoredWithoutSemantics) {
+      return 'AI matching is still catching up on these jobs, so Auto Apply cannot confirm a strong match yet. Please try again shortly.';
+    }
+    if (selection.needsYouCount || selection.unsupportedCount) {
+      return 'Matching jobs were found, but their applications need you to complete a step manually.';
+    }
+    const thresholdPercent = Math.round(threshold * 100);
+    const bestPercent = Math.round(bestScore * 100);
+    return `No jobs reached your ${thresholdPercent}% Auto Apply threshold (best match was ${bestPercent}%). Lower the threshold in settings to include more jobs.`;
   }
 
   async createRun(userId: string | Types.ObjectId, filters: JobsQuery = {}) {
