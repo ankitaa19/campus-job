@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import crypto from 'crypto';
 import { Application } from '../models/Application';
 import { Student } from '../models/Student';
 import { Job } from '../models/Job';
@@ -8,6 +9,7 @@ import { Types } from 'mongoose';
 import AIResumeMatchingService from '../services/ai-resume-matching';
 import { recordNotification, sendRecruiterApplicationNotification } from '../services/notifications';
 import { toDisplayMatchScore } from '../services/hybrid-resume-matching';
+import ProductEventService from '../services/product-events';
 
 /**
  * Apply for a job with AI resume matching
@@ -117,6 +119,8 @@ export const applyForJob = async (req: Request, res: Response) => {
         },
         sourcePlatform: job.sourceProvider || job.source || 'campuspe',
         status: 'confirmed',
+        workflowState: 'confirmed',
+        idempotencyKey: crypto.createHash('sha256').update(`${userId}:${job._id}:v1`).digest('hex'),
         submittedVia: 'this_portal',
         submissionChannel: 'campuspe',
         employerDeliveryStatus,
@@ -175,6 +179,15 @@ export const applyForJob = async (req: Request, res: Response) => {
 
       await application.save();
       await Job.findByIdAndUpdate(job._id, { $addToSet: { applications: application._id } });
+      ProductEventService.record({
+        name: 'application_confirmed',
+        actorUserId: userId,
+        studentId: student._id,
+        jobId: job._id,
+        applicationId: application._id,
+        sourceProvider: job.sourceProvider || job.source,
+        scores: { match: Number(matchResult.matchScore) / 100 }
+      }).catch(() => undefined);
       setImmediate(() => {
         const JobBehaviorService = require('../services/job-behavior').default;
         JobBehaviorService.record(new Types.ObjectId(userId), job._id, 'apply').catch((error: unknown) =>

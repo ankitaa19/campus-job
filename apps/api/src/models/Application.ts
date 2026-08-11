@@ -20,6 +20,25 @@ export interface IInterviewSchedule {
   rating?: number; // 1-10
 }
 
+export type ApplicationWorkflowState =
+  | 'discovered'
+  | 'ready_for_review'
+  | 'needs_user_input'
+  | 'needs_authentication'
+  | 'needs_assessment'
+  | 'needs_document'
+  | 'awaiting_user_consent'
+  | 'queued'
+  | 'submitting'
+  | 'submitted'
+  | 'submission_unknown'
+  | 'confirmed'
+  | 'failed_retryable'
+  | 'failed_final'
+  | 'duplicate_blocked'
+  | 'withdrawn'
+  | 'unsupported';
+
 export interface IApplication extends Document {
   _id: Types.ObjectId;
   
@@ -42,6 +61,20 @@ export interface IApplication extends Document {
   failureReason?: string;
   sourcePlatform?: string;
   status: 'queued' | 'pending_review' | 'submitted' | 'confirmed' | 'failed';
+  workflowState: ApplicationWorkflowState;
+  idempotencyKey?: string;
+  externalApplicationId?: string;
+  submissionReceipt?: Record<string, unknown>;
+  consentRecordId?: Types.ObjectId;
+  intervention?: {
+    type: 'user_input' | 'authentication' | 'assessment' | 'document' | 'captcha' | 'consent' | 'unsupported_question';
+    reason: string;
+    requiredFields?: string[];
+    resumeToken?: string;
+    expiresAt?: Date;
+    createdAt: Date;
+    resolvedAt?: Date;
+  };
   submittedVia: 'this_portal';
   submissionChannel: 'campuspe';
   employerDeliveryStatus: 'delivered_to_campuspe_employer' | 'awaiting_employer_connection';
@@ -161,6 +194,34 @@ const ApplicationSchema = new Schema<IApplication>({
     required: true,
     index: true
   },
+  workflowState: {
+    type: String,
+    enum: [
+      'discovered', 'ready_for_review', 'needs_user_input', 'needs_authentication',
+      'needs_assessment', 'needs_document', 'awaiting_user_consent', 'queued',
+      'submitting', 'submitted', 'submission_unknown', 'confirmed',
+      'failed_retryable', 'failed_final', 'duplicate_blocked', 'withdrawn', 'unsupported'
+    ],
+    default: 'queued',
+    required: true,
+    index: true
+  },
+  idempotencyKey: { type: String, unique: true, sparse: true, index: true },
+  externalApplicationId: { type: String, trim: true, index: true },
+  submissionReceipt: { type: Schema.Types.Mixed },
+  consentRecordId: { type: Schema.Types.ObjectId, ref: 'ConsentRecord' },
+  intervention: {
+    type: {
+      type: String,
+      enum: ['user_input', 'authentication', 'assessment', 'document', 'captcha', 'consent', 'unsupported_question']
+    },
+    reason: String,
+    requiredFields: [{ type: String }],
+    resumeToken: { type: String, select: false },
+    expiresAt: Date,
+    createdAt: Date,
+    resolvedAt: Date
+  },
   submittedVia: { type: String, enum: ['this_portal'], default: 'this_portal', required: true },
   submissionChannel: { type: String, enum: ['campuspe'], default: 'campuspe', required: true },
   employerDeliveryStatus: {
@@ -238,6 +299,7 @@ const ApplicationSchema = new Schema<IApplication>({
 // Indexes for optimization
 ApplicationSchema.index({ studentId: 1, jobId: 1 }, { unique: true }); // Prevent duplicate applications
 ApplicationSchema.index({ userId: 1, status: 1, createdAt: -1 });
+ApplicationSchema.index({ userId: 1, workflowState: 1, createdAt: -1 });
 ApplicationSchema.index({ jobId: 1, currentStatus: 1 });
 ApplicationSchema.index({ recruiterId: 1, currentStatus: 1 });
 ApplicationSchema.index({ collegeId: 1, currentStatus: 1 });

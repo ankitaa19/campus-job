@@ -11,6 +11,9 @@ export { Application, IApplication, IApplicationStatus, IInterviewSchedule } fro
 export { JobMatch, IJobMatch } from './JobMatch';
 export { BulkAutoApplyRun, IBulkAutoApplyRun } from './BulkAutoApplyRun';
 export { BulkAutoApplyTask, IBulkAutoApplyTask } from './BulkAutoApplyTask';
+export { ProductEvent, IProductEvent } from './ProductEvent';
+export { ConsentRecord, IConsentRecord } from './ConsentRecord';
+export { SourceJobSnapshot, ISourceJobSnapshot } from './SourceJobSnapshot';
 export { ResumeJobAnalysis, IResumeJobAnalysis } from './ResumeJobAnalysis';
 export { GeneratedResume, IGeneratedResume } from './GeneratedResume';
 export { Course, ICourse } from './Course';
@@ -35,6 +38,9 @@ export const MODEL_NAMES = {
   JOB_MATCH: 'JobMatch',
   BULK_AUTO_APPLY_RUN: 'BulkAutoApplyRun',
   BULK_AUTO_APPLY_TASK: 'BulkAutoApplyTask',
+  PRODUCT_EVENT: 'ProductEvent',
+  CONSENT_RECORD: 'ConsentRecord',
+  SOURCE_JOB_SNAPSHOT: 'SourceJobSnapshot',
   COURSE: 'Course',
   MESSAGE: 'Message',
   NOTIFICATION: 'Notification',

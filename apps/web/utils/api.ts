@@ -40,6 +40,72 @@ export const apiClient = axios.create({
   },
 });
 
+export type TelemetryEventName =
+  | 'job_impression'
+  | 'job_opened'
+  | 'job_saved'
+  | 'job_hidden'
+  | 'external_apply_clicked'
+  | 'application_started'
+  | 'user_withdrew';
+
+export type TelemetryEvent = {
+  eventId?: string;
+  name: TelemetryEventName;
+  occurredAt?: string;
+  jobId?: string | number;
+  applicationId?: string;
+  rank?: number;
+  candidateSetSize?: number;
+  modelVersion?: string;
+  scores?: Record<string, number>;
+  reason?: string;
+  metadata?: Record<string, unknown>;
+};
+
+const clientId = () => {
+  if (typeof window === 'undefined') return '';
+  const key = 'campuspe_telemetry_session';
+  const existing = sessionStorage.getItem(key);
+  if (existing) return existing;
+  const value = typeof window.crypto?.randomUUID === 'function'
+    ? window.crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  sessionStorage.setItem(key, value);
+  return value;
+};
+
+export const recordTelemetryEvents = async (events: TelemetryEvent[]): Promise<void> => {
+  if (typeof window === 'undefined' || !events.length || !localStorage.getItem('token')) return;
+  const sessionId = clientId();
+  const occurredAt = new Date().toISOString();
+  await apiClient.post('/api/telemetry/events', {
+    events: events.map(event => ({
+      ...event,
+      eventId: event.eventId || (typeof window.crypto?.randomUUID === 'function'
+        ? window.crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`),
+      occurredAt: event.occurredAt || occurredAt,
+      sessionId
+    }))
+  });
+};
+
+export const recordJobInteraction = async (
+  jobId: string | number,
+  type: 'view' | 'click' | 'save' | 'dismiss' | 'apply' | 'abandon',
+  metadata?: Record<string, unknown>
+): Promise<void> => {
+  if (typeof window === 'undefined') return;
+  const token = localStorage.getItem('token');
+  if (!token) return;
+  await axios.post(
+    `${API_BASE_URL}/api/jobs/${jobId}/interactions`,
+    { type, metadata },
+    { headers: { Authorization: `Bearer ${token}` }, timeout: 5000 }
+  );
+};
+
 // Add request interceptor to include auth token
 apiClient.interceptors.request.use(
   (config) => {

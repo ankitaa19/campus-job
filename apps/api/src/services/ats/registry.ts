@@ -1,10 +1,11 @@
 import { AtsAdapter } from './types';
 import GreenhouseAdapter from './greenhouse.adapter';
+import LeverAdapter from './lever.adapter';
 import { createStubAtsAdapter } from './stub.adapter';
 
 const adapters: Record<string, AtsAdapter> = {
   greenhouse: GreenhouseAdapter,
-  lever: createStubAtsAdapter('lever'),
+  lever: LeverAdapter,
   workday: createStubAtsAdapter('workday'),
   ashby: createStubAtsAdapter('ashby'),
   smartrecruiters: createStubAtsAdapter('smartrecruiters'),

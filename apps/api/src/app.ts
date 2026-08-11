@@ -36,6 +36,8 @@ import debugRoutes from './routes/debug';
 import fileUploadRoutes from './routes/fileUpload';
 import eventRoutes from './routes/events';
 import placementRoutes from './routes/placements';
+import telemetryRoutes from './routes/telemetry';
+import privacyRoutes from './routes/privacy';
 
 import { connectDB, isDatabaseReady } from './utils/database';
 import SimpleScheduler from './services/simple-scheduler';
@@ -200,6 +202,8 @@ app.use('/api/admission-enquiries', admissionEnquiryRoutes);
 app.use('/api/recruiters', recruiterRoutes);
 app.use('/api/jobs', jobRoutes);
 app.use('/api/applications', applicationRoutes);
+app.use('/api/telemetry', telemetryRoutes);
+app.use('/api/privacy', privacyRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/student-career', studentCareerRoutes);
 app.use('/api/career-admin', careerAdminRoutes);

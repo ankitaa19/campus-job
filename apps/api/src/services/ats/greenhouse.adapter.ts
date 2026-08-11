@@ -26,6 +26,7 @@ class GreenhouseAdapter implements AtsAdapter {
     return {
       status: 'confirmed',
       provider: 'greenhouse',
+      externalApplicationId: response.data?.id ? String(response.data.id) : undefined,
       rawResponse: {
         status: response.status,
         statusText: response.statusText,

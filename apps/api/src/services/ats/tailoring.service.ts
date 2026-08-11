@@ -1,6 +1,5 @@
-import axios from 'axios';
 import { TailoredMaterials } from './types';
-import { requireOpenAIKey } from '../openai-client';
+import { callOpenAIChat, OpenAIRateLimitError } from '../openai-client';
 import { sanitizeForLog } from '../../utils/safe-logging';
 
 const compact = (value: unknown): string => String(value || '').replace(/\s+/g, ' ').trim();
@@ -8,9 +7,8 @@ const compact = (value: unknown): string => String(value || '').replace(/\s+/g, 
 class TailoringService {
   async buildMaterials(student: any, job: any): Promise<TailoredMaterials> {
     const facts = this.resumeFacts(student);
-    const openAIKey = requireOpenAIKey('application tailoring');
       try {
-        const response = await axios.post('https://api.openai.com/v1/chat/completions', {
+        const data = await callOpenAIChat<any>({
           model: process.env.OPENAI_APPLICATION_TAILORING_MODEL || process.env.OPENAI_RESUME_MODEL || 'gpt-4o-mini',
           temperature: 0,
           max_tokens: 1800,
@@ -51,12 +49,20 @@ class TailoringService {
             }
           }
         }, {
+          serviceName: 'application tailoring',
           timeout: 30000,
-          headers: { Authorization: `Bearer ${openAIKey}`, 'Content-Type': 'application/json' }
+          // A student is waiting on this submission, so absorb brief throttling
+          // instead of failing the application outright.
+          waitForCooldown: true,
+          maxCooldownWaitMs: 20_000
         });
-        const content = response.data?.choices?.[0]?.message?.content;
+        const content = data?.choices?.[0]?.message?.content;
         if (content) return this.normalizeMaterials(JSON.parse(content), facts, job);
       } catch (error) {
+        if (error instanceof OpenAIRateLimitError) {
+          console.warn(`Application tailoring deferred: ${error.message}`);
+          throw error;
+        }
         console.error('Application tailoring OpenAI call failed:', sanitizeForLog(error));
         throw new Error(`Application tailoring failed: ${error instanceof Error ? error.message : 'OpenAI request failed'}`);
       }

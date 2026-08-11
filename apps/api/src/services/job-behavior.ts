@@ -3,6 +3,7 @@ import { Job } from '../models/Job';
 import { JobInteraction, JobInteractionType } from '../models/JobInteraction';
 import { Student } from '../models/Student';
 import { canonicalSkill, normalizeTitle } from './job-intelligence';
+import ProductEventService from './product-events';
 
 const weights: Record<JobInteractionType, number> = {
   view: 0.5, click: 1, save: 2, dismiss: -3, apply: 4, abandon: -2
@@ -15,7 +16,7 @@ class JobBehaviorService {
   private pendingProfiles = new Map<string, Promise<BehaviorProfile>>();
 
   async record(userId: Types.ObjectId, jobId: Types.ObjectId, type: JobInteractionType, metadata?: Record<string, unknown>): Promise<void> {
-    const [student, job] = await Promise.all([Student.findOne({ userId }).select('_id'), Job.findById(jobId).select('industry normalizedTitle title canonicalSkills requiredSkills jobType workMode')]);
+    const [student, job] = await Promise.all([Student.findOne({ userId }).select('_id'), Job.findById(jobId).select('industry normalizedTitle title canonicalSkills requiredSkills jobType workMode sourceProvider')]);
     if (!student || !job) throw new Error('Student or job not found');
     await JobInteraction.create({
       studentId: student._id, userId, jobId, type, weight: weights[type], metadata,
@@ -24,6 +25,23 @@ class JobBehaviorService {
         skills: job.canonicalSkills?.length ? job.canonicalSkills : job.requiredSkills,
         jobType: job.jobType, workMode: job.workMode
       }
+    });
+    const eventName = {
+      view: 'job_impression',
+      click: 'job_opened',
+      save: 'job_saved',
+      dismiss: 'job_hidden',
+      apply: 'application_started',
+      abandon: 'job_hidden'
+    } as const;
+    await ProductEventService.record({
+      name: eventName[type],
+      actorUserId: userId,
+      studentId: student._id,
+      jobId,
+      sourceProvider: (job as any).sourceProvider,
+      reason: type === 'abandon' ? 'abandoned' : undefined,
+      metadata
     });
     this.cache.delete(student._id.toString());
   }

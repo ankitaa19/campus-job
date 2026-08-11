@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import { Search, MapPin, Briefcase, Calendar, Eye, X, Building, Bookmark, ChevronLeft, ChevronRight } from 'lucide-react';
 import JobDetailsModal from './JobDeatilsModal';
 import { StudentJob } from '../../types/studentJobs';
-import { apiClient, API_ENDPOINTS } from '../../utils/api';
+import { apiClient, API_ENDPOINTS, recordTelemetryEvents } from '../../utils/api';
 
 interface JobsSectionProps {
   studentInfo: any;
@@ -242,6 +242,19 @@ const JobsSection: React.FC<JobsSectionProps> = ({ studentInfo }) => {
           });
           setPublicJobs(transformedJobs);
           setTotalJobCount(Number(response.data?.total ?? response.headers?.['x-total-count'] ?? transformedJobs.length));
+          recordTelemetryEvents(transformedJobs.map((job, rank) => ({
+            name: 'job_impression',
+            jobId: job.id,
+            rank,
+            candidateSetSize: Number(response.data?.total ?? transformedJobs.length),
+            modelVersion: job.matchingModel || 'catalogue',
+            scores: {
+              ...(typeof job.matchScore === 'number' ? { match: job.matchScore / 100 } : {}),
+              ...(typeof job.ruleBasedScore === 'number' ? { rules: job.ruleBasedScore / 100 } : {}),
+              ...(typeof job.aiScore === 'number' ? { semantic: job.aiScore / 100 } : {})
+            },
+            metadata: { surface: 'student_dashboard', page: currentPage }
+          }))).catch(() => undefined);
         }
       } catch (error: any) {
         console.warn('Jobs request failed:', error?.response?.status || error?.code, error?.response?.data?.message || error?.message);
@@ -410,7 +423,7 @@ const JobsSection: React.FC<JobsSectionProps> = ({ studentInfo }) => {
       const preview = await apiClient.get('/api/jobs/auto-apply/preview-count', { params: currentFilters });
       const count = Number(preview.data?.count || 0);
       if (!count) {
-        setBulkAutoApplyError('No jobs match your auto-apply threshold and current filters.');
+        setBulkAutoApplyError(preview.data?.reason || 'No jobs match your auto-apply threshold and current filters.');
         return;
       }
       const confirmed = window.confirm(`This will submit applications to ${count.toLocaleString()} matched jobs. Continue?`);

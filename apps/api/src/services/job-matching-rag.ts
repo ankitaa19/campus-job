@@ -8,7 +8,7 @@ import { buildStudentStructuredFields } from './profile-normalization';
 import { canonicalSkill, cleanJobText, cosineSimilarity, enrichJob, freshnessCutoff } from './job-intelligence';
 import JobQueryBuilder from './job-aggregation/job-query-builder';
 import type { JobsQuery } from './job-aggregation/jobs.repository';
-import { generateCohereEmbedding, COHERE_EMBEDDING_DIMENSIONS } from './cohere-client';
+import { generateCohereEmbedding, isCohereRateLimited, COHERE_EMBEDDING_DIMENSIONS } from './cohere-client';
 import { classifyApplicationCapability } from './ats/application-capability';
 
 export interface RankedJobMatch {
@@ -30,11 +30,60 @@ export interface BulkAutoApplySelection {
   needsYouCount: number;
   unsupportedCount: number;
   totalMatchedAboveThreshold: number;
+  /** Explains an empty selection so the UI does not imply the catalogue was unsuitable. */
+  diagnostics: {
+    scanned: number;
+    threshold: number;
+    bestScore: number;
+    scoredWithoutSemantics: number;
+    withoutSkillEvidence: number;
+    semanticScoringUnavailable: boolean;
+  };
 }
 
 const normalize = (value: unknown): string => String(value || '').toLowerCase().replace(/\s+/g, ' ').trim();
 const skillSet = (values: unknown[] = []): Set<string> => new Set(values.map(canonicalSkill).map(normalize).filter(Boolean));
 const hasCohereEmbedding = (vector: unknown): vector is number[] => Array.isArray(vector) && vector.length === COHERE_EMBEDDING_DIMENSIONS;
+
+/**
+ * Runs an async mapper over a list with bounded parallelism. Embedding calls
+ * previously fanned out one request per job, which exhausted the provider's
+ * per-minute quota in a single burst.
+ */
+const mapWithConcurrency = async <TInput, TOutput>(
+  items: TInput[],
+  limit: number,
+  mapper: (item: TInput, index: number) => Promise<TOutput>
+): Promise<TOutput[]> => {
+  const results = new Array<TOutput>(items.length);
+  let cursor = 0;
+  const workers = Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, async () => {
+    while (cursor < items.length) {
+      const index = cursor;
+      cursor += 1;
+      results[index] = await mapper(items[index], index);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+};
+
+interface EmbeddingBudget {
+  remaining: number;
+}
+
+export type ScoringMode = 'semantic' | 'skill_only' | 'no_evidence';
+
+/**
+ * Skill overlap for a job whose requirements could not be extracted. Treating
+ * that as a perfect match previously produced 100% scores for unrelated roles,
+ * so absent evidence is reported explicitly instead of as agreement.
+ */
+const skillOverlap = (resumeSkills: Set<string>, jobSkills: string[]): { ratio: number; matched: string[]; hasEvidence: boolean } => {
+  const matched = jobSkills.filter(skill => resumeSkills.has(skill));
+  if (!jobSkills.length) return { ratio: 0, matched, hasEvidence: false };
+  return { ratio: matched.length / jobSkills.length, matched, hasEvidence: true };
+};
 
 class JobMatchingRagService {
   private readonly embeddingWeight = 0.7;
@@ -68,7 +117,11 @@ class JobMatchingRagService {
     }));
   }
 
-  async annotateJobsForUser(userId: string | Types.ObjectId, jobs: any[]): Promise<any[]> {
+  async annotateJobsForUser(
+    userId: string | Types.ObjectId,
+    jobs: any[],
+    options: { embeddingBudget?: EmbeddingBudget } = {}
+  ): Promise<any[]> {
     if (!jobs.length) return jobs;
     const objectUserId = new Types.ObjectId(userId);
     const student = await Student.findOne({ userId: objectUserId }).select('+profileFeatureVector').lean();
@@ -87,7 +140,13 @@ class JobMatchingRagService {
     const matchByJobId = new Map(existingMatches.map(match => [String(match.jobId), match]));
     const writes: any[] = [];
 
-    const annotated = await Promise.all(jobs.map(async job => {
+    // Jobs missing a cached vector are embedded only within the caller's budget;
+    // the rest score on skills so one request cannot drain the provider quota.
+    const embeddingBudget = options.embeddingBudget
+      || { remaining: Math.max(0, Number(process.env.MATCH_EMBEDDING_BUDGET_PER_REQUEST || 12)) };
+    const concurrency = Math.max(1, Math.min(8, Number(process.env.MATCH_EMBEDDING_CONCURRENCY || 4)));
+
+    const annotated = await mapWithConcurrency(jobs, concurrency, async job => {
       const cached = matchByJobId.get(String(job._id));
       if (cached) {
         return {
@@ -100,7 +159,7 @@ class JobMatchingRagService {
         };
       }
 
-      const computed = await this.computeDisplayScore(refreshedStudent, job);
+      const computed = await this.computeDisplayScore(refreshedStudent, job, embeddingBudget);
       if (!computed) return job;
       writes.push({
         updateOne: {
@@ -128,7 +187,7 @@ class JobMatchingRagService {
         skillOverlapRatio: computed.skillOverlapRatio,
         matchedSkills: computed.matchedSkills
       };
-    }));
+    });
 
     if (writes.length) {
       JobMatch.bulkWrite(writes, { ordered: false }).catch(error => {
@@ -152,24 +211,81 @@ class JobMatchingRagService {
       .limit(10000)
       .lean();
 
+    const student = await Student.findOne({ userId: objectUserId }).select('+profileFeatureVector').lean();
+    if (!student) throw new Error('Student profile not found');
+    const scoringStudent = await this.buildScoringStudent(student);
+    const resumeSkills = skillSet([
+      ...(scoringStudent.skills || []).map((item: any) => typeof item === 'string' ? item : item?.name),
+      ...(scoringStudent.resumeAnalysis?.skills || [])
+    ]);
+
+    // Rank on cached data first so the embedding budget is spent on the
+    // strongest candidates instead of whichever jobs happen to be newest.
+    const prescored = jobs.map(job => {
+      const jobSkills = [...skillSet([
+        ...(job.requiredSkills || []),
+        ...(job.canonicalSkills || []),
+        ...(job.requirements || []).map((item: any) => item?.skill)
+      ])];
+      const overlap = skillOverlap(resumeSkills, jobSkills);
+      return { job, overlap, hasCachedVector: hasCohereEmbedding((job as any).featureVector) };
+    });
+    const withoutSkillEvidence = prescored.filter(item => !item.overlap.hasEvidence).length;
+    const candidates = prescored
+      .filter(item => item.overlap.hasEvidence && item.overlap.ratio > 0)
+      .sort((left, right) => (Number(right.hasCachedVector) - Number(left.hasCachedVector)) || (right.overlap.ratio - left.overlap.ratio));
+
+    const embeddingBudget: EmbeddingBudget = {
+      remaining: Math.max(0, Number(process.env.BULK_AUTO_APPLY_EMBEDDING_BUDGET || 25))
+    };
+    const concurrency = Math.max(1, Math.min(8, Number(process.env.MATCH_EMBEDDING_CONCURRENCY || 4)));
+    const considered = candidates.slice(0, Math.max(0, Number(process.env.BULK_AUTO_APPLY_MAX_CANDIDATES || 500)));
+
     const matched: BulkMatchedJob[] = [];
     let needsYouCount = 0;
     let unsupportedCount = 0;
     let totalMatchedAboveThreshold = 0;
-    const chunkSize = 100;
-    for (let index = 0; index < jobs.length; index += chunkSize) {
-      const annotated = await this.annotateJobsForUser(objectUserId, jobs.slice(index, index + chunkSize));
-      annotated.forEach(job => {
-        const score = Number(job.score ?? (Number(job.matchScore) / 100));
-        if (!Number.isFinite(score) || score < threshold) return;
+    let scoredWithoutSemantics = 0;
+    let bestScore = 0;
+
+    const scored = await mapWithConcurrency(considered, concurrency, async candidate => ({
+      job: candidate.job,
+      result: await this.computeDisplayScore(scoringStudent, candidate.job, embeddingBudget)
+    }));
+
+    scored.forEach(({ job, result }) => {
+      if (!result) return;
+      if (result.scoringMode !== 'semantic') scoredWithoutSemantics += 1;
+      bestScore = Math.max(bestScore, result.score);
+      if (result.score < threshold) return;
+      // Auto Apply submits real applications, so it requires semantic evidence
+      // rather than skill-string overlap alone.
+      if (result.scoringMode !== 'semantic') {
+        needsYouCount += 1;
         totalMatchedAboveThreshold += 1;
-        const capability = classifyApplicationCapability(job);
-        if (capability === 'auto_apply') matched.push({ job, score });
-        if (capability === 'needs_you') needsYouCount += 1;
-        if (capability === 'unsupported') unsupportedCount += 1;
-      });
-    }
-    return { matches: matched, needsYouCount, unsupportedCount, totalMatchedAboveThreshold };
+        return;
+      }
+      totalMatchedAboveThreshold += 1;
+      const capability = classifyApplicationCapability(job);
+      if (capability === 'auto_apply') matched.push({ job, score: result.score });
+      if (capability === 'needs_you') needsYouCount += 1;
+      if (capability === 'unsupported') unsupportedCount += 1;
+    });
+
+    return {
+      matches: matched,
+      needsYouCount,
+      unsupportedCount,
+      totalMatchedAboveThreshold,
+      diagnostics: {
+        scanned: jobs.length,
+        threshold,
+        bestScore: Math.round(bestScore * 10000) / 10000,
+        scoredWithoutSemantics,
+        withoutSkillEvidence,
+        semanticScoringUnavailable: isCohereRateLimited() || !hasCohereEmbedding(scoringStudent.profileFeatureVector)
+      }
+    };
   }
 
   async findBulkAutoApplyMatches(userId: string | Types.ObjectId, filters: JobsQuery = {}): Promise<BulkMatchedJob[]> {
@@ -183,9 +299,15 @@ class JobMatchingRagService {
       : [];
     if (!profileFeatureVector.length) {
       try {
-        profileFeatureVector = await generateCohereEmbedding(this.resumeEmbeddingText(student, structured), 'search_query', 'resume profile embedding');
-      } catch (error) {
-        console.warn('Cohere resume embedding unavailable; using skill-only matching:', error instanceof Error ? error.message : error);
+        // One call per student, so it may briefly wait out a cooldown.
+        profileFeatureVector = await generateCohereEmbedding(this.resumeEmbeddingText(student, structured), 'search_query', {
+          serviceName: 'resume profile embedding',
+          waitForCooldown: true,
+          maxCooldownWaitMs: 5_000
+        });
+      } catch {
+        // Throttling is reported by the Cohere client; matching falls back to
+        // skill overlap until the profile vector can be built.
       }
     }
     return {
@@ -232,17 +354,22 @@ class JobMatchingRagService {
 
     const operations: any[] = [];
     const hasStudentEmbedding = hasCohereEmbedding(student.profileFeatureVector);
-    const scored = await Promise.all(jobs.map(async job => {
+    const embeddingBudget: EmbeddingBudget = {
+      remaining: Math.max(0, Number(process.env.MATCH_EMBEDDING_BUDGET_PER_REQUEST || 12))
+    };
+    const concurrency = Math.max(1, Math.min(8, Number(process.env.MATCH_EMBEDDING_CONCURRENCY || 4)));
+    const scored = await mapWithConcurrency(jobs, concurrency, async job => {
       if (!hasStudentEmbedding) return { ...job, embeddingSimilarity: 0 };
       try {
-        const { vector, update } = await this.ensureJobEmbedding(job);
+        const { vector, update } = await this.ensureJobEmbedding(job, embeddingBudget);
+        if (!vector.length) return { ...job, embeddingSimilarity: 0 };
         if (update) operations.push({ updateOne: { filter: { _id: job._id }, update: { $set: update } } });
         return { ...job, featureVector: vector, embeddingSimilarity: cosineSimilarity(student.profileFeatureVector, vector) };
-      } catch (error) {
-        console.warn('Cohere job embedding unavailable; using skill-only candidate scoring:', error instanceof Error ? error.message : error);
+      } catch {
+        // Rate limits and provider faults are reported by the Cohere client.
         return { ...job, embeddingSimilarity: 0 };
       }
-    }));
+    });
 
     if (operations.length) {
       await Job.bulkWrite(operations, { ordered: false });
@@ -264,8 +391,7 @@ class JobMatchingRagService {
       ...(job.canonicalSkills || []),
       ...(job.requirements || []).map((item: any) => item?.skill)
     ])];
-    const matchedSkills = jobSkills.filter(skill => resumeSkills.has(skill));
-    const skillOverlapRatio = jobSkills.length ? matchedSkills.length / jobSkills.length : 1;
+    const { ratio: skillOverlapRatio, matched: matchedSkills } = skillOverlap(resumeSkills, jobSkills);
     const embeddingSimilarity = Math.max(0, Math.min(1, Number(job.embeddingSimilarity || 0)));
     const score = Math.round((hasCohereEmbedding(student.profileFeatureVector)
       ? ((embeddingSimilarity * this.embeddingWeight) + (skillOverlapRatio * this.skillWeight))
@@ -282,12 +408,12 @@ class JobMatchingRagService {
     };
   }
 
-  private async computeDisplayScore(student: any, job: any) {
+  private async computeDisplayScore(student: any, job: any, embeddingBudget?: EmbeddingBudget) {
     let vector: number[] = [];
     let update: Record<string, unknown> | undefined;
     if (hasCohereEmbedding(student.profileFeatureVector)) {
       try {
-        const ensured = await this.ensureJobEmbedding(job);
+        const ensured = await this.ensureJobEmbedding(job, embeddingBudget);
         vector = ensured.vector;
         update = ensured.update;
         if (update) {
@@ -295,8 +421,9 @@ class JobMatchingRagService {
             console.warn('Skipping job embedding cache update:', error instanceof Error ? error.message : error);
           });
         }
-      } catch (error) {
-        console.warn('Cohere job embedding unavailable for display score; using skill-only score:', error instanceof Error ? error.message : error);
+      } catch {
+        // The Cohere client reports throttling once per window; scoring
+        // continues on skill overlap alone.
       }
     }
     const resumeSkills = skillSet([
@@ -308,14 +435,16 @@ class JobMatchingRagService {
       ...(job.canonicalSkills || []),
       ...(job.requirements || []).map((item: any) => item?.skill)
     ])];
-    const matchedSkills = jobSkills.filter(skill => resumeSkills.has(skill));
-    const skillOverlapRatio = jobSkills.length ? matchedSkills.length / jobSkills.length : 1;
+    const { ratio: skillOverlapRatio, matched: matchedSkills, hasEvidence } = skillOverlap(resumeSkills, jobSkills);
     const embeddingSimilarity = vector.length ? Math.max(0, Math.min(1, cosineSimilarity(student.profileFeatureVector, vector))) : 0;
-    const score = Math.round((vector.length
+    const scoringMode: ScoringMode = vector.length ? 'semantic' : hasEvidence ? 'skill_only' : 'no_evidence';
+    // Scores from different modes are not interchangeable, so the mode travels
+    // with the score and consumers threshold accordingly.
+    const score = Math.round((scoringMode === 'semantic'
       ? ((embeddingSimilarity * this.embeddingWeight) + (skillOverlapRatio * this.skillWeight))
       : skillOverlapRatio
     ) * 10000) / 10000;
-    return { score, embeddingSimilarity, skillOverlapRatio, matchedSkills };
+    return { score, embeddingSimilarity, skillOverlapRatio, matchedSkills, scoringMode };
   }
 
   private resumeEmbeddingText(student: any, structured: any): string {
@@ -343,8 +472,17 @@ class JobMatchingRagService {
     ].join('\n').replace(/\s+/g, ' ').trim();
   }
 
-  private async ensureJobEmbedding(job: any): Promise<{ vector: number[]; update?: Record<string, unknown> }> {
+  /**
+   * Returns the cached vector when present. Generating a new one consumes the
+   * caller's budget, so a large scan degrades to skill-only scoring instead of
+   * issuing thousands of embedding calls.
+   */
+  private async ensureJobEmbedding(job: any, embeddingBudget?: EmbeddingBudget): Promise<{ vector: number[]; update?: Record<string, unknown> }> {
     if (hasCohereEmbedding(job.featureVector)) return { vector: job.featureVector };
+    if (embeddingBudget) {
+      if (embeddingBudget.remaining <= 0 || isCohereRateLimited()) return { vector: [] };
+      embeddingBudget.remaining -= 1;
+    }
     const intelligence = enrichJob(job);
     const vector = await generateCohereEmbedding(this.jobEmbeddingText(job, intelligence), 'search_document', 'job embedding');
     return { vector, update: { ...intelligence, featureVector: vector } };

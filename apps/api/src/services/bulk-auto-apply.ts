@@ -5,7 +5,7 @@ import { BulkAutoApplyRun } from '../models/BulkAutoApplyRun';
 import { BulkAutoApplyTask, BulkAutoApplyTaskStatus } from '../models/BulkAutoApplyTask';
 import AutoApplyService from './auto-apply';
 import ApplicationSubmissionService from './application-submission';
-import JobMatchingRagService from './job-matching-rag';
+import JobMatchingRagService, { BulkAutoApplySelection } from './job-matching-rag';
 import type { JobsQuery } from './job-aggregation/jobs.repository';
 import { createRedisConnection } from './redis-client';
 import { checkOpenAIHealth } from './openai-client';
@@ -60,6 +60,7 @@ const failureReasonFromError = (message: string): string => {
   if (/not implemented/i.test(message)) return 'unsupported_ats';
   if (/duplicate|E11000/i.test(message)) return 'already_applied';
   if (/complete your profile|missing/i.test(message)) return 'profile_incomplete';
+  if (/rate limit/i.test(message)) return 'rate_limited';
   return 'ats_submission_failed';
 };
 
@@ -81,7 +82,12 @@ class BulkAutoApplyService {
     }
 
     try {
-      await checkCohereHealth();
+      // Throttling still allows matching to proceed on skill overlap, so it
+      // must not block starting the run.
+      const status = await checkCohereHealth();
+      if (status === 'rate_limited') {
+        console.warn('⚠️  Starting bulk auto-apply while Cohere is rate limited; jobs without cached embeddings score on skill overlap.');
+      }
     } catch (error) {
       throw new BulkAutoApplyStartDependencyError(
         'BULK_AUTO_APPLY_COHERE_UNAVAILABLE',
@@ -91,7 +97,12 @@ class BulkAutoApplyService {
     }
 
     try {
-      await checkOpenAIHealth();
+      // A rate-limited key is reachable and valid. Tasks are queued and retried
+      // by the worker, so throttling must not block starting the run.
+      const status = await checkOpenAIHealth();
+      if (status === 'rate_limited') {
+        console.warn('⚠️  Starting bulk auto-apply while OpenAI is rate limited; tasks will retry as quota frees up.');
+      }
     } catch (error) {
       throw new BulkAutoApplyStartDependencyError(
         'BULK_AUTO_APPLY_OPENAI_UNAVAILABLE',
@@ -107,8 +118,25 @@ class BulkAutoApplyService {
       count: selection.matches.length,
       needsYouCount: selection.needsYouCount,
       unsupportedCount: selection.unsupportedCount,
-      totalMatchedAboveThreshold: selection.totalMatchedAboveThreshold
+      totalMatchedAboveThreshold: selection.totalMatchedAboveThreshold,
+      diagnostics: selection.diagnostics,
+      reason: selection.matches.length ? undefined : this.emptySelectionReason(selection)
     };
+  }
+
+  /** Explains an empty preview so students are not told the catalogue is unsuitable. */
+  private emptySelectionReason(selection: BulkAutoApplySelection): string {
+    const { threshold, bestScore, semanticScoringUnavailable, scoredWithoutSemantics, scanned } = selection.diagnostics;
+    if (!scanned) return 'No open jobs matched the current filters.';
+    if (semanticScoringUnavailable || scoredWithoutSemantics) {
+      return 'AI matching is still catching up on these jobs, so Auto Apply cannot confirm a strong match yet. Please try again shortly.';
+    }
+    if (selection.needsYouCount || selection.unsupportedCount) {
+      return 'Matching jobs were found, but their applications need you to complete a step manually.';
+    }
+    const thresholdPercent = Math.round(threshold * 100);
+    const bestPercent = Math.round(bestScore * 100);
+    return `No jobs reached your ${thresholdPercent}% Auto Apply threshold (best match was ${bestPercent}%). Lower the threshold in settings to include more jobs.`;
   }
 
   async createRun(userId: string | Types.ObjectId, filters: JobsQuery = {}) {
@@ -385,11 +413,17 @@ class BulkAutoApplyService {
       const application = existingApplication?.status === 'queued'
         ? await ApplicationSubmissionService.submitQueuedApplication(existingApplication._id)
         : (await AutoApplyService.handleMatchedJob(task.userId, task.jobId, task.score)).application as any;
-      const taskStatus = application?.status === 'pending_review' ? 'pending_review' : 'succeeded';
+      const taskStatus: BulkAutoApplyTaskStatus = application?.status === 'pending_review'
+        ? 'pending_review'
+        : application?.status === 'failed'
+          ? 'failed'
+          : 'succeeded';
       await BulkAutoApplyTask.findByIdAndUpdate(task._id, {
         $set: {
           status: taskStatus,
           applicationId: application?._id,
+          failureReason: taskStatus === 'failed' ? (application?.failureReason || 'ats_submission_failed') : undefined,
+          errorMessage: taskStatus === 'failed' ? application?.atsResponseRaw?.error : undefined,
           completedAt: new Date()
         }
       });
@@ -397,6 +431,15 @@ class BulkAutoApplyService {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const failureReason = failureReasonFromError(message);
+      if (failureReason === 'rate_limited') {
+        // Leave the task pending so BullMQ retries it once quota recovers; the
+        // Application stays queued and is never marked permanently failed.
+        await BulkAutoApplyTask.findByIdAndUpdate(task._id, {
+          $set: { status: 'pending', failureReason, errorMessage: message },
+          $unset: { completedAt: 1 }
+        });
+        throw error;
+      }
       const application = await Application.findOne({ userId: task.userId, jobId: task.jobId }).sort({ createdAt: -1 });
       if (application && application.status !== 'failed' && failureReason === 'unsupported_ats') {
         await Application.findByIdAndUpdate(application._id, {

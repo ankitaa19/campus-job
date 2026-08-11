@@ -153,7 +153,7 @@ describe('BulkAutoApplyService', () => {
 
   test('unsupported ATS jobs are marked failed, not submitted', async () => {
     const user = await createUserAndStudent('unsupported@example.com');
-    const job = await createJob({ atsPlatform: 'workday' });
+    const job = await createJob({ atsPlatform: 'other', sourceProvider: 'other' });
     const { run, task } = await createRunAndTask(user, job);
 
     await processTask(run, task, user, job._id);
@@ -227,11 +227,12 @@ describe('BulkAutoApplyService', () => {
     expect(completedTask?.status).toBe('succeeded');
   });
 
-  test('remaining tasks can be processed after a simulated worker restart and counters stay accurate', async () => {
+  test('remaining needs-you tasks can be processed after a simulated worker restart and counters stay accurate', async () => {
     const user = await createUserAndStudent('restart@example.com');
     const jobs = await Promise.all(Array.from({ length: 5 }, (_, index) => createJob({
       title: `Frontend Engineer ${index}`,
-      atsPlatform: 'workday'
+      atsPlatform: 'workday',
+      sourceProvider: 'workday'
     })));
     const { run, tasks } = await createRunAndTasks(user, jobs);
 
@@ -245,9 +246,10 @@ describe('BulkAutoApplyService', () => {
     const completedRun = await BulkAutoApplyRun.findById(run._id);
     expect(completedRun?.status).toBe('completed');
     expect(completedRun?.processedCount).toBe(5);
-    expect(completedRun?.failedCount).toBe(5);
-    expect(completedRun?.unsupportedAtsCount).toBe(5);
-    expect(await BulkAutoApplyTask.countDocuments({ runId: run._id, status: 'failed' })).toBe(5);
+    expect(completedRun?.pendingReviewCount).toBe(5);
+    expect(completedRun?.failedCount).toBe(0);
+    expect(completedRun?.unsupportedAtsCount).toBe(0);
+    expect(await BulkAutoApplyTask.countDocuments({ runId: run._id, status: 'pending_review' })).toBe(5);
   });
 
   test('processing the same task twice does not create duplicate Applications or double-count the run', async () => {

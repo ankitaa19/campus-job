@@ -1,6 +1,5 @@
-import axios from 'axios';
 import { JobDto } from './types';
-import { requireOpenAIKey } from '../openai-client';
+import { callOpenAIChat, OpenAIRateLimitError } from '../openai-client';
 import { sanitizeForLog } from '../../utils/safe-logging';
 
 interface AIJobFields {
@@ -30,21 +29,27 @@ const extractJson = (value: string): AIJobFields => {
 
 class AIJobNormalizer {
   private disabledUntil = 0;
+  private lastSkipLogAt = 0;
+  private skippedSinceLastLog = 0;
 
   isEnabled(): boolean {
     return process.env.AI_JOB_ENRICHMENT_ENABLED !== 'false' && Date.now() >= this.disabledUntil;
+  }
+
+  /** Re-enables enrichment immediately, e.g. after quota or credentials change. */
+  resetRateLimitState(): void {
+    this.disabledUntil = 0;
+    this.lastSkipLogAt = 0;
+    this.skippedSinceLastLog = 0;
   }
 
   async enrich(job: JobDto): Promise<JobDto> {
     if (!this.isEnabled()) return job;
     try {
       const prompt = `Extract factual job information from the posting. Do not invent missing facts. Skills must include technologies, tools, methodologies, domain skills and explicitly required soft skills. Use 0 when experience is not stated.\n\nTitle: ${job.title}\nCompany: ${job.companyName}\nProvider location/work mode: ${JSON.stringify(job.locations)} / ${job.workMode}\nDescription:\n${job.description.slice(0, 14000)}`;
-      const openAIKey = requireOpenAIKey('job description extraction');
-      let response: any;
-      let lastError: unknown;
       let responseText = '';
-      try {
-        response = await axios.post('https://api.openai.com/v1/chat/completions', {
+      {
+        const data = await callOpenAIChat<any>({
           model: process.env.OPENAI_JOB_NORMALIZATION_MODEL || 'gpt-4o-mini',
           temperature: 0,
           max_tokens: 900,
@@ -67,13 +72,15 @@ class AIJobNormalizer {
               }
             }
           }
-        }, { timeout: 30000, headers: { Authorization: `Bearer ${openAIKey}`, 'Content-Type': 'application/json' } });
-        responseText = response.data?.choices?.[0]?.message?.content || '';
-      } catch (error) {
-        lastError = error;
-        console.error('Job description extraction OpenAI call failed:', sanitizeForLog(error));
+        }, {
+          serviceName: 'job description extraction',
+          timeout: 30000,
+          // Enrichment is a background best-effort pass, so it yields the key's
+          // remaining quota to student-facing requests instead of queueing.
+          waitForCooldown: false
+        });
+        responseText = data?.choices?.[0]?.message?.content || '';
       }
-      if (!response) throw lastError || new Error('OpenAI job description extraction failed');
       if (!responseText) return job;
       const fields = extractJson(responseText);
       const aiSkills = cleanList(fields.skills);
@@ -110,9 +117,24 @@ class AIJobNormalizer {
     } catch (error) {
       const status = Number((error as any)?.response?.status || 0);
       if ([400, 401, 402, 403].includes(status)) this.disabledUntil = Date.now() + 15 * 60 * 1000;
-      console.warn(`AI job enrichment skipped for ${job.sourceProvider}:${job.sourceExternalId}:`, error instanceof Error ? error.message : error);
+      if (error instanceof OpenAIRateLimitError) {
+        // Pause enrichment for the whole sync rather than retrying per job, and
+        // report the throttling once per window instead of once per posting.
+        this.disabledUntil = Math.max(this.disabledUntil, Date.now() + error.retryAfterMs);
+        this.reportRateLimit(error.retryAfterMs);
+        return job;
+      }
+      console.warn(`AI job enrichment skipped for ${job.sourceProvider}:${job.sourceExternalId}:`, sanitizeForLog(error instanceof Error ? error.message : error));
       return job;
     }
+  }
+
+  private reportRateLimit(retryAfterMs: number): void {
+    this.skippedSinceLastLog += 1;
+    if (Date.now() - this.lastSkipLogAt < 60_000) return;
+    console.warn(`⚠️  OpenAI rate limit reached; AI job enrichment paused for ${Math.ceil(retryAfterMs / 1000)}s (${this.skippedSinceLastLog} posting(s) kept provider-normalized data).`);
+    this.lastSkipLogAt = Date.now();
+    this.skippedSinceLastLog = 0;
   }
 }
 

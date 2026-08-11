@@ -7,6 +7,7 @@ import authMiddleware from '../middleware/auth';
 import { checkRecruiterAccess } from '../middleware/entityAccess';
 import { sendApplicationStatusNotification } from '../services/notifications';
 import ApplicationSubmissionService from '../services/application-submission';
+import ProductEventService from '../services/product-events';
 
 const router = express.Router();
 
@@ -73,6 +74,43 @@ router.post('/:applicationId/approve', authMiddleware, async (req: any, res: any
     }
 });
 
+router.post('/:applicationId/resolve-intervention', authMiddleware, async (req: any, res: any) => {
+    try {
+        const userId = req.user?._id || req.user?.userId;
+        const application = await Application.findOne({ _id: req.params.applicationId, userId });
+        if (!application) return res.status(404).json({ success: false, message: 'Application not found' });
+        if (!['needs_user_input', 'needs_authentication', 'needs_assessment', 'needs_document', 'awaiting_user_consent'].includes(application.workflowState)) {
+            return res.status(400).json({ success: false, message: 'Application is not waiting for user intervention' });
+        }
+
+        application.status = 'queued';
+        application.workflowState = 'queued';
+        application.intervention = {
+            ...(application.intervention as any),
+            resolvedAt: new Date()
+        };
+        application.submittedFieldsJson = {
+            ...(application.submittedFieldsJson || {}),
+            userProvidedFields: req.body?.fields || {},
+            interventionResolvedAt: new Date()
+        };
+        await application.save();
+        await ProductEventService.record({
+            name: 'application_resumed',
+            actorUserId: userId,
+            studentId: application.studentId,
+            jobId: application.jobId,
+            applicationId: application._id,
+            sourceProvider: application.sourcePlatform
+        });
+        const submitted = await ApplicationSubmissionService.submitQueuedApplication(application._id);
+        return res.json({ success: true, data: submitted });
+    } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to resume application';
+        return res.status(500).json({ success: false, message });
+    }
+});
+
 // Route to get all applications for a recruiter across all their jobs
 router.get('/my-applications', authMiddleware, checkRecruiterAccess, async (req: any, res: any) => {
     try {
@@ -111,6 +149,10 @@ router.patch('/:applicationId/status', authMiddleware, checkRecruiterAccess, asy
         if (!userId) {
             return res.status(401).json({ message: 'Unauthorized' });
         }
+        const allowedStatuses = ['applied', 'screening', 'shortlisted', 'interview_scheduled', 'interview_completed', 'selected', 'rejected', 'withdrawn'];
+        if (!allowedStatuses.includes(status)) {
+            return res.status(400).json({ message: 'Invalid application status' });
+        }
         
         // Find recruiter first
         const { Recruiter } = require('../models/Recruiter');
@@ -137,6 +179,23 @@ router.patch('/:applicationId/status', authMiddleware, checkRecruiterAccess, asy
             notes: `Status updated to ${status}`
         });
         await application.save();
+        const eventNameByStatus: Record<string, any> = {
+            shortlisted: 'employer_shortlisted',
+            interview_scheduled: 'interview_scheduled',
+            selected: 'offer_received',
+            rejected: 'employer_rejected',
+            withdrawn: 'user_withdrew'
+        };
+        if (eventNameByStatus[status]) {
+            await ProductEventService.record({
+                name: eventNameByStatus[status],
+                actorUserId: userId,
+                studentId: application.studentId,
+                jobId: application.jobId,
+                applicationId: application._id,
+                sourceProvider: application.sourcePlatform
+            });
+        }
 
         try {
             const studentRecord = await Student.findById(application.studentId).populate('userId', '_id');
