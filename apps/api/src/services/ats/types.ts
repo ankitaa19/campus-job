@@ -8,8 +8,18 @@ export interface TailoredMaterials {
 export interface AtsSubmissionReceipt {
   status: 'submitted' | 'confirmed' | 'failed';
   provider: string;
+  externalApplicationId?: string;
   rawResponse?: Record<string, unknown>;
   submittedFields: Record<string, unknown>;
+}
+
+export interface AtsApplicationSchema {
+  capability: 'auto_apply' | 'needs_you' | 'unsupported';
+  requiredFields: string[];
+  reasons: string[];
+  requiresAuthentication?: boolean;
+  requiresAssessment?: boolean;
+  requiresCaptcha?: boolean;
 }
 
 export interface AtsSubmitContext {
@@ -21,6 +31,7 @@ export interface AtsSubmitContext {
 }
 
 export interface AtsAdapter {
+  inspectApplication?(job: any): Promise<AtsApplicationSchema>;
   submitApplication(context: AtsSubmitContext): Promise<AtsSubmissionReceipt>;
 }
 

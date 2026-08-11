@@ -41,6 +41,7 @@ import BulkAutoApplyService, { BulkAutoApplyStartDependencyError } from '../serv
 import { MATCH_VISIBILITY_THRESHOLD } from '../services/hybrid-resume-matching';
 import { sanitizeForLog } from '../utils/safe-logging';
 import { withApplicationCapability } from '../services/ats/application-capability';
+import ProductEventService from '../services/product-events';
 import axios from 'axios';
 
 const router = express.Router();
@@ -222,25 +223,43 @@ router.get('/recommendations', authMiddleware, async (req: any, res: any) => {
         const { filter: recommendationFilter, sort } = JobQueryBuilder.build(req.query, true);
         const jobs = await Job.find({ ...recommendationFilter, _id: { $in: jobIds }, postedAt: { $gte: freshnessCutoff() } }).sort(sort).lean();
         const matchesByJobId = new Map(result.matches.map((match: any) => [match.jobId.toString(), match]));
+        const recommendationData = jobs.map((job: any) => {
+            const match: any = matchesByJobId.get(job._id.toString());
+            if (!match) return null;
+            return {
+                ...job,
+                matchScore: match.displayMatchScore,
+                matchedSkills: match.skillsMatched,
+                skillsGap: match.skillsGap,
+                matchingModel: match.matchingModel,
+                ruleBasedScore: match.ruleBasedScore,
+                aiScore: match.aiScore,
+                behaviorAdjustment: match.behaviorAdjustment,
+                scoreBreakdown: match.scoreBreakdown,
+                atsEvaluation: match.atsEvaluation
+            };
+        }).filter(Boolean);
+        ProductEventService.recordMany(recommendationData.map((job: any, rank: number) => ({
+            name: 'recommendation_generated',
+            actorUserId: req.user?._id || req.user?.userId,
+            studentId: student._id,
+            jobId: job._id,
+            sessionId: String(req.get('x-session-id') || ''),
+            modelVersion: job.matchingModel || 'hybrid-local-v2',
+            rank,
+            candidateSetSize: result.totalJobs,
+            scores: {
+                match: Number(job.matchScore || 0) / 100,
+                rules: Number(job.ruleBasedScore || 0) / 100,
+                semantic: Number(job.aiScore || 0) / 100
+            },
+            jobVersion: String(job.normalizationVersion || 1),
+            sourceProvider: job.sourceProvider
+        }))).catch(() => undefined);
         return res.json({
             success: true,
             minimumScore,
-            data: jobs.map((job: any) => {
-                const match: any = matchesByJobId.get(job._id.toString());
-                if (!match) return null;
-                return {
-                    ...job,
-                    matchScore: match.displayMatchScore,
-                    matchedSkills: match.skillsMatched,
-                    skillsGap: match.skillsGap,
-                    matchingModel: match.matchingModel,
-                    ruleBasedScore: match.ruleBasedScore,
-                    aiScore: match.aiScore,
-                    behaviorAdjustment: match.behaviorAdjustment,
-                    scoreBreakdown: match.scoreBreakdown,
-                    atsEvaluation: match.atsEvaluation
-                };
-            }).filter(Boolean)
+            data: recommendationData
         });
     } catch (error) {
         console.error('Error fetching recommendations:', error);

@@ -1,10 +1,13 @@
+import crypto from 'crypto';
 import { Types } from 'mongoose';
 import { Application } from '../models/Application';
+import { ConsentRecord } from '../models/ConsentRecord';
 import { Job } from '../models/Job';
 import { Student } from '../models/Student';
 import { User } from '../models/User';
 import TailoringService from './ats/tailoring.service';
 import { getAtsAdapter } from './ats/registry';
+import ProductEventService from './product-events';
 
 class ApplicationSubmissionService {
   async createQueuedApplication(userId: string | Types.ObjectId, jobId: string | Types.ObjectId, matchScore?: number) {
@@ -43,6 +46,7 @@ class ApplicationSubmissionService {
     await Application.findByIdAndUpdate(application._id, {
       $set: {
         status: 'queued',
+        workflowState: 'queued',
         submittedFieldsJson: {
           ...(application.submittedFieldsJson || {}),
           approvedAt: new Date(),
@@ -72,6 +76,11 @@ class ApplicationSubmissionService {
     this.assertProfileReady(student, user);
 
     const linkedRecruiterId = (job.recruiterId as any)?._id || job.recruiterId || null;
+    await this.assertConsent(objectUserId, status === 'queued');
+    const idempotencyKey = crypto
+      .createHash('sha256')
+      .update(`${objectUserId}:${objectJobId}:v1`)
+      .digest('hex');
     const application = new Application({
       userId: objectUserId,
       studentId: student._id,
@@ -86,6 +95,8 @@ class ApplicationSubmissionService {
       },
       sourcePlatform: job.atsPlatform || job.sourceProvider || job.source || 'campuspe',
       status,
+      workflowState: status === 'queued' ? 'queued' : 'ready_for_review',
+      idempotencyKey,
       submittedVia: 'this_portal',
       submissionChannel: 'campuspe',
       employerDeliveryStatus: linkedRecruiterId ? 'delivered_to_campuspe_employer' : 'awaiting_employer_connection',
@@ -112,7 +123,17 @@ class ApplicationSubmissionService {
       emailNotificationSent: false,
       recruiterViewed: false
     });
-    return application.save();
+    const saved = await application.save();
+    await ProductEventService.record({
+      name: 'application_started',
+      actorUserId: objectUserId,
+      studentId: student._id,
+      jobId: job._id,
+      applicationId: saved._id,
+      scores: matchScore === undefined ? undefined : { match: matchScore },
+      sourceProvider: job.atsPlatform || job.sourceProvider
+    });
+    return saved;
   }
 
   private assertProfileReady(student: any, user?: any) {
@@ -148,6 +169,35 @@ class ApplicationSubmissionService {
     if (!user) throw new Error('User not found');
 
     this.assertProfileReady(student, user);
+    await this.assertConsent(user._id, true);
+    const adapter = getAtsAdapter(job.atsPlatform || 'other');
+    const schema = await adapter.inspectApplication?.(job);
+    if (schema && schema.capability !== 'auto_apply') {
+      const workflowState = schema.capability === 'unsupported' ? 'unsupported' : 'needs_user_input';
+      const paused = await Application.findByIdAndUpdate(application._id, {
+        $set: {
+          status: schema.capability === 'unsupported' ? 'failed' : 'pending_review',
+          workflowState,
+          failureReason: schema.capability === 'unsupported' ? 'unsupported_ats' : undefined,
+          intervention: {
+            type: 'user_input',
+            reason: schema.reasons.join(',') || 'Application requires user input',
+            requiredFields: schema.requiredFields,
+            createdAt: new Date()
+          }
+        }
+      }, { new: true });
+      await ProductEventService.record({
+        name: 'application_paused',
+        actorUserId: user._id,
+        studentId: student._id,
+        jobId: job._id,
+        applicationId: application._id,
+        sourceProvider: job.atsPlatform || job.sourceProvider,
+        reason: schema.reasons.join(',')
+      });
+      return paused;
+    }
     const materials = await TailoringService.buildMaterials(student, job);
     const submittedFieldsJson = {
       ...(application.submittedFieldsJson || {}),
@@ -159,6 +209,7 @@ class ApplicationSubmissionService {
     await Application.findByIdAndUpdate(application._id, {
       $set: {
         externalSubmissionAttempted: true,
+        workflowState: 'submitting',
         lastDeliveryAttemptAt: new Date(),
         coverLetterUsed: materials.coverLetterText,
         submittedFieldsJson
@@ -167,11 +218,18 @@ class ApplicationSubmissionService {
     });
 
     try {
-      const adapter = getAtsAdapter(job.atsPlatform || 'other');
       const receipt = await adapter.submitApplication({ application, job, student, user, materials });
-      return Application.findByIdAndUpdate(application._id, {
+      const workflowState = receipt.status === 'failed' ? 'failed_final' : receipt.status;
+      const updated = await Application.findByIdAndUpdate(application._id, {
         $set: {
           status: receipt.status,
+          workflowState,
+          externalApplicationId: receipt.externalApplicationId,
+          submissionReceipt: {
+            provider: receipt.provider,
+            externalApplicationId: receipt.externalApplicationId,
+            acceptedAt: new Date()
+          },
           atsResponseRaw: receipt.rawResponse,
           submittedFieldsJson: {
             ...submittedFieldsJson,
@@ -183,13 +241,25 @@ class ApplicationSubmissionService {
           employerDeliveredAt: receipt.status === 'confirmed' ? new Date() : undefined
         }
       }, { new: true });
+      await ProductEventService.record({
+        name: receipt.status === 'confirmed' ? 'application_confirmed' : 'application_submitted',
+        actorUserId: user._id,
+        studentId: student._id,
+        jobId: job._id,
+        applicationId: application._id,
+        sourceProvider: receipt.provider,
+        metadata: { externalApplicationId: receipt.externalApplicationId }
+      });
+      return updated;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const failureReason = /not implemented/i.test(message) ? 'unsupported_ats' : 'ats_submission_failed';
+      const ambiguous = /timeout|ECONNRESET|socket hang up/i.test(message);
       await Application.findByIdAndUpdate(application._id, {
         $set: {
-          status: 'failed',
-          failureReason,
+          status: ambiguous ? 'submitted' : 'failed',
+          workflowState: ambiguous ? 'submission_unknown' : (failureReason === 'unsupported_ats' ? 'unsupported' : 'failed_retryable'),
+          failureReason: ambiguous ? 'submission_unknown' : failureReason,
           atsResponseRaw: {
             error: message,
             failureReason,
@@ -197,8 +267,31 @@ class ApplicationSubmissionService {
           }
         }
       });
+      await ProductEventService.record({
+        name: 'application_failed',
+        actorUserId: user._id,
+        studentId: student._id,
+        jobId: job._id,
+        applicationId: application._id,
+        sourceProvider: job.atsPlatform || job.sourceProvider,
+        reason: ambiguous ? 'submission_unknown' : failureReason
+      });
       throw error;
     }
+  }
+
+  private async assertConsent(userId: Types.ObjectId, autoApply: boolean): Promise<void> {
+    if (process.env.ENFORCE_APPLICATION_CONSENT !== 'true') return;
+    const purposes = autoApply
+      ? ['application_submission', 'employer_data_sharing', 'auto_apply']
+      : ['application_submission', 'employer_data_sharing'];
+    const granted = await ConsentRecord.distinct('purpose', {
+      userId,
+      purpose: { $in: purposes },
+      status: 'granted'
+    });
+    const missing = purposes.filter(purpose => !granted.includes(purpose as any));
+    if (missing.length) throw new Error(`Consent required before application submission: ${missing.join(', ')}`);
   }
 }
 

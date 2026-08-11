@@ -1,7 +1,6 @@
 export type ApplicationCapability = 'auto_apply' | 'needs_you' | 'unsupported';
 
-const REAL_AUTO_APPLY_ADAPTERS = new Set(['greenhouse']);
-const KNOWN_STUBBED_PLATFORMS = new Set(['lever', 'workday', 'ashby', 'smartrecruiters']);
+const KNOWN_STUBBED_PLATFORMS = new Set(['workday', 'ashby', 'smartrecruiters']);
 
 export const classifyApplicationCapability = (job: {
   allowDirectApplications?: boolean;
@@ -20,7 +19,11 @@ export const classifyApplicationCapability = (job: {
     const jobPostId = String(job.atsJobId || job.sourceExternalId || '').trim();
     return boardToken && jobPostId ? 'auto_apply' : 'needs_you';
   }
-  if (REAL_AUTO_APPLY_ADAPTERS.has(platform)) return 'auto_apply';
+  if (platform === 'lever') {
+    const site = String(job.sourceCompanySlug || '').trim();
+    const postingId = String(job.atsJobId || job.sourceExternalId || '').trim();
+    return process.env.LEVER_POSTINGS_API_KEY && site && postingId ? 'auto_apply' : 'needs_you';
+  }
   if (KNOWN_STUBBED_PLATFORMS.has(platform)) return 'needs_you';
   return 'unsupported';
 };

@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import CareerAlertService from '../career-alerts';
 import { Types } from 'mongoose';
 import { ProviderCompany } from '../../models/ProviderCompany';
@@ -8,6 +9,8 @@ import ProviderRegistry from './provider-registry';
 import { ProviderCompanyConfig, ProviderName, ProviderSyncTier, SyncResult } from './types';
 import AIJobNormalizer from './ai-job-normalizer';
 import { enrichJob } from '../job-intelligence';
+import { SourceJobSnapshot } from '../../models/SourceJobSnapshot';
+import ProductEventService from '../product-events';
 
 class JobSyncService {
   private running = false;
@@ -107,6 +110,7 @@ class JobSyncService {
         if (rawExternalId && !upstreamIds.includes(rawExternalId)) upstreamIds.push(rawExternalId);
         try {
           let dto = provider.mapJob(rawJob, company);
+          await this.persistSourceSnapshot(company, dto.sourceExternalId, rawJob);
           // Every provider passes through the same deterministic normalizer so
           // incomplete ATS payloads still receive skills and experience data.
           const normalized = enrichJob(dto) as any;
@@ -134,6 +138,13 @@ class JobSyncService {
           } else {
             result.updated += 1;
           }
+          ProductEventService.record({
+            name: persisted.created ? 'job_ingested' : 'job_updated',
+            jobId: persisted.job._id,
+            sourceProvider: company.provider,
+            jobVersion: String((persisted.job as any).normalizationVersion || 1),
+            metadata: { sourceExternalId: dto.sourceExternalId, companySlug: company.companySlug }
+          }).catch(() => undefined);
         } catch (error) {
           result.errors.push(error instanceof Error ? error.message : String(error));
         }
@@ -182,6 +193,32 @@ class JobSyncService {
       }
     }
     throw lastError;
+  }
+
+  private async persistSourceSnapshot(company: ProviderCompanyConfig, externalId: string, rawPayload: unknown): Promise<void> {
+    try {
+      const serialized = JSON.stringify(rawPayload);
+      const contentHash = crypto.createHash('sha256').update(serialized).digest('hex');
+      await SourceJobSnapshot.updateOne(
+        { provider: company.provider, companySlug: company.companySlug, externalId, contentHash },
+        {
+          $setOnInsert: {
+            provider: company.provider,
+            companySlug: company.companySlug,
+            externalId,
+            contentHash,
+            providerCompanyId: company._id,
+            fetchedAt: new Date(),
+            parserVersion: 1,
+            rawPayload,
+            normalizationWarnings: []
+          }
+        },
+        { upsert: true }
+      );
+    } catch (error) {
+      console.warn(`Unable to persist raw source snapshot for ${company.provider}/${externalId}:`, error);
+    }
   }
 
   private enqueueAlerts(jobIds: Types.ObjectId[]): void {
