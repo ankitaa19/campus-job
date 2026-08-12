@@ -11,6 +11,10 @@ export interface IProviderCompany extends Document {
   apiRegion: 'global' | 'eu';
   pageUrl?: string;
   automationPermission?: 'not_granted' | 'written_permission' | 'public_terms_allow';
+  automationPermissionGrantedAt?: Date;
+  automationPermissionGrantedBy?: Types.ObjectId;
+  automationPermissionEvidenceUrl?: string;
+  automationPermissionNotes?: string;
   jobLinkSelector?: string;
   maxJobsPerSync?: number;
   directoryManaged?: boolean;
@@ -36,6 +40,10 @@ const ProviderCompanySchema = new Schema<IProviderCompany>({
   apiRegion: { type: String, enum: ['global', 'eu'], default: 'global' },
   pageUrl: { type: String, trim: true },
   automationPermission: { type: String, enum: ['not_granted', 'written_permission', 'public_terms_allow'], default: 'not_granted' },
+  automationPermissionGrantedAt: Date,
+  automationPermissionGrantedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+  automationPermissionEvidenceUrl: { type: String, trim: true },
+  automationPermissionNotes: { type: String, trim: true, maxlength: 1000 },
   jobLinkSelector: { type: String, trim: true },
   maxJobsPerSync: { type: Number, min: 1, max: 100, default: 30 },
   directoryManaged: { type: Boolean, default: false, index: true },

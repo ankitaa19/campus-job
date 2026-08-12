@@ -29,6 +29,7 @@ export interface BrowserProviderSpec {
 }
 
 type KnownField = 'firstName' | 'lastName' | 'fullName' | 'email' | 'phone' | 'resume' | 'coverLetter';
+type RequiredFieldDiagnostic = NonNullable<BrowserFailureDiagnostics['visibleRequiredFields']>[number];
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const normalize = (value: unknown) => String(value || '').replace(/\s+/g, ' ').trim();
@@ -171,7 +172,9 @@ export class BrowserFormAdapter implements AtsAdapter {
       );
     } finally {
       if (browser) await browser.close().catch(() => undefined);
-      if (resumePath?.startsWith(os.tmpdir())) fs.promises.unlink(resumePath).catch(() => undefined);
+      if (resumePath && path.basename(resumePath).startsWith('campuspe-resume-')) {
+        fs.promises.unlink(resumePath).catch(() => undefined);
+      }
       releaseBrowserSession();
     }
   }
@@ -190,7 +193,7 @@ export class BrowserFormAdapter implements AtsAdapter {
     const fileInput = await this.firstVisibleHandle(page, selectors.resume);
     if (fileInput) {
       try {
-        await fileInput.uploadFile(resumePath);
+        await (fileInput as any).uploadFile(resumePath);
       } catch (error) {
         throw await this.failure(page, 'resume_upload_failed', error instanceof Error ? error.message : String(error), 'resume_upload');
       }
@@ -205,7 +208,15 @@ export class BrowserFormAdapter implements AtsAdapter {
       throw await this.failure(page, 'captcha_required', 'A CAPTCHA or anti-bot challenge requires the student', step);
     }
     const login = this.spec.loginText || [/sign in/i, /log in/i, /create (an )?account/i];
-    if (login.some(pattern => pattern.test(body)) && !/application submitted|thank you for applying/i.test(body)) {
+    const hasVisibleApplicantInput = await page.$$eval(
+      'input[type="email"], input[type="file"], input[name*="firstName" i], input[name*="lastName" i]',
+      elements => elements.some(element => Boolean((element as HTMLElement).offsetWidth || (element as HTMLElement).offsetHeight))
+    ).catch(() => false);
+    if (
+      !hasVisibleApplicantInput
+      && login.some(pattern => pattern.test(body))
+      && !/application submitted|thank you for applying/i.test(body)
+    ) {
       throw await this.failure(page, 'login_required', 'Authentication is required on the employer site', step);
     }
   }
@@ -257,10 +268,10 @@ export class BrowserFormAdapter implements AtsAdapter {
     return undefined;
   }
 
-  protected async requiredUnansweredFields(page: Page): Promise<BrowserFailureDiagnostics['visibleRequiredFields']> {
+  protected async requiredUnansweredFields(page: Page): Promise<RequiredFieldDiagnostic[]> {
     return page.evaluate(() => {
       const known = /first.?name|last.?name|full.?name|email|phone|resume|cover|location/i;
-      return [...document.querySelectorAll('input[required], textarea[required], select[required], [aria-required="true"]')]
+      return Array.from(document.querySelectorAll('input[required], textarea[required], select[required], [aria-required="true"]'))
         .filter(element => {
           const input = element as HTMLInputElement;
           if (!(input.offsetWidth || input.offsetHeight) || input.disabled) return false;
@@ -353,9 +364,10 @@ export class BrowserFormAdapter implements AtsAdapter {
       const directory = process.env.ATS_DEBUG_ARTIFACT_DIR || path.join(os.tmpdir(), 'campuspe-ats-artifacts');
       await fs.promises.mkdir(directory, { recursive: true });
       const id = `${safeSlug(this.spec.provider)}-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
-      diagnostics.screenshotPath = path.join(directory, `${id}.png`);
+      const screenshotPath = path.join(directory, `${id}.png`) as `${string}.png`;
+      diagnostics.screenshotPath = screenshotPath;
       diagnostics.htmlSnapshotPath = path.join(directory, `${id}.html`);
-      await page.screenshot({ path: diagnostics.screenshotPath, fullPage: true }).catch(() => undefined);
+      await page.screenshot({ path: screenshotPath, fullPage: true }).catch(() => undefined);
       // Strip current input values before persisting HTML to avoid saving PII.
       const sanitizedHtml = await page.evaluate(() => {
         const clone = document.documentElement.cloneNode(true) as HTMLElement;

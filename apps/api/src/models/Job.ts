@@ -343,7 +343,10 @@ JobSchema.index({ companyName: 1, status: 1 });
 JobSchema.index({ workMode: 1, status: 1 });
 JobSchema.index({ atsPlatform: 1, atsJobId: 1 });
 // An upstream vacancy can be refreshed safely without creating a second job.
-JobSchema.index({ source: 1, sourceExternalId: 1 }, { unique: true, sparse: true });
+JobSchema.index(
+  { source: 1, sourceExternalId: 1 },
+  { unique: true, partialFilterExpression: { sourceExternalId: { $type: 'string' } } }
+);
 JobSchema.index({ sourceProvider: 1, sourceCompanySlug: 1, status: 1 });
 JobSchema.index({ sourceLifecycleStatus: 1, nextSourceRecheckAt: 1 });
 JobSchema.index({ status: 1, postedAt: -1, industry: 1 });

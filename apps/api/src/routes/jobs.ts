@@ -29,6 +29,7 @@ import {
     getJobInvitations
 } from '../controllers/invitations';
 import { Job } from '../models/Job';
+import { ProviderCompany } from '../models/ProviderCompany';
 import authMiddleware from '../middleware/auth';
 import { checkRecruiterAccess } from '../middleware/entityAccess';
 import { roleMiddleware } from '../middleware/roleMiddleware';
@@ -217,6 +218,47 @@ router.get('/location/reverse', async (req: any, res: any) => {
 router.get('/sync', authMiddleware, roleMiddleware(['admin']), syncAllJobs);
 router.get('/sync/status', authMiddleware, roleMiddleware(['admin']), getJobAggregationStatus);
 router.post('/sync/discover-career-sources', authMiddleware, roleMiddleware(['admin']), discoverCareerSources);
+router.patch('/sync/:provider/:companySlug/automation-permission', authMiddleware, roleMiddleware(['admin']), async (req: any, res: any) => {
+    const permission = String(req.body?.permission || '');
+    if (!['not_granted', 'written_permission', 'public_terms_allow'].includes(permission)) {
+        return res.status(400).json({ success: false, message: 'Invalid automation permission' });
+    }
+    if (permission === 'written_permission' && !/^https:\/\//i.test(String(req.body?.evidenceUrl || ''))) {
+        return res.status(400).json({
+            success: false,
+            message: 'An HTTPS evidenceUrl is required for written permission'
+        });
+    }
+    const permissionUpdate = permission === 'not_granted'
+        ? {
+            $set: { automationPermission: permission },
+            $unset: {
+                automationPermissionGrantedAt: 1,
+                automationPermissionGrantedBy: 1,
+                automationPermissionEvidenceUrl: 1,
+                automationPermissionNotes: 1
+            }
+        }
+        : {
+            $set: {
+                automationPermission: permission,
+                automationPermissionGrantedAt: new Date(),
+                automationPermissionGrantedBy: req.user?._id,
+                automationPermissionEvidenceUrl: req.body?.evidenceUrl,
+                automationPermissionNotes: req.body?.notes
+            }
+        };
+    const company = await ProviderCompany.findOneAndUpdate(
+        {
+            provider: String(req.params.provider).toLowerCase(),
+            companySlug: String(req.params.companySlug).toLowerCase()
+        },
+        permissionUpdate,
+        { new: true }
+    ).select('provider companySlug companyName automationPermission automationPermissionGrantedAt automationPermissionEvidenceUrl');
+    if (!company) return res.status(404).json({ success: false, message: 'Provider company not found' });
+    return res.json({ success: true, data: company });
+});
 router.get('/sync/:provider', authMiddleware, roleMiddleware(['admin']), syncProviderJobs);
 router.get('/sync/:provider/:companySlug', authMiddleware, roleMiddleware(['admin']), syncProviderCompanyJobs);
 

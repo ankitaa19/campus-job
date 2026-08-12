@@ -21,6 +21,7 @@ describe('bulk auto-apply embedding budget', () => {
 
   beforeEach(async () => {
     process.env.COHERE_API_KEY = 'test-cohere-key';
+    process.env.GREENHOUSE_JOB_BOARD_API_KEY = 'test-greenhouse-key';
     process.env.COHERE_MIN_REQUEST_INTERVAL_MS = '0';
     process.env.BULK_AUTO_APPLY_EMBEDDING_BUDGET = '5';
     mockedAxios.post.mockReset();
@@ -35,6 +36,7 @@ describe('bulk auto-apply embedding budget', () => {
 
   afterAll(async () => {
     delete process.env.COHERE_API_KEY;
+    delete process.env.GREENHOUSE_JOB_BOARD_API_KEY;
     delete process.env.COHERE_MIN_REQUEST_INTERVAL_MS;
     delete process.env.BULK_AUTO_APPLY_EMBEDDING_BUDGET;
     await mongoose.disconnect();

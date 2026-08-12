@@ -176,7 +176,16 @@ class ApplicationSubmissionService {
     const deterministicInspection = inspectApplicationCapability(job);
     // Provider adapters can inspect employer-specific authorization and form
     // capabilities that the synchronous catalogue classifier cannot see.
-    const schema = await adapter.inspectApplication?.(job) || deterministicInspection;
+    const deterministicHumanGate = deterministicInspection.reasons.some(reason => [
+      'authentication_required',
+      'assessment_required',
+      'captcha_required',
+      'additional_documents_required',
+      'unsupported_question_type'
+    ].includes(reason));
+    const schema = deterministicHumanGate
+      ? deterministicInspection
+      : await adapter.inspectApplication?.(job) || deterministicInspection;
     if (schema && schema.capability !== 'auto_apply') {
       const reasons = schema.reasons || [];
       const workflowState = schema.capability === 'unsupported'

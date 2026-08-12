@@ -232,7 +232,16 @@ describe('BulkAutoApplyService', () => {
     const jobs = await Promise.all(Array.from({ length: 5 }, (_, index) => createJob({
       title: `Frontend Engineer ${index}`,
       atsPlatform: 'workday',
-      sourceProvider: 'workday'
+      sourceProvider: 'workday',
+      applicationConfiguration: {
+        requiredFields: ['email'],
+        customQuestions: [],
+        requiredDocuments: ['resume'],
+        requiresAuthentication: true,
+        requiresAssessment: false,
+        requiresCaptcha: false,
+        unsupportedQuestionTypes: []
+      }
     })));
     const { run, tasks } = await createRunAndTasks(user, jobs);
 
