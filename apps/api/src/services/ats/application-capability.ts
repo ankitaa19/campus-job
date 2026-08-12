@@ -6,6 +6,7 @@ export interface ApplicationCapabilityResult {
 }
 
 const KNOWN_STUBBED_PLATFORMS = new Set(['workday', 'ashby', 'smartrecruiters']);
+const BROWSER_PLATFORMS = new Set(['workday', 'ashby', 'smartrecruiters', 'other']);
 
 export const inspectApplicationCapability = (job: {
   allowDirectApplications?: boolean;
@@ -15,6 +16,8 @@ export const inspectApplicationCapability = (job: {
   greenhouseBoardToken?: string;
   atsJobId?: string;
   sourceExternalId?: string;
+  applyUrl?: string;
+  browserAutomationAuthorized?: boolean;
   applicationConfiguration?: {
     requiredFields?: string[];
     requiredDocuments?: string[];
@@ -42,16 +45,22 @@ export const inspectApplicationCapability = (job: {
   if (platform === 'greenhouse') {
     const boardToken = String(job.sourceCompanySlug || job.greenhouseBoardToken || '').trim();
     const jobPostId = String(job.atsJobId || job.sourceExternalId || '').trim();
-    return boardToken && jobPostId
+    const apiConfigured = Boolean(process.env.GREENHOUSE_JOB_BOARD_API_KEY || process.env.GREENHOUSE_API_KEY);
+    const browserReady = job.browserAutomationAuthorized === true && Boolean(job.applyUrl);
+    return boardToken && jobPostId && (apiConfigured || browserReady)
       ? { capability: 'auto_apply', reasons: [], requiredFields }
-      : { capability: 'needs_you', reasons: ['greenhouse_identifiers_missing'], requiredFields };
+      : { capability: 'needs_you', reasons: [apiConfigured ? 'greenhouse_identifiers_missing' : 'greenhouse_credentials_or_browser_authorization_missing'], requiredFields };
   }
   if (platform === 'lever') {
     const site = String(job.sourceCompanySlug || '').trim();
     const postingId = String(job.atsJobId || job.sourceExternalId || '').trim();
-    return process.env.LEVER_POSTINGS_API_KEY && site && postingId
+    const authorized = Boolean(process.env.LEVER_POSTINGS_API_KEY) || (job.browserAutomationAuthorized === true && Boolean(job.applyUrl));
+    return authorized && site && postingId
       ? { capability: 'auto_apply', reasons: [], requiredFields }
       : { capability: 'needs_you', reasons: ['lever_credentials_or_identifiers_missing'], requiredFields };
+  }
+  if (BROWSER_PLATFORMS.has(platform) && job.browserAutomationAuthorized === true && job.applyUrl) {
+    return { capability: 'auto_apply', reasons: [], requiredFields };
   }
   if (KNOWN_STUBBED_PLATFORMS.has(platform)) {
     return { capability: 'needs_you', reasons: ['official_submission_adapter_unavailable'], requiredFields };

@@ -8,6 +8,7 @@ import { User } from '../models/User';
 import TailoringService from './ats/tailoring.service';
 import { getAtsAdapter } from './ats/registry';
 import { inspectApplicationCapability } from './ats/application-capability';
+import { BrowserSubmissionError } from './ats/types';
 import ProductEventService from './product-events';
 
 class ApplicationSubmissionService {
@@ -173,9 +174,9 @@ class ApplicationSubmissionService {
     await this.assertConsent(user._id, true);
     const adapter = getAtsAdapter(job.atsPlatform || 'other');
     const deterministicInspection = inspectApplicationCapability(job);
-    const schema = deterministicInspection.capability === 'auto_apply'
-      ? await adapter.inspectApplication?.(job)
-      : deterministicInspection;
+    // Provider adapters can inspect employer-specific authorization and form
+    // capabilities that the synchronous catalogue classifier cannot see.
+    const schema = await adapter.inspectApplication?.(job) || deterministicInspection;
     if (schema && schema.capability !== 'auto_apply') {
       const reasons = schema.reasons || [];
       const workflowState = schema.capability === 'unsupported'
@@ -275,6 +276,75 @@ class ApplicationSubmissionService {
       return updated;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      if (error instanceof BrowserSubmissionError) {
+        const interventionByReason = {
+          captcha_required: { workflowState: 'needs_user_input', type: 'captcha' },
+          login_required: { workflowState: 'needs_authentication', type: 'authentication' },
+          missing_required_custom_question: { workflowState: 'needs_user_input', type: 'unsupported_question' },
+          resume_upload_failed: { workflowState: 'needs_document', type: 'document' }
+        } as const;
+        const intervention = interventionByReason[error.reason as keyof typeof interventionByReason];
+        if (intervention) {
+          const paused = await Application.findByIdAndUpdate(application._id, {
+            $set: {
+              status: 'pending_review',
+              workflowState: intervention.workflowState,
+              failureReason: error.reason,
+              atsResponseRaw: {
+                error: message,
+                failureReason: error.reason,
+                diagnostics: error.diagnostics,
+                failedAt: new Date()
+              },
+              intervention: {
+                type: intervention.type,
+                reason: message,
+                requiredFields: error.diagnostics.visibleRequiredFields?.map(field => field.label || field.name || field.type || field.tag),
+                createdAt: new Date()
+              }
+            }
+          }, { new: true });
+          await ProductEventService.record({
+            name: 'application_paused',
+            actorUserId: user._id,
+            studentId: student._id,
+            jobId: job._id,
+            applicationId: application._id,
+            sourceProvider: job.atsPlatform || job.sourceProvider,
+            reason: error.reason
+          });
+          return paused;
+        }
+
+        const unknown = error.reason === 'submission_not_confirmed';
+        await Application.findByIdAndUpdate(application._id, {
+          $set: {
+            status: unknown ? 'submitted' : 'failed',
+            workflowState: unknown
+              ? 'submission_unknown'
+              : error.reason === 'external_site_blocked'
+                ? 'failed_final'
+                : 'failed_retryable',
+            failureReason: error.reason,
+            atsResponseRaw: {
+              error: message,
+              failureReason: error.reason,
+              diagnostics: error.diagnostics,
+              failedAt: new Date()
+            }
+          }
+        });
+        await ProductEventService.record({
+          name: 'application_failed',
+          actorUserId: user._id,
+          studentId: student._id,
+          jobId: job._id,
+          applicationId: application._id,
+          sourceProvider: job.atsPlatform || job.sourceProvider,
+          reason: error.reason
+        });
+        throw error;
+      }
       const failureReason = /not implemented/i.test(message) ? 'unsupported_ats' : 'ats_submission_failed';
       const ambiguous = /timeout|ECONNRESET|socket hang up/i.test(message);
       await Application.findByIdAndUpdate(application._id, {

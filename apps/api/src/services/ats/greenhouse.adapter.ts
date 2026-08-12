@@ -1,10 +1,18 @@
 import axios from 'axios';
-import { AtsAdapter, AtsSubmitContext, AtsSubmissionReceipt } from './types';
+import { AtsAdapter, AtsApplicationSchema, AtsSubmitContext, AtsSubmissionReceipt } from './types';
+import GreenhouseBrowserAdapter from './greenhouse.browser.adapter';
 
 class GreenhouseAdapter implements AtsAdapter {
+  async inspectApplication(job: any): Promise<AtsApplicationSchema> {
+    if (process.env.GREENHOUSE_JOB_BOARD_API_KEY || process.env.GREENHOUSE_API_KEY) {
+      return { capability: 'auto_apply', requiredFields: ['name', 'email', 'resume'], reasons: [] };
+    }
+    return GreenhouseBrowserAdapter.inspectApplication!(job);
+  }
+
   async submitApplication(context: AtsSubmitContext): Promise<AtsSubmissionReceipt> {
     const apiKey = process.env.GREENHOUSE_JOB_BOARD_API_KEY || process.env.GREENHOUSE_API_KEY;
-    if (!apiKey) throw new Error('GREENHOUSE_JOB_BOARD_API_KEY is required for Greenhouse submissions');
+    if (!apiKey) return GreenhouseBrowserAdapter.submitApplication(context);
 
     const boardToken = context.job.sourceCompanySlug || context.job.greenhouseBoardToken;
     const jobPostId = context.job.atsJobId || context.job.sourceExternalId;

@@ -13,6 +13,46 @@ export interface AtsSubmissionReceipt {
   submittedFields: Record<string, unknown>;
 }
 
+export type BrowserFailureReason =
+  | 'captcha_required'
+  | 'login_required'
+  | 'missing_required_custom_question'
+  | 'submit_button_not_found'
+  | 'resume_upload_failed'
+  | 'provider_form_changed'
+  | 'external_site_blocked'
+  | 'submission_not_confirmed'
+  | 'navigation_failed';
+
+export interface BrowserFailureDiagnostics {
+  provider: string;
+  finalUrl?: string;
+  pageTitle?: string;
+  visibleButtonTexts?: string[];
+  visibleRequiredFields?: Array<{
+    tag: string;
+    type?: string;
+    name?: string;
+    label?: string;
+  }>;
+  pageTextSnippet?: string;
+  screenshotPath?: string;
+  htmlSnapshotPath?: string;
+  step?: string;
+}
+
+export class BrowserSubmissionError extends Error {
+  constructor(
+    public readonly reason: BrowserFailureReason,
+    message: string,
+    public readonly diagnostics: BrowserFailureDiagnostics,
+    public readonly needsUser = true
+  ) {
+    super(message);
+    this.name = 'BrowserSubmissionError';
+  }
+}
+
 export interface AtsApplicationSchema {
   capability: 'auto_apply' | 'needs_you' | 'unsupported';
   requiredFields: string[];

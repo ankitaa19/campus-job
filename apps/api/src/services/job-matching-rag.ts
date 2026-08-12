@@ -4,6 +4,7 @@ import { JobMatch } from '../models/JobMatch';
 import { Student } from '../models/Student';
 import { User } from '../models/User';
 import { Application } from '../models/Application';
+import { ProviderCompany } from '../models/ProviderCompany';
 import { buildStudentStructuredFields } from './profile-normalization';
 import { canonicalSkill, cleanJobText, cosineSimilarity, enrichJob, freshnessCutoff } from './job-intelligence';
 import JobQueryBuilder from './job-aggregation/job-query-builder';
@@ -206,10 +207,21 @@ class JobMatchingRagService {
     const existingJobIds = await Application.distinct('jobId', { userId: objectUserId });
     const { filter, sort } = JobQueryBuilder.build({ ...filters, page: 1, limit: 1, balanced: false }, true);
     const jobs = await Job.find({ ...filter, _id: { $nin: existingJobIds } })
-      .select('+featureVector +applyUrl title companyName description requiredSkills canonicalSkills requirements minExperience maxExperience experienceLevel seniority locations location workMode remoteType salary salaryBand atsPlatform atsJobId applyUrl applicationDeadline postedAt source sourceProvider sourceCompanySlug sourceExternalId')
+      .select('+featureVector +applyUrl title companyName description requiredSkills canonicalSkills requirements minExperience maxExperience experienceLevel seniority locations location workMode remoteType salary salaryBand atsPlatform atsJobId applyUrl applicationDeadline postedAt source sourceProvider sourceCompanySlug sourceExternalId providerCompanyId')
       .sort(sort)
       .limit(10000)
       .lean();
+    const providerCompanyIds = jobs.map(job => job.providerCompanyId).filter(Boolean);
+    const authorizedProviderCompanies = providerCompanyIds.length
+      ? await ProviderCompany.find({
+          _id: { $in: providerCompanyIds },
+          automationPermission: { $in: ['written_permission', 'public_terms_allow'] }
+        }).select('_id').lean()
+      : [];
+    const authorizedIds = new Set(authorizedProviderCompanies.map(company => String(company._id)));
+    jobs.forEach(job => {
+      (job as any).browserAutomationAuthorized = authorizedIds.has(String(job.providerCompanyId || ''));
+    });
 
     const student = await Student.findOne({ userId: objectUserId }).select('+profileFeatureVector').lean();
     if (!student) throw new Error('Student profile not found');

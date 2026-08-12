@@ -11,6 +11,7 @@ import { createRedisConnection } from './redis-client';
 import { checkOpenAIHealth } from './openai-client';
 import { checkCohereHealth } from './cohere-client';
 import { sanitizeForLog } from '../utils/safe-logging';
+import { BrowserSubmissionError } from './ats/types';
 
 const QUEUE_NAME = 'bulk-auto-apply';
 const PROCESS_TASK_JOB = 'process-task';
@@ -430,7 +431,7 @@ class BulkAutoApplyService {
       await this.applyTaskCounters(task._id);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      const failureReason = failureReasonFromError(message);
+      const failureReason = error instanceof BrowserSubmissionError ? error.reason : failureReasonFromError(message);
       if (failureReason === 'rate_limited') {
         // Leave the task pending so BullMQ retries it once quota recovers; the
         // Application stays queued and is never marked permanently failed.

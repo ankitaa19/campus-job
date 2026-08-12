@@ -2,12 +2,14 @@ import fs from 'fs';
 import axios from 'axios';
 import FormData from 'form-data';
 import { AtsAdapter, AtsApplicationSchema, AtsSubmitContext, AtsSubmissionReceipt } from './types';
+import LeverBrowserAdapter from './lever.browser.adapter';
 
 class LeverAdapter implements AtsAdapter {
   async inspectApplication(job: any): Promise<AtsApplicationSchema> {
     const site = String(job.sourceCompanySlug || '').trim();
     const postingId = String(job.atsJobId || job.sourceExternalId || '').trim();
     const configured = Boolean(process.env.LEVER_POSTINGS_API_KEY);
+    if (!configured) return LeverBrowserAdapter.inspectApplication!(job);
     return {
       capability: configured && site && postingId ? 'auto_apply' : 'needs_you',
       requiredFields: ['name', 'email', 'resume'],
@@ -21,7 +23,7 @@ class LeverAdapter implements AtsAdapter {
 
   async submitApplication(context: AtsSubmitContext): Promise<AtsSubmissionReceipt> {
     const apiKey = process.env.LEVER_POSTINGS_API_KEY;
-    if (!apiKey) throw new Error('LEVER_POSTINGS_API_KEY is required for Lever submissions');
+    if (!apiKey) return LeverBrowserAdapter.submitApplication(context);
     const site = String(context.job.sourceCompanySlug || '').trim();
     const postingId = String(context.job.atsJobId || context.job.sourceExternalId || '').trim();
     if (!site || !postingId) throw new Error('Lever site and posting ID are required');
