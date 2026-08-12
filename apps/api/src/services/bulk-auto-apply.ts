@@ -57,6 +57,18 @@ const getQueue = (): Queue => {
 
 const DEFAULT_WORKER_CONCURRENCY = 5;
 
+const requestedBatchSize = (filters: JobsQuery): number | undefined => {
+  const value = Number(filters.batchSize);
+  return Number.isInteger(value) && value > 0 ? value : undefined;
+};
+
+const buildBatchOptions = (availableCount: number): number[] => {
+  const options: number[] = [];
+  for (let size = 100; size <= availableCount; size += 100) options.push(size);
+  if (availableCount > 0 && availableCount % 100 !== 0) options.push(availableCount);
+  return options;
+};
+
 const failureReasonFromError = (message: string): string => {
   if (/not implemented/i.test(message)) return 'unsupported_ats';
   if (/required for browser auto-apply/i.test(message)) return 'unsupported_ats';
@@ -97,19 +109,31 @@ class BulkAutoApplyService {
 
   async previewCount(userId: string | Types.ObjectId, filters: JobsQuery = {}) {
     const selection = await JobMatchingRagService.findBulkAutoApplySelection(userId, filters);
+    const batchSize = requestedBatchSize(filters);
+    const cappedCount = Math.min(selection.matches.length, batchSize || Number.POSITIVE_INFINITY);
     return {
-      count: selection.matches.length,
+      count: cappedCount,
+      availableCount: selection.matches.length,
       needsYouCount: selection.needsYouCount,
       unsupportedCount: selection.unsupportedCount,
       totalConsideredJobs: selection.totalConsideredJobs,
-      totalMatchedAboveThreshold: selection.totalMatchedAboveThreshold
+      totalMatchedAboveThreshold: selection.totalMatchedAboveThreshold,
+      batchOptions: buildBatchOptions(selection.matches.length)
     };
   }
 
   async createRun(userId: string | Types.ObjectId, filters: JobsQuery = {}) {
     const objectUserId = new Types.ObjectId(userId);
+    const activeRun = await BulkAutoApplyRun.findOne({
+      userId: objectUserId,
+      status: { $in: ['pending', 'running'] }
+    }).sort({ createdAt: -1 });
+    if (activeRun) return activeRun;
+
     const selection = await JobMatchingRagService.findBulkAutoApplySelection(objectUserId, filters);
-    const matches = selection.matches;
+    const batchSize = requestedBatchSize(filters);
+    if (!batchSize) throw new Error('Choose an Auto Apply batch size in increments of 100');
+    const matches = selection.matches.slice(0, batchSize);
     const run = await new BulkAutoApplyRun({
       userId: objectUserId,
       status: matches.length ? 'pending' : 'completed',

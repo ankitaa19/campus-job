@@ -42,6 +42,16 @@ const normalize = (value: unknown): string => String(value || '').toLowerCase().
 const skillSet = (values: unknown[] = []): Set<string> => new Set(values.map(canonicalSkill).map(normalize).filter(Boolean));
 const hasOpenAIEmbedding = (vector: unknown): vector is number[] => Array.isArray(vector) && vector.length === OPENAI_EMBEDDING_DIMENSIONS;
 const includesAllFetchedJobs = (filters: JobsQuery): boolean => filters.autoApplyScope !== 'matched' && filters.includeAllJobs !== false && filters.includeAllJobs !== 'false';
+const autoApplyProviderRank = (job: any): number => {
+  const platform = normalize(job.atsPlatform || job.sourceProvider);
+  const provider = normalize(job.sourceProvider);
+  if (platform === 'ashby' || provider === 'ashby') return 0;
+  if (platform === 'greenhouse' || provider === 'greenhouse') return 1;
+  if (platform === 'lever' || provider === 'lever') return 2;
+  if (platform === 'smartrecruiters' || provider === 'smartrecruiters') return 3;
+  if (platform === 'workday' || provider === 'workday') return 4;
+  return 5;
+};
 const EMBEDDING_COOLDOWN_MS = Number(process.env.OPENAI_EMBEDDING_COOLDOWN_MS || 2 * 60 * 1000);
 const EMBEDDING_CONCURRENCY = Math.min(5, Math.max(1, Number(process.env.OPENAI_EMBEDDING_CONCURRENCY || 3)));
 
@@ -238,6 +248,11 @@ class JobMatchingRagService {
       }
       if (capability === 'unsupported') unsupportedCount += 1;
     }
+    matched.sort((left, right) => {
+      const providerDelta = autoApplyProviderRank(left.job) - autoApplyProviderRank(right.job);
+      if (providerDelta !== 0) return providerDelta;
+      return right.score - left.score;
+    });
     return { matches: matched, needsYouMatches, needsYouCount, unsupportedCount, totalConsideredJobs, totalMatchedAboveThreshold };
   }
 

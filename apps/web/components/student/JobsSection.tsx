@@ -66,10 +66,12 @@ type BulkRunState = {
 };
 type BulkAutoApplyPreview = {
   count: number;
+  availableCount: number;
   needsYouCount: number;
   unsupportedCount: number;
   totalConsideredJobs: number;
   totalMatchedAboveThreshold: number;
+  batchOptions: number[];
 };
 const BULK_AUTO_APPLY_RUN_STORAGE_KEY = 'campuspe.activeBulkAutoApplyRunId';
 
@@ -102,6 +104,8 @@ const JobsSection: React.FC<JobsSectionProps> = ({ studentInfo }) => {
   const [bulkAutoApplyCancelling, setBulkAutoApplyCancelling] = useState(false);
   const [bulkAutoApplyError, setBulkAutoApplyError] = useState('');
   const [bulkAutoApplyPreview, setBulkAutoApplyPreview] = useState<BulkAutoApplyPreview | null>(null);
+  const [showBulkBatchOptions, setShowBulkBatchOptions] = useState(false);
+  const [pendingBulkFilters, setPendingBulkFilters] = useState<Record<string, any> | null>(null);
   const [filters, setFilters] = useState({
     datePosted: '',
     workType: [] as string[],
@@ -435,44 +439,54 @@ const JobsSection: React.FC<JobsSectionProps> = ({ studentInfo }) => {
       const preview = await apiClient.get('/api/jobs/auto-apply/preview-count', { params: currentFilters });
       const previewState: BulkAutoApplyPreview = {
         count: Number(preview.data?.count || 0),
+        availableCount: Number(preview.data?.availableCount || preview.data?.count || 0),
         needsYouCount: Number(preview.data?.needsYouCount || 0),
         unsupportedCount: Number(preview.data?.unsupportedCount || 0),
         totalConsideredJobs: Number(preview.data?.totalConsideredJobs || 0),
-        totalMatchedAboveThreshold: Number(preview.data?.totalMatchedAboveThreshold || 0)
+        totalMatchedAboveThreshold: Number(preview.data?.totalMatchedAboveThreshold || 0),
+        batchOptions: Array.isArray(preview.data?.batchOptions) ? preview.data.batchOptions.map(Number).filter(Boolean) : []
       };
       setBulkAutoApplyPreview(previewState);
-      const count = previewState.count;
-      if (!count) {
+      if (!previewState.availableCount) {
         setBulkAutoApplyError(previewState.needsYouCount
           ? `${previewState.needsYouCount.toLocaleString()} jobs need manual application because their ATS is not automated yet. No automatic applications were created.`
           : 'No jobs are ready for automatic submission with the current filters.');
         return;
       }
-      const unsupportedText = previewState.unsupportedCount
-        ? ` ${previewState.unsupportedCount.toLocaleString()} unsupported jobs will not be submitted.`
-        : '';
-      const needsYouText = previewState.needsYouCount
-        ? ` ${previewState.needsYouCount.toLocaleString()} matched jobs need manual action and will not be submitted by Auto Apply.`
-        : '';
-      const confirmationText = `This will submit ${count.toLocaleString()} applications automatically from ${previewState.totalConsideredJobs.toLocaleString()} jobs in the current result set.${needsYouText}${unsupportedText} Continue?`;
-      const confirmed = window.confirm(confirmationText);
-      if (!confirmed) return;
-      const response = await apiClient.post('/api/jobs/auto-apply/bulk', { filters: currentFilters });
+      setPendingBulkFilters(currentFilters);
+      setShowBulkBatchOptions(true);
+    } catch (error: any) {
+      setBulkAutoApplyError(error?.response?.data?.message || 'Unable to start bulk Auto Apply.');
+    } finally {
+      setBulkAutoApplyBusy(false);
+    }
+  };
+
+  const startBulkAutoApply = async (batchSize: number) => {
+    if (!pendingBulkFilters) return;
+    setBulkAutoApplyError('');
+    setBulkAutoApplyBusy(true);
+    try {
+      const filtersForRun = { ...pendingBulkFilters, batchSize };
+      const response = await apiClient.post('/api/jobs/auto-apply/bulk', { filters: filtersForRun });
       const runId = String(response.data?.runId || '');
+      const run = response.data?.data || {};
       setBulkRunId(runId);
       if (runId) localStorage.setItem(BULK_AUTO_APPLY_RUN_STORAGE_KEY, runId);
       setBulkRun({
         _id: runId,
-        status: 'pending',
-        totalJobs: count,
-        processedCount: 0,
-        succeededCount: 0,
-        pendingReviewCount: 0,
-        failedCount: 0,
-        skippedCount: 0,
-        unsupportedAtsCount: 0,
+        status: run.status || 'pending',
+        totalJobs: Number(run.totalJobs || batchSize),
+        processedCount: Number(run.processedCount || 0),
+        succeededCount: Number(run.succeededCount || 0),
+        pendingReviewCount: Number(run.pendingReviewCount || 0),
+        failedCount: Number(run.failedCount || 0),
+        skippedCount: Number(run.skippedCount || 0),
+        unsupportedAtsCount: Number(run.unsupportedAtsCount || 0),
         runningJobIds: []
       });
+      setShowBulkBatchOptions(false);
+      setPendingBulkFilters(null);
     } catch (error: any) {
       setBulkAutoApplyError(error?.response?.data?.message || 'Unable to start bulk Auto Apply.');
     } finally {
@@ -483,6 +497,9 @@ const JobsSection: React.FC<JobsSectionProps> = ({ studentInfo }) => {
   const isBulkRunActive = bulkRun?.status === 'pending' || bulkRun?.status === 'running';
   const bulkAutoApplyActionableCount = Number(bulkAutoApplyPreview?.count || 0) + Number(bulkAutoApplyPreview?.needsYouCount || 0);
   const bulkAutoApplyDisabledByPreview = Boolean(bulkAutoApplyPreview && bulkAutoApplyActionableCount === 0);
+  const bulkBatchOptions = bulkAutoApplyPreview
+    ? (bulkAutoApplyPreview.batchOptions.length ? bulkAutoApplyPreview.batchOptions : [])
+    : [];
   const bulkProgressLabel = bulkRun
     ? `${Number(bulkRun.processedCount || 0).toLocaleString()}/${Number(bulkRun.totalJobs || 0).toLocaleString()}`
     : '';
@@ -974,6 +991,44 @@ const JobsSection: React.FC<JobsSectionProps> = ({ studentInfo }) => {
 		                {bulkRun.workerWarning && (
 		                  <p className="mt-1 text-xs font-medium text-amber-700">{bulkRun.workerWarning}</p>
 		                )}
+		              </div>
+		            )}
+		            {showBulkBatchOptions && bulkAutoApplyPreview && (
+		              <div className="mt-2 rounded-lg border border-blue-200 bg-white px-4 py-3 text-sm text-gray-700 shadow-sm">
+		                <div className="flex flex-wrap items-center justify-between gap-3">
+		                  <div>
+		                    <p className="font-semibold text-gray-900">Choose Auto Apply batch size</p>
+		                    <p className="mt-1 text-xs text-gray-600">
+		                      {bulkAutoApplyPreview.availableCount.toLocaleString()} jobs are eligible. Pick how many to apply now.
+		                    </p>
+		                  </div>
+		                  <div className="flex flex-wrap gap-2">
+		                    {bulkBatchOptions.map(option => (
+		                      <button
+		                        key={option}
+		                        type="button"
+		                        disabled={bulkAutoApplyBusy}
+		                        onClick={() => startBulkAutoApply(option)}
+		                        className="rounded-lg bg-[#1484F3] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0d6edb] disabled:cursor-not-allowed disabled:bg-gray-400"
+		                      >
+		                        Apply {option.toLocaleString()}
+		                      </button>
+		                    ))}
+		                    <button
+		                      type="button"
+		                      onClick={() => {
+		                        setShowBulkBatchOptions(false);
+		                        setPendingBulkFilters(null);
+		                      }}
+		                      className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+		                    >
+		                      Cancel
+		                    </button>
+		                  </div>
+		                </div>
+		                <p className="mt-2 text-xs text-gray-500">
+		                  Smaller batches are prioritized toward providers with better observed submission reliability while the automation is still being hardened.
+		                </p>
 		              </div>
 		            )}
 		            {bulkAutoApplyError && <p className="mt-2 text-sm font-medium text-red-600">{bulkAutoApplyError}</p>}

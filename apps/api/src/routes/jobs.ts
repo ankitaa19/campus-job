@@ -294,7 +294,7 @@ router.post('/auto-apply/bulk', authMiddleware, async (req: any, res: any) => {
         }
         await BulkAutoApplyService.assertStartDependencies();
         const run = await BulkAutoApplyService.createRun(userId, req.body?.filters || {});
-        return res.status(202).json({ success: true, runId: run._id });
+        return res.status(202).json({ success: true, runId: run._id, data: run });
     } catch (error) {
         const response = bulkAutoApplyErrorResponse(error);
         return res.status(response.status).json(response.body);

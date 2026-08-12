@@ -264,6 +264,24 @@ describe('BulkAutoApplyService', () => {
     expect(thresholdSelection.totalMatchedAboveThreshold).toBe(0);
   });
 
+  test('bulk preview exposes 100-step batch options and caps count to requested batch size', async () => {
+    const user = await createUserAndStudent('batch-preview@example.com');
+    await Promise.all(Array.from({ length: 250 }, (_, index) => createJob({
+      title: `Batch Preview Role ${index}`,
+      atsPlatform: 'greenhouse',
+      sourceProvider: 'greenhouse',
+      sourceCompanySlug: 'acme',
+      atsJobId: `batch-preview-${index}`
+    })));
+
+    const preview = await BulkAutoApplyService.previewCount(user._id, { batchSize: 100 });
+
+    expect(preview.availableCount).toBe(250);
+    expect(preview.count).toBe(100);
+    expect(preview.batchOptions).toEqual([100, 200, 250]);
+    expect((preview as any).dailyLimit).toBeUndefined();
+  });
+
   test('bulk Greenhouse path creates queued Application before ATS call', async () => {
     const user = await createUserAndStudent('bulk-greenhouse@example.com');
     const job = await createJob({

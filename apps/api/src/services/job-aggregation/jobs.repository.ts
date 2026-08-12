@@ -29,6 +29,7 @@ export interface JobsQuery {
   balanced?: boolean | string;
   autoApplyScope?: 'all' | 'matched' | string;
   includeAllJobs?: boolean | string;
+  batchSize?: number | string;
 }
 
 export interface CompanyJobGroup {
