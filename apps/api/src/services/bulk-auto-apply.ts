@@ -1,6 +1,7 @@
 import mongoose, { Types } from 'mongoose';
 import { Queue, Worker, QueueEvents } from 'bullmq';
 import { Application } from '../models/Application';
+import { Job } from '../models/Job';
 import { BulkAutoApplyRun } from '../models/BulkAutoApplyRun';
 import { BulkAutoApplyTask, BulkAutoApplyTaskStatus } from '../models/BulkAutoApplyTask';
 import AutoApplyService from './auto-apply';
@@ -8,9 +9,9 @@ import ApplicationSubmissionService from './application-submission';
 import JobMatchingRagService from './job-matching-rag';
 import type { JobsQuery } from './job-aggregation/jobs.repository';
 import { createRedisConnection } from './redis-client';
-import { checkOpenAIHealth } from './openai-client';
-import { checkCohereHealth } from './cohere-client';
+import { checkOpenAIEmbeddingHealth, checkOpenAIHealth } from './openai-client';
 import { sanitizeForLog } from '../utils/safe-logging';
+import { classifyApplicationCapability } from './ats/application-capability';
 
 const QUEUE_NAME = 'bulk-auto-apply';
 const PROCESS_TASK_JOB = 'process-task';
@@ -28,7 +29,7 @@ export type BulkAutoApplyTaskJobPayload = {
 };
 
 export class BulkAutoApplyStartDependencyError extends Error {
-  code: 'BULK_AUTO_APPLY_MONGO_UNAVAILABLE' | 'BULK_AUTO_APPLY_OPENAI_UNAVAILABLE' | 'BULK_AUTO_APPLY_COHERE_UNAVAILABLE';
+  code: 'BULK_AUTO_APPLY_MONGO_UNAVAILABLE' | 'BULK_AUTO_APPLY_OPENAI_UNAVAILABLE';
   originalError: unknown;
 
   constructor(code: BulkAutoApplyStartDependencyError['code'], message: string, originalError: unknown) {
@@ -58,6 +59,8 @@ const DEFAULT_WORKER_CONCURRENCY = 5;
 
 const failureReasonFromError = (message: string): string => {
   if (/not implemented/i.test(message)) return 'unsupported_ats';
+  if (/required for browser auto-apply/i.test(message)) return 'unsupported_ats';
+  if (/manual_completion_required|captcha|verification/i.test(message)) return 'manual_completion_required';
   if (/duplicate|E11000/i.test(message)) return 'already_applied';
   if (/complete your profile|missing/i.test(message)) return 'profile_incomplete';
   return 'ats_submission_failed';
@@ -81,16 +84,7 @@ class BulkAutoApplyService {
     }
 
     try {
-      await checkCohereHealth();
-    } catch (error) {
-      throw new BulkAutoApplyStartDependencyError(
-        'BULK_AUTO_APPLY_COHERE_UNAVAILABLE',
-        'Bulk auto-apply Cohere embedding health check failed',
-        error
-      );
-    }
-
-    try {
+      await checkOpenAIEmbeddingHealth();
       await checkOpenAIHealth();
     } catch (error) {
       throw new BulkAutoApplyStartDependencyError(
@@ -107,6 +101,7 @@ class BulkAutoApplyService {
       count: selection.matches.length,
       needsYouCount: selection.needsYouCount,
       unsupportedCount: selection.unsupportedCount,
+      totalConsideredJobs: selection.totalConsideredJobs,
       totalMatchedAboveThreshold: selection.totalMatchedAboveThreshold
     };
   }
@@ -237,8 +232,26 @@ class BulkAutoApplyService {
       .sort({ completedAt: -1 })
       .limit(25)
       .lean();
-    const runningJobIds = await BulkAutoApplyTask.find({ runId: run._id, status: { $in: ['pending', 'running'] } }).distinct('jobId');
-    return { ...run, failedTasks, runningJobIds };
+    const [runningJobIds, runningCount, pendingCount, pickedUpTask] = await Promise.all([
+      BulkAutoApplyTask.find({ runId: run._id, status: { $in: ['pending', 'running'] } }).distinct('jobId'),
+      BulkAutoApplyTask.countDocuments({ runId: run._id, status: 'running' }),
+      BulkAutoApplyTask.countDocuments({ runId: run._id, status: 'pending' }),
+      BulkAutoApplyTask.exists({ runId: run._id, status: { $ne: 'pending' } })
+    ]);
+    const hasNoWorkerPickup = ['pending', 'running'].includes(run.status)
+      && run.processedCount === 0
+      && !pickedUpTask
+      && Date.now() - new Date(run.createdAt).getTime() > Number(process.env.BULK_AUTO_APPLY_PICKUP_WARNING_MS || 60000);
+    return {
+      ...run,
+      failedTasks,
+      runningJobIds,
+      runningCount,
+      pendingCount,
+      workerWarning: hasNoWorkerPickup
+        ? 'Bulk Auto Apply is waiting for the background worker. Start the API worker process to continue processing.'
+        : undefined
+    };
   }
 
   async cancelRun(runId: string | Types.ObjectId, userId: string | Types.ObjectId) {
@@ -357,7 +370,37 @@ class BulkAutoApplyService {
         await this.applyTaskCounters(task._id);
         return;
       }
+
+      const job = await Job.findById(task.jobId)
+        .select('+applyUrl +sourceUrl atsPlatform sourceProvider sourceCompanySlug greenhouseBoardToken atsJobId sourceExternalId allowDirectApplications')
+        .lean();
+      const capability = job ? classifyApplicationCapability(job) : 'unsupported';
+
       if (existingApplication?.status === 'pending_review') {
+        if (capability === 'auto_apply') {
+          await Application.findByIdAndUpdate(existingApplication._id, {
+            $set: {
+              status: 'queued',
+              submittedFieldsJson: {
+                ...(existingApplication.submittedFieldsJson || {}),
+                submittedVia: 'this_portal',
+                queuedAt: new Date(),
+                autoSubmittedFromPendingReviewAt: new Date()
+              }
+            }
+          });
+          const application = await ApplicationSubmissionService.submitQueuedApplication(existingApplication._id);
+          const taskStatus = application?.status === 'pending_review' ? 'pending_review' : 'succeeded';
+          await BulkAutoApplyTask.findByIdAndUpdate(task._id, {
+            $set: {
+              status: taskStatus,
+              applicationId: application?._id,
+              completedAt: new Date()
+            }
+          });
+          await this.applyTaskCounters(task._id);
+          return;
+        }
         await BulkAutoApplyTask.findByIdAndUpdate(task._id, {
           $set: {
             status: 'pending_review',
@@ -382,9 +425,49 @@ class BulkAutoApplyService {
         return;
       }
 
+      if (capability === 'needs_you') {
+        const application = await ApplicationSubmissionService.createPendingReviewApplication(task.userId, task.jobId, task.score);
+        await BulkAutoApplyTask.findByIdAndUpdate(task._id, {
+          $set: {
+            status: 'pending_review',
+            applicationId: application?._id,
+            completedAt: new Date()
+          }
+        });
+        await this.applyTaskCounters(task._id);
+        return;
+      }
+      if (capability === 'unsupported') {
+        const application = existingApplication?.status === 'queued'
+          ? existingApplication
+          : await ApplicationSubmissionService.createQueuedApplication(task.userId, task.jobId, task.score);
+        await Application.findByIdAndUpdate(application._id, {
+          $set: {
+            status: 'failed',
+            failureReason: 'unsupported_ats',
+            atsResponseRaw: {
+              error: 'ATS is not supported for automatic submission',
+              failureReason: 'unsupported_ats',
+              failedAt: new Date()
+            }
+          }
+        });
+        await BulkAutoApplyTask.findByIdAndUpdate(task._id, {
+          $set: {
+            status: 'failed',
+            applicationId: application._id,
+            failureReason: 'unsupported_ats',
+            errorMessage: 'ATS is not supported for automatic submission',
+            completedAt: new Date()
+          }
+        });
+        await this.applyTaskCounters(task._id);
+        return;
+      }
+
       const application = existingApplication?.status === 'queued'
         ? await ApplicationSubmissionService.submitQueuedApplication(existingApplication._id)
-        : (await AutoApplyService.handleMatchedJob(task.userId, task.jobId, task.score)).application as any;
+        : (await AutoApplyService.handleMatchedJob(task.userId, task.jobId, task.score, { forceSubmit: true })).application as any;
       const taskStatus = application?.status === 'pending_review' ? 'pending_review' : 'succeeded';
       await BulkAutoApplyTask.findByIdAndUpdate(task._id, {
         $set: {

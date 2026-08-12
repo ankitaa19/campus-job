@@ -27,6 +27,8 @@ export interface JobsQuery {
   noticePeriodDays?: number;
   includeRemote?: boolean | string;
   balanced?: boolean | string;
+  autoApplyScope?: 'all' | 'matched' | string;
+  includeAllJobs?: boolean | string;
 }
 
 export interface CompanyJobGroup {

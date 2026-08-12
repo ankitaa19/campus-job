@@ -11,15 +11,19 @@ export const classifyApplicationCapability = (job: {
   greenhouseBoardToken?: string;
   atsJobId?: string;
   sourceExternalId?: string;
+  applyUrl?: string;
+  sourceUrl?: string;
 }): ApplicationCapability => {
   if (job.allowDirectApplications === false) return 'unsupported';
 
   const platform = String(job.atsPlatform || job.sourceProvider || 'other').trim().toLowerCase();
+  const applicationUrl = String(job.applyUrl || job.sourceUrl || '').trim();
   if (platform === 'greenhouse') {
     const boardToken = String(job.sourceCompanySlug || job.greenhouseBoardToken || '').trim();
     const jobPostId = String(job.atsJobId || job.sourceExternalId || '').trim();
-    return boardToken && jobPostId ? 'auto_apply' : 'needs_you';
+    return (boardToken && jobPostId) || applicationUrl ? 'auto_apply' : 'needs_you';
   }
+  if (applicationUrl) return 'auto_apply';
   if (REAL_AUTO_APPLY_ADAPTERS.has(platform)) return 'auto_apply';
   if (KNOWN_STUBBED_PLATFORMS.has(platform)) return 'needs_you';
   return 'unsupported';

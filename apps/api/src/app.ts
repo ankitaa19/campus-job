@@ -40,8 +40,7 @@ import placementRoutes from './routes/placements';
 import { connectDB, isDatabaseReady } from './utils/database';
 import SimpleScheduler from './services/simple-scheduler';
 import { checkRedisHealth } from './services/redis-client';
-import { checkOpenAIHealth } from './services/openai-client';
-import { checkCohereHealth } from './services/cohere-client';
+import { checkOpenAIEmbeddingHealth, checkOpenAIHealth } from './services/openai-client';
 import mongoose from 'mongoose';
 
 const app = express();
@@ -62,7 +61,7 @@ const checkExternalDependencies = async () => {
   const checks = [
     checkRedisHealth(),
     checkOpenAIHealth(),
-    checkCohereHealth()
+    checkOpenAIEmbeddingHealth()
   ];
   const results = await Promise.allSettled(checks);
   if (results.some(result => result.status === 'rejected')) {

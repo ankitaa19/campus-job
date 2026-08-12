@@ -60,7 +60,18 @@ type BulkRunState = {
   unsupportedAtsCount: number;
   failureReasons?: Record<string, number>;
   runningJobIds?: string[];
+  runningCount?: number;
+  pendingCount?: number;
+  workerWarning?: string;
 };
+type BulkAutoApplyPreview = {
+  count: number;
+  needsYouCount: number;
+  unsupportedCount: number;
+  totalConsideredJobs: number;
+  totalMatchedAboveThreshold: number;
+};
+const BULK_AUTO_APPLY_RUN_STORAGE_KEY = 'campuspe.activeBulkAutoApplyRunId';
 
 const JobsSection: React.FC<JobsSectionProps> = ({ studentInfo }) => {
   const router = useRouter();
@@ -72,6 +83,7 @@ const JobsSection: React.FC<JobsSectionProps> = ({ studentInfo }) => {
   const [locationSearch, setLocationSearch] = useState('');
   const [savedJobs, setSavedJobs] = useState<Array<string | number>>([]);
   const [appliedJobs, setAppliedJobs] = useState<Array<string | number>>([]);
+  const [submittingJobs, setSubmittingJobs] = useState<Array<string | number>>([]);
   const [appliedJobCards, setAppliedJobCards] = useState<StudentJob[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 12;
@@ -89,6 +101,7 @@ const JobsSection: React.FC<JobsSectionProps> = ({ studentInfo }) => {
   const [bulkAutoApplyBusy, setBulkAutoApplyBusy] = useState(false);
   const [bulkAutoApplyCancelling, setBulkAutoApplyCancelling] = useState(false);
   const [bulkAutoApplyError, setBulkAutoApplyError] = useState('');
+  const [bulkAutoApplyPreview, setBulkAutoApplyPreview] = useState<BulkAutoApplyPreview | null>(null);
   const [filters, setFilters] = useState({
     datePosted: '',
     workType: [] as string[],
@@ -119,9 +132,13 @@ const JobsSection: React.FC<JobsSectionProps> = ({ studentInfo }) => {
 
   const loadApplicationState = async () => {
     try {
-      const response = await apiClient.get('/api/applications', { params: { status: 'submitted,confirmed,pending_review' } });
+      const response = await apiClient.get('/api/applications', { params: { status: 'queued,submitted,confirmed,pending_review,failed' } });
       const records = Array.isArray(response.data?.data) ? response.data.data : [];
       const submittedRecords = records.filter((record: any) => ['submitted', 'confirmed'].includes(record.status));
+      setSubmittingJobs(records
+        .filter((record: any) => record.status === 'queued')
+        .map((record: any) => String(record.jobId?._id || record.jobId))
+        .filter(Boolean));
       setAppliedJobs(records
         .filter((record: any) => ['submitted', 'confirmed'].includes(record.status))
         .map((record: any) => String(record.jobId?._id || record.jobId))
@@ -166,6 +183,7 @@ const JobsSection: React.FC<JobsSectionProps> = ({ studentInfo }) => {
         .filter(Boolean));
     } catch {
       setAppliedJobs([]);
+      setSubmittingJobs([]);
       setAppliedJobCards([]);
       setPendingReviewJobs([]);
     }
@@ -259,6 +277,11 @@ const JobsSection: React.FC<JobsSectionProps> = ({ studentInfo }) => {
     return () => window.clearTimeout(timer);
   }, [searchQuery, reloadKey, currentPage, filters.workType, filters.workMode, filters.locations, filters.datePosted, minSalary]);
 
+  useEffect(() => {
+    setBulkAutoApplyPreview(null);
+    setBulkAutoApplyError('');
+  }, [searchQuery, filters.workType, filters.workMode, filters.locations, filters.datePosted, minSalary, activeTab]);
+
   // Helper function to calculate time ago
   const getTimeAgo = (dateString: string) => {
     const date = new Date(dateString);
@@ -350,6 +373,7 @@ const JobsSection: React.FC<JobsSectionProps> = ({ studentInfo }) => {
   };
 
   const getAutoApplyLabel = (jobId: string | number) => {
+    if (includesJobId(submittingJobs, jobId)) return 'Submitting';
     if (includesJobId(appliedJobs, jobId)) return 'Applied';
     if (includesJobId(pendingReviewJobs, jobId)) return 'Pending Review';
     const state = getAutoApplyState(jobId);
@@ -364,6 +388,7 @@ const JobsSection: React.FC<JobsSectionProps> = ({ studentInfo }) => {
     const state = getAutoApplyState(jobId);
     return activeTab === 'applied'
       || includesJobId(appliedJobs, jobId)
+      || includesJobId(submittingJobs, jobId)
       || includesJobId(pendingReviewJobs, jobId)
       || state.status === 'applying'
       || state.status === 'pending_review'
@@ -406,19 +431,38 @@ const JobsSection: React.FC<JobsSectionProps> = ({ studentInfo }) => {
     setBulkAutoApplyError('');
     setBulkAutoApplyBusy(true);
     try {
-      const currentFilters = buildCurrentJobFilters();
+      const currentFilters = { ...buildCurrentJobFilters(), autoApplyScope: 'all', includeAllJobs: true };
       const preview = await apiClient.get('/api/jobs/auto-apply/preview-count', { params: currentFilters });
-      const count = Number(preview.data?.count || 0);
+      const previewState: BulkAutoApplyPreview = {
+        count: Number(preview.data?.count || 0),
+        needsYouCount: Number(preview.data?.needsYouCount || 0),
+        unsupportedCount: Number(preview.data?.unsupportedCount || 0),
+        totalConsideredJobs: Number(preview.data?.totalConsideredJobs || 0),
+        totalMatchedAboveThreshold: Number(preview.data?.totalMatchedAboveThreshold || 0)
+      };
+      setBulkAutoApplyPreview(previewState);
+      const count = previewState.count;
       if (!count) {
-        setBulkAutoApplyError('No jobs match your auto-apply threshold and current filters.');
+        setBulkAutoApplyError(previewState.needsYouCount
+          ? `${previewState.needsYouCount.toLocaleString()} jobs need manual application because their ATS is not automated yet. No automatic applications were created.`
+          : 'No jobs are ready for automatic submission with the current filters.');
         return;
       }
-      const confirmed = window.confirm(`This will submit applications to ${count.toLocaleString()} matched jobs. Continue?`);
+      const unsupportedText = previewState.unsupportedCount
+        ? ` ${previewState.unsupportedCount.toLocaleString()} unsupported jobs will not be submitted.`
+        : '';
+      const needsYouText = previewState.needsYouCount
+        ? ` ${previewState.needsYouCount.toLocaleString()} matched jobs need manual action and will not be submitted by Auto Apply.`
+        : '';
+      const confirmationText = `This will submit ${count.toLocaleString()} applications automatically from ${previewState.totalConsideredJobs.toLocaleString()} jobs in the current result set.${needsYouText}${unsupportedText} Continue?`;
+      const confirmed = window.confirm(confirmationText);
       if (!confirmed) return;
       const response = await apiClient.post('/api/jobs/auto-apply/bulk', { filters: currentFilters });
-      setBulkRunId(String(response.data?.runId || ''));
+      const runId = String(response.data?.runId || '');
+      setBulkRunId(runId);
+      if (runId) localStorage.setItem(BULK_AUTO_APPLY_RUN_STORAGE_KEY, runId);
       setBulkRun({
-        _id: String(response.data?.runId || ''),
+        _id: runId,
         status: 'pending',
         totalJobs: count,
         processedCount: 0,
@@ -437,6 +481,8 @@ const JobsSection: React.FC<JobsSectionProps> = ({ studentInfo }) => {
   };
 
   const isBulkRunActive = bulkRun?.status === 'pending' || bulkRun?.status === 'running';
+  const bulkAutoApplyActionableCount = Number(bulkAutoApplyPreview?.count || 0) + Number(bulkAutoApplyPreview?.needsYouCount || 0);
+  const bulkAutoApplyDisabledByPreview = Boolean(bulkAutoApplyPreview && bulkAutoApplyActionableCount === 0);
   const bulkProgressLabel = bulkRun
     ? `${Number(bulkRun.processedCount || 0).toLocaleString()}/${Number(bulkRun.totalJobs || 0).toLocaleString()}`
     : '';
@@ -451,6 +497,7 @@ const JobsSection: React.FC<JobsSectionProps> = ({ studentInfo }) => {
       const run = response.data?.data;
       if (run) setBulkRun(run);
       setBulkRunId('');
+      localStorage.removeItem(BULK_AUTO_APPLY_RUN_STORAGE_KEY);
       await loadApplicationState();
       setReloadKey(value => value + 1);
     } catch (error: any) {
@@ -461,6 +508,11 @@ const JobsSection: React.FC<JobsSectionProps> = ({ studentInfo }) => {
   };
 
   useEffect(() => {
+    const storedRunId = localStorage.getItem(BULK_AUTO_APPLY_RUN_STORAGE_KEY);
+    if (!bulkRunId && storedRunId) {
+      setBulkRunId(storedRunId);
+      return;
+    }
     if (!bulkRunId) return;
     let cancelled = false;
     const loadRun = async () => {
@@ -471,6 +523,7 @@ const JobsSection: React.FC<JobsSectionProps> = ({ studentInfo }) => {
         setBulkRun(run);
         if (run?.status === 'completed' || run?.status === 'failed' || run?.status === 'cancelled') {
           setBulkRunId('');
+          localStorage.removeItem(BULK_AUTO_APPLY_RUN_STORAGE_KEY);
           await loadApplicationState();
           setReloadKey(value => value + 1);
         }
@@ -847,20 +900,44 @@ const JobsSection: React.FC<JobsSectionProps> = ({ studentInfo }) => {
 	                    ? `Showing ${displayStart.toLocaleString()}-${displayEnd.toLocaleString()} of ${displayedJobCount.toLocaleString()}`
 	                    : 'No jobs match the current filters'}
 	                </p>
+	                {activeTab !== 'applied' && bulkAutoApplyPreview && (
+	                  <div className="mt-2 flex flex-wrap gap-2 text-xs">
+	                    <span className={`rounded-full px-2.5 py-1 font-semibold ${
+	                      bulkAutoApplyPreview.count > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
+	                    }`}>
+	                      {bulkAutoApplyPreview.count.toLocaleString()} ready for automatic submission
+	                    </span>
+	                    {bulkAutoApplyPreview.needsYouCount > 0 && (
+	                      <span className="rounded-full bg-amber-100 px-2.5 py-1 font-semibold text-amber-700">
+	                        {bulkAutoApplyPreview.needsYouCount.toLocaleString()} need your action
+	                      </span>
+	                    )}
+	                    {bulkAutoApplyPreview.unsupportedCount > 0 && (
+	                      <span className="rounded-full bg-gray-100 px-2.5 py-1 font-semibold text-gray-600">
+	                        {bulkAutoApplyPreview.unsupportedCount.toLocaleString()} unsupported
+	                      </span>
+	                    )}
+	                    {bulkAutoApplyPreview.count === 0 && bulkAutoApplyPreview.totalConsideredJobs > 0 && (
+	                      <span className="basis-full text-gray-600">
+	                        Checked {bulkAutoApplyPreview.totalConsideredJobs.toLocaleString()} jobs in the current result set; none can be submitted automatically yet.
+	                      </span>
+	                    )}
+	                  </div>
+	                )}
 	              </div>
 		              <div className="flex flex-wrap items-center justify-end gap-2">
 		                {loading && <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-blue-700">Updating jobs...</span>}
 		                {activeTab !== 'applied' && (
 		                  <button
 		                    onClick={isBulkRunActive ? handleCancelBulkAutoApply : handleBulkAutoApply}
-		                    disabled={bulkAutoApplyBusy || bulkAutoApplyCancelling}
+		                    disabled={bulkAutoApplyBusy || bulkAutoApplyCancelling || (!isBulkRunActive && bulkAutoApplyDisabledByPreview)}
 		                    className={`rounded-lg px-4 py-2 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:bg-gray-400 ${
 		                      isBulkRunActive ? 'bg-red-600 hover:bg-red-700' : 'bg-[#1484F3] hover:bg-[#0d6edb]'
 		                    }`}
 		                  >
 		                    {isBulkRunActive
 		                      ? bulkAutoApplyCancelling ? 'Stopping...' : `Stop (${bulkProgressLabel})`
-		                      : bulkAutoApplyBusy ? 'Checking...' : 'Auto Apply'}
+		                      : bulkAutoApplyBusy ? 'Checking...' : bulkAutoApplyDisabledByPreview ? 'No Auto Apply Jobs' : 'Auto Apply'}
 		                  </button>
 		                )}
 		              </div>
@@ -870,6 +947,7 @@ const JobsSection: React.FC<JobsSectionProps> = ({ studentInfo }) => {
 		                {bulkRun.status === 'pending' || bulkRun.status === 'running' ? (
 		                  <p>
 		                    Applying: {bulkRun.processedCount.toLocaleString()} / {bulkRun.totalJobs.toLocaleString()}
+		                    {Number(bulkRun.runningCount || 0) > 0 ? ` — ${Number(bulkRun.runningCount || 0).toLocaleString()} currently submitting` : ''}
 		                    {' — '}{bulkRun.failedCount.toLocaleString()} failed
 		                    {' — '}{bulkRun.pendingReviewCount.toLocaleString()} need review
 		                  </p>
@@ -892,6 +970,9 @@ const JobsSection: React.FC<JobsSectionProps> = ({ studentInfo }) => {
 		                  <p className="mt-1 text-xs text-gray-500">
 		                    Reasons: {Object.entries(bulkRun.failureReasons).map(([reason, count]) => `${reason.replace(/_/g, ' ')}: ${count.toLocaleString()}`).join(', ')}
 		                  </p>
+		                )}
+		                {bulkRun.workerWarning && (
+		                  <p className="mt-1 text-xs font-medium text-amber-700">{bulkRun.workerWarning}</p>
 		                )}
 		              </div>
 		            )}

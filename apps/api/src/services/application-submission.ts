@@ -14,7 +14,7 @@ class ApplicationSubmissionService {
   async createPendingReviewApplication(userId: string | Types.ObjectId, jobId: string | Types.ObjectId, matchScore?: number) {
     const application = await this.createApplicationRecord(userId, jobId, 'pending_review', matchScore);
     const [job, student] = await Promise.all([
-      Job.findById(application.jobId).select('+applyUrl'),
+      Job.findById(application.jobId).select('+applyUrl +sourceUrl'),
       Student.findById(application.studentId)
     ]);
     if (!job) throw new Error('Job not found');
@@ -63,7 +63,7 @@ class ApplicationSubmissionService {
     const objectJobId = new Types.ObjectId(jobId);
     const [student, job, user] = await Promise.all([
       Student.findOne({ userId: objectUserId }),
-      Job.findById(objectJobId).select('+applyUrl'),
+      Job.findById(objectJobId).select('+applyUrl +sourceUrl'),
       User.findById(objectUserId)
     ]);
     if (!student) throw new Error('Student profile not found');
@@ -139,7 +139,7 @@ class ApplicationSubmissionService {
     }
 
     const [job, student, user] = await Promise.all([
-      Job.findById(application.jobId).select('+applyUrl'),
+      Job.findById(application.jobId).select('+applyUrl +sourceUrl'),
       Student.findById(application.studentId),
       User.findById(application.userId)
     ]);
@@ -185,7 +185,11 @@ class ApplicationSubmissionService {
       }, { new: true });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      const failureReason = /not implemented/i.test(message) ? 'unsupported_ats' : 'ats_submission_failed';
+      const failureReason = /not implemented|required for browser auto-apply/i.test(message)
+        ? 'unsupported_ats'
+        : /manual_completion_required|captcha|verification/i.test(message)
+          ? 'manual_completion_required'
+          : 'ats_submission_failed';
       await Application.findByIdAndUpdate(application._id, {
         $set: {
           status: 'failed',

@@ -1,8 +1,9 @@
 import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import axios from 'axios';
-import { Application, BulkAutoApplyRun, BulkAutoApplyTask, Job, Student, User } from '../models';
+import { Application, BulkAutoApplyRun, BulkAutoApplyTask, Job, JobMatch, Student, User } from '../models';
 import BulkAutoApplyService from '../services/bulk-auto-apply';
+import AutoApplyService from '../services/auto-apply';
 import { enrichJob } from '../services/job-intelligence';
 import JobMatchingRagService from '../services/job-matching-rag';
 
@@ -20,11 +21,10 @@ describe('BulkAutoApplyService', () => {
   beforeEach(async () => {
     process.env.OPENAI_API_KEY = 'test-openai-key';
     process.env.GREENHOUSE_JOB_BOARD_API_KEY = 'test-greenhouse-key';
-    process.env.COHERE_API_KEY = 'test-cohere-key';
     mockedAxios.post.mockReset();
     mockedAxios.post.mockImplementation(async (url: any) => {
-      if (String(url).includes('api.cohere.com/v1/embed')) {
-        return { data: { embeddings: [Array(1024).fill(0.01)] } };
+      if (String(url).includes('api.openai.com/v1/embeddings')) {
+        return { data: { data: [{ embedding: Array(1536).fill(0.01) }] } };
       }
       if (String(url).includes('api.openai.com/v1/chat/completions')) {
         return {
@@ -43,7 +43,6 @@ describe('BulkAutoApplyService', () => {
   afterAll(async () => {
     delete process.env.OPENAI_API_KEY;
     delete process.env.GREENHOUSE_JOB_BOARD_API_KEY;
-    delete process.env.COHERE_API_KEY;
     await mongoose.disconnect();
     await mongoServer.stop();
   });
@@ -153,7 +152,7 @@ describe('BulkAutoApplyService', () => {
 
   test('unsupported ATS jobs are marked failed, not submitted', async () => {
     const user = await createUserAndStudent('unsupported@example.com');
-    const job = await createJob({ atsPlatform: 'workday' });
+    const job = await createJob({ atsPlatform: 'other' });
     const { run, task } = await createRunAndTask(user, job);
 
     await processTask(run, task, user, job._id);
@@ -165,6 +164,25 @@ describe('BulkAutoApplyService', () => {
     const completedRun = await BulkAutoApplyRun.findById(run._id);
     expect(completedRun?.failedCount).toBe(1);
     expect(completedRun?.unsupportedAtsCount).toBe(1);
+    expect(mockedAxios.post.mock.calls.filter(call => String(call[0]).includes('boards-api.greenhouse.io'))).toHaveLength(0);
+  });
+
+  test('needs-you ATS jobs create pending-review Applications for tracking', async () => {
+    const user = await createUserAndStudent('needs-you@example.com');
+    const job = await createJob({ atsPlatform: 'workday', sourceProvider: 'workday' });
+    const { run, task } = await createRunAndTask(user, job);
+
+    await processTask(run, task, user, job._id);
+
+    const application = await Application.findOne({ userId: user._id, jobId: job._id });
+    expect(application?.status).toBe('pending_review');
+    expect(application?.submittedVia).toBe('this_portal');
+    expect(application?.coverLetterUsed).toBeTruthy();
+    const completedTask = await BulkAutoApplyTask.findById(task._id);
+    expect(completedTask?.status).toBe('pending_review');
+    const completedRun = await BulkAutoApplyRun.findById(run._id);
+    expect(completedRun?.pendingReviewCount).toBe(1);
+    expect(completedRun?.failedCount).toBe(0);
     expect(mockedAxios.post.mock.calls.filter(call => String(call[0]).includes('boards-api.greenhouse.io'))).toHaveLength(0);
   });
 
@@ -189,6 +207,61 @@ describe('BulkAutoApplyService', () => {
     expect(selection.needsYouCount).toBe(1);
     expect(selection.unsupportedCount).toBe(1);
     expect(selection.totalMatchedAboveThreshold).toBe(3);
+    expect(mockedAxios.post.mock.calls.filter(call => String(call[0]).includes('api.openai.com/v1/embeddings'))).toHaveLength(0);
+    expect(await JobMatch.countDocuments()).toBe(0);
+  });
+
+  test('bulk selection treats non-Greenhouse jobs with apply URLs as auto-apply capable', async () => {
+    const user = await createUserAndStudent('browser-provider-selection@example.com');
+    await Promise.all([
+      createJob({
+        title: 'Workday Role',
+        atsPlatform: 'workday',
+        sourceProvider: 'workday',
+        applyUrl: 'https://example.wd1.myworkdayjobs.com/External/job/role-1'
+      }),
+      createJob({
+        title: 'Lever Role',
+        atsPlatform: 'lever',
+        sourceProvider: 'lever',
+        applyUrl: 'https://jobs.lever.co/example/posting-1'
+      }),
+      createJob({
+        title: 'Ashby Role',
+        atsPlatform: 'ashby',
+        sourceProvider: 'ashby',
+        applyUrl: 'https://jobs.ashbyhq.com/example/posting-1'
+      })
+    ]);
+
+    const selection = await JobMatchingRagService.findBulkAutoApplySelection(user._id, {});
+
+    expect(selection.matches).toHaveLength(3);
+    expect(selection.needsYouCount).toBe(0);
+    expect(selection.unsupportedCount).toBe(0);
+  });
+
+  test('bulk selection can include all fetched jobs without threshold gating', async () => {
+    const user = await createUserAndStudent('all-fetched-selection@example.com');
+    await User.findByIdAndUpdate(user._id, { $set: { autoApplyThreshold: 0.95 } });
+    await createJob({
+      title: 'Backend Engineer',
+      description: 'Build Node services.',
+      requiredSkills: ['Node.js'],
+      atsPlatform: 'greenhouse',
+      sourceProvider: 'greenhouse',
+      sourceCompanySlug: 'acme',
+      atsJobId: 'gh-node-1'
+    });
+
+    const allFetchedSelection = await JobMatchingRagService.findBulkAutoApplySelection(user._id, {});
+    const thresholdSelection = await JobMatchingRagService.findBulkAutoApplySelection(user._id, { autoApplyScope: 'matched' });
+
+    expect(allFetchedSelection.totalConsideredJobs).toBe(1);
+    expect(allFetchedSelection.matches).toHaveLength(1);
+    expect(allFetchedSelection.totalMatchedAboveThreshold).toBe(0);
+    expect(thresholdSelection.matches).toHaveLength(0);
+    expect(thresholdSelection.totalMatchedAboveThreshold).toBe(0);
   });
 
   test('bulk Greenhouse path creates queued Application before ATS call', async () => {
@@ -200,8 +273,8 @@ describe('BulkAutoApplyService', () => {
       atsJobId: 'job-123'
     });
     mockedAxios.post.mockImplementation(async (url: any) => {
-      if (String(url).includes('api.cohere.com/v1/embed')) {
-        return { data: { embeddings: [Array(1024).fill(0.01)] } };
+      if (String(url).includes('api.openai.com/v1/embeddings')) {
+        return { data: { data: [{ embedding: Array(1536).fill(0.01) }] } };
       }
       if (String(url).includes('api.openai.com/v1/chat/completions')) {
         return {
@@ -225,6 +298,70 @@ describe('BulkAutoApplyService', () => {
     expect(mockedAxios.post.mock.calls.filter(call => String(call[0]).includes('boards-api.greenhouse.io'))).toHaveLength(1);
     const completedTask = await BulkAutoApplyTask.findOne({ runId: run._id });
     expect(completedTask?.status).toBe('succeeded');
+  });
+
+  test('bulk Greenhouse force-submit bypasses match threshold', async () => {
+    const user = await createUserAndStudent('bulk-low-score-greenhouse@example.com');
+    await User.findByIdAndUpdate(user._id, { $set: { autoApplyThreshold: 0.95 } });
+    const job = await createJob({
+      requiredSkills: ['Rust'],
+      atsPlatform: 'greenhouse',
+      sourceProvider: 'greenhouse',
+      sourceCompanySlug: 'acme',
+      atsJobId: 'job-low-score'
+    });
+    const { run, task } = await createRunAndTask(user, job, 0.1);
+
+    await processTask(run, task, user, job._id);
+
+    const application = await Application.findOne({ userId: user._id, jobId: job._id });
+    expect(application?.status).toBe('confirmed');
+    expect(await Application.countDocuments({ userId: user._id, jobId: job._id, status: 'pending_review' })).toBe(0);
+    const completedRun = await BulkAutoApplyRun.findById(run._id);
+    expect(completedRun?.succeededCount).toBe(1);
+    expect(completedRun?.pendingReviewCount).toBe(0);
+    expect(mockedAxios.post.mock.calls.filter(call => String(call[0]).includes('boards-api.greenhouse.io'))).toHaveLength(1);
+  });
+
+  test('bulk Greenhouse task submits an existing pending-review Application instead of keeping it in Needs You', async () => {
+    const user = await createUserAndStudent('bulk-existing-pending-greenhouse@example.com');
+    await User.findByIdAndUpdate(user._id, { $set: { autoApplyThreshold: 0.95 } });
+    const job = await createJob({
+      atsPlatform: 'greenhouse',
+      sourceProvider: 'greenhouse',
+      sourceCompanySlug: 'acme',
+      atsJobId: 'job-existing-pending'
+    });
+    const pending = (await AutoApplyService.handleMatchedJob(user._id, job._id, 0.1)).application as any;
+    expect(pending.status).toBe('pending_review');
+    mockedAxios.post.mockClear();
+    const { run, task } = await createRunAndTask(user, job, 0.1);
+
+    await processTask(run, task, user, job._id);
+
+    const application = await Application.findOne({ userId: user._id, jobId: job._id });
+    expect(application?.status).toBe('confirmed');
+    expect(application?.submittedFieldsJson?.autoSubmittedFromPendingReviewAt).toBeTruthy();
+    const completedRun = await BulkAutoApplyRun.findById(run._id);
+    expect(completedRun?.succeededCount).toBe(1);
+    expect(completedRun?.pendingReviewCount).toBe(0);
+    expect(mockedAxios.post.mock.calls.filter(call => String(call[0]).includes('boards-api.greenhouse.io'))).toHaveLength(1);
+  });
+
+  test('bulk selection includes existing pending-review Greenhouse applications for recovery', async () => {
+    const user = await createUserAndStudent('recover-pending-selection@example.com');
+    await User.findByIdAndUpdate(user._id, { $set: { autoApplyThreshold: 0.95 } });
+    const job = await createJob({
+      atsPlatform: 'greenhouse',
+      sourceProvider: 'greenhouse',
+      sourceCompanySlug: 'acme',
+      atsJobId: 'job-recover-pending'
+    });
+    await AutoApplyService.handleMatchedJob(user._id, job._id, 0.1);
+
+    const selection = await JobMatchingRagService.findBulkAutoApplySelection(user._id, {});
+
+    expect(selection.matches.map(match => String(match.job._id))).toContain(String(job._id));
   });
 
   test('remaining tasks can be processed after a simulated worker restart and counters stay accurate', async () => {

@@ -187,4 +187,74 @@ describe('ApplicationSubmissionService', () => {
     expect(approved?.status).toBe('confirmed');
     expect(mockedAxios.post.mock.calls.filter(call => String(call[0]).includes('boards-api.greenhouse.io'))).toHaveLength(1);
   });
+
+  test('explicit Auto Apply force-submits real adapter jobs without review', async () => {
+    mockedAxios.post.mockImplementation(async (url: any) => {
+      if (String(url).includes('api.openai.com')) {
+        return {
+          data: {
+            choices: [{ message: { content: JSON.stringify({ resumeText: 'Dev Patel\nSkills: React\nFrontend Engineer at Product Co.', coverLetterText: 'I am applying directly using my React experience.' }) } }]
+          }
+        };
+      }
+      return { status: 200, statusText: 'OK', data: { id: 'candidate-force-submit' } };
+    });
+    const user = await new User({
+      email: 'force-submit@example.com',
+      password: 'password123',
+      role: 'student',
+      requireReview: true,
+      autoApplyThreshold: 0.5
+    }).save();
+    await new Student({
+      userId: user._id,
+      firstName: 'Dev',
+      lastName: 'Patel',
+      email: 'force-submit@example.com',
+      resumeFile: '/tmp/dev-resume.pdf',
+      resumeText: 'Dev Patel Frontend Engineer React applications Product Co',
+      skills: [{ name: 'React', level: 'advanced', category: 'technical' }],
+      experience: [{
+        title: 'Frontend Engineer',
+        company: 'Product Co',
+        location: 'Bangalore',
+        startDate: new Date('2020-01-01'),
+        endDate: new Date('2024-01-01'),
+        description: 'Built React applications',
+        isCurrentJob: false
+      }],
+      education: [],
+      jobPreferences: { jobTypes: ['full-time'], preferredLocations: ['Bangalore'], workMode: 'hybrid' }
+    }).save();
+    const jobData = {
+      title: 'Frontend Engineer',
+      description: 'Build React applications.',
+      jobType: 'full-time',
+      department: 'Engineering',
+      companyName: 'Acme',
+      source: 'company_careers',
+      sourceProvider: 'greenhouse',
+      sourceCompanySlug: 'acme',
+      sourceExternalId: '789',
+      locations: [{ city: 'Bangalore', state: 'Karnataka', country: 'India', isRemote: false, hybrid: true }],
+      workMode: 'hybrid',
+      requirements: [],
+      requiredSkills: ['React'],
+      experienceLevel: 'mid',
+      minExperience: 2,
+      salary: { min: 1000000, max: 1800000, currency: 'INR', negotiable: true },
+      applicationDeadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      totalPositions: 1,
+      interviewProcess: { rounds: ['Technical'], duration: '1 week', mode: 'online' },
+      status: 'active',
+      isPublic: true,
+      allowDirectApplications: true
+    };
+    const job = await new Job({ ...jobData, ...enrichJob(jobData) }).save();
+
+    const decision = await AutoApplyService.handleMatchedJob(user._id, job._id, 0.9, { forceSubmit: true });
+    expect(decision.action).toBe('submitted');
+    expect(decision.application?.status).toBe('confirmed');
+    expect(mockedAxios.post.mock.calls.filter(call => String(call[0]).includes('boards-api.greenhouse.io'))).toHaveLength(1);
+  });
 });

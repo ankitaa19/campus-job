@@ -641,7 +641,7 @@ JobSchema.methods.generateJobVector = async function(): Promise<number[]> {
   // This would integrate with an AI/ML service to generate embeddings
   // For now, return a placeholder vector
   const text = `${this.title} ${this.description} ${this.requiredSkills.join(' ')}`;
-  // TODO: Integrate with OpenAI, Cohere, or similar service
+  // TODO: Integrate with the configured embedding service
   return new Array(384).fill(0).map(() => Math.random()); // Placeholder 384-dim vector
 };
 

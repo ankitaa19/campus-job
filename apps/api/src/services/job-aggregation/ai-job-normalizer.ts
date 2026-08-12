@@ -109,7 +109,7 @@ class AIJobNormalizer {
       };
     } catch (error) {
       const status = Number((error as any)?.response?.status || 0);
-      if ([400, 401, 402, 403].includes(status)) this.disabledUntil = Date.now() + 15 * 60 * 1000;
+      if ([400, 401, 402, 403, 429].includes(status)) this.disabledUntil = Date.now() + 15 * 60 * 1000;
       console.warn(`AI job enrichment skipped for ${job.sourceProvider}:${job.sourceExternalId}:`, error instanceof Error ? error.message : error);
       return job;
     }

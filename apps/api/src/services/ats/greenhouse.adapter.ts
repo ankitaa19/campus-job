@@ -1,14 +1,17 @@
 import axios from 'axios';
 import { AtsAdapter, AtsSubmitContext, AtsSubmissionReceipt } from './types';
+import { createBrowserFormAtsAdapter } from './browser-form.adapter';
+
+const GreenhouseBrowserFallback = createBrowserFormAtsAdapter('greenhouse');
 
 class GreenhouseAdapter implements AtsAdapter {
   async submitApplication(context: AtsSubmitContext): Promise<AtsSubmissionReceipt> {
     const apiKey = process.env.GREENHOUSE_JOB_BOARD_API_KEY || process.env.GREENHOUSE_API_KEY;
-    if (!apiKey) throw new Error('GREENHOUSE_JOB_BOARD_API_KEY is required for Greenhouse submissions');
+    if (!apiKey) return GreenhouseBrowserFallback.submitApplication(context);
 
     const boardToken = context.job.sourceCompanySlug || context.job.greenhouseBoardToken;
     const jobPostId = context.job.atsJobId || context.job.sourceExternalId;
-    if (!boardToken || !jobPostId) throw new Error('Greenhouse board token and job post ID are required');
+    if (!boardToken || !jobPostId) return GreenhouseBrowserFallback.submitApplication(context);
 
     const payload = this.buildPayload(context);
     const auth = Buffer.from(`${apiKey}:`).toString('base64');
@@ -53,4 +56,3 @@ class GreenhouseAdapter implements AtsAdapter {
 }
 
 export default new GreenhouseAdapter();
-

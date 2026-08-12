@@ -22,7 +22,7 @@ const run = async () => {
     { $unset: { profileVector: '' } }
   ).catch(() => ({ modifiedCount: 0 }));
 
-  console.log('Cleared incompatible OpenAI embedding data:', {
+  console.log('Cleared cached embedding data:', {
     jobFeatureVectors: jobs.modifiedCount,
     studentProfileFeatureVectors: students.modifiedCount,
     userProfileVectors: users.modifiedCount,

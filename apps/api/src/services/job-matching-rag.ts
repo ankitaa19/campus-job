@@ -8,7 +8,7 @@ import { buildStudentStructuredFields } from './profile-normalization';
 import { canonicalSkill, cleanJobText, cosineSimilarity, enrichJob, freshnessCutoff } from './job-intelligence';
 import JobQueryBuilder from './job-aggregation/job-query-builder';
 import type { JobsQuery } from './job-aggregation/jobs.repository';
-import { generateCohereEmbedding, COHERE_EMBEDDING_DIMENSIONS } from './cohere-client';
+import { generateOpenAIEmbedding, isOpenAIRateLimitError, OPENAI_EMBEDDING_DIMENSIONS } from './openai-client';
 import { classifyApplicationCapability } from './ats/application-capability';
 
 export interface RankedJobMatch {
@@ -27,18 +27,43 @@ export interface BulkMatchedJob {
 
 export interface BulkAutoApplySelection {
   matches: BulkMatchedJob[];
+  needsYouMatches: BulkMatchedJob[];
   needsYouCount: number;
   unsupportedCount: number;
+  totalConsideredJobs: number;
   totalMatchedAboveThreshold: number;
+}
+
+interface AnnotationOptions {
+  allowEmbeddingGeneration?: boolean;
 }
 
 const normalize = (value: unknown): string => String(value || '').toLowerCase().replace(/\s+/g, ' ').trim();
 const skillSet = (values: unknown[] = []): Set<string> => new Set(values.map(canonicalSkill).map(normalize).filter(Boolean));
-const hasCohereEmbedding = (vector: unknown): vector is number[] => Array.isArray(vector) && vector.length === COHERE_EMBEDDING_DIMENSIONS;
+const hasOpenAIEmbedding = (vector: unknown): vector is number[] => Array.isArray(vector) && vector.length === OPENAI_EMBEDDING_DIMENSIONS;
+const includesAllFetchedJobs = (filters: JobsQuery): boolean => filters.autoApplyScope !== 'matched' && filters.includeAllJobs !== false && filters.includeAllJobs !== 'false';
+const EMBEDDING_COOLDOWN_MS = Number(process.env.OPENAI_EMBEDDING_COOLDOWN_MS || 2 * 60 * 1000);
+const EMBEDDING_CONCURRENCY = Math.min(5, Math.max(1, Number(process.env.OPENAI_EMBEDDING_CONCURRENCY || 3)));
+
+const mapWithConcurrency = async <T, R>(items: T[], concurrency: number, mapper: (item: T) => Promise<R>): Promise<R[]> => {
+  const output = new Array<R>(items.length);
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (cursor < items.length) {
+      const index = cursor;
+      cursor += 1;
+      output[index] = await mapper(items[index]);
+    }
+  });
+  await Promise.all(workers);
+  return output;
+};
 
 class JobMatchingRagService {
   private readonly embeddingWeight = 0.7;
   private readonly skillWeight = 0.3;
+  private embeddingDisabledUntil = 0;
+  private lastEmbeddingWarningAt = 0;
 
   async getMatches(userId: string | Types.ObjectId, limit = 20): Promise<RankedJobMatch[]> {
     const objectUserId = new Types.ObjectId(userId);
@@ -68,12 +93,13 @@ class JobMatchingRagService {
     }));
   }
 
-  async annotateJobsForUser(userId: string | Types.ObjectId, jobs: any[]): Promise<any[]> {
+  async annotateJobsForUser(userId: string | Types.ObjectId, jobs: any[], options: AnnotationOptions = {}): Promise<any[]> {
     if (!jobs.length) return jobs;
+    const allowEmbeddingGeneration = options.allowEmbeddingGeneration !== false;
     const objectUserId = new Types.ObjectId(userId);
     const student = await Student.findOne({ userId: objectUserId }).select('+profileFeatureVector').lean();
     if (!student) return jobs;
-    const refreshedStudent = await this.buildScoringStudent(student);
+    const refreshedStudent = await this.buildScoringStudent(student, { allowEmbeddingGeneration });
     this.persistResumeEmbedding(student._id, refreshedStudent).catch(error => {
       console.warn('Skipping profile embedding cache update for job listing:', error instanceof Error ? error.message : error);
     });
@@ -87,7 +113,7 @@ class JobMatchingRagService {
     const matchByJobId = new Map(existingMatches.map(match => [String(match.jobId), match]));
     const writes: any[] = [];
 
-    const annotated = await Promise.all(jobs.map(async job => {
+    const annotated = await mapWithConcurrency(jobs, EMBEDDING_CONCURRENCY, async job => {
       const cached = matchByJobId.get(String(job._id));
       if (cached) {
         return {
@@ -100,7 +126,7 @@ class JobMatchingRagService {
         };
       }
 
-      const computed = await this.computeDisplayScore(refreshedStudent, job);
+      const computed = await this.computeDisplayScore(refreshedStudent, job, { allowEmbeddingGeneration });
       if (!computed) return job;
       writes.push({
         updateOne: {
@@ -128,7 +154,7 @@ class JobMatchingRagService {
         skillOverlapRatio: computed.skillOverlapRatio,
         matchedSkills: computed.matchedSkills
       };
-    }));
+    });
 
     if (writes.length) {
       JobMatch.bulkWrite(writes, { ordered: false }).catch(error => {
@@ -140,52 +166,98 @@ class JobMatchingRagService {
 
   async findBulkAutoApplySelection(userId: string | Types.ObjectId, filters: JobsQuery = {}): Promise<BulkAutoApplySelection> {
     const objectUserId = new Types.ObjectId(userId);
-    const user = await User.findById(objectUserId).select('autoApplyThreshold').lean();
+    const [user, student] = await Promise.all([
+      User.findById(objectUserId).select('autoApplyThreshold').lean(),
+      Student.findOne({ userId: objectUserId })
+        .select('skills resumeAnalysis.skills resumeAnalysis.extractedDetails experience education jobPreferences yearsExperience years_experience locations collegeName workAuthorization')
+        .lean()
+    ]);
     if (!user) throw new Error('User not found');
+    if (!student) throw new Error('Student profile not found');
     const thresholdValue = Number(user.autoApplyThreshold);
     const threshold = Number.isFinite(thresholdValue) ? (thresholdValue > 1 ? thresholdValue / 100 : thresholdValue) : 0.85;
-    const existingJobIds = await Application.distinct('jobId', { userId: objectUserId });
+    const includeAllFetched = includesAllFetchedJobs(filters);
+    const existingApplications = await Application.find({ userId: objectUserId }).select('jobId status').lean();
+    const pendingReviewJobIds = new Set(existingApplications
+      .filter(application => application.status === 'pending_review')
+      .map(application => String(application.jobId)));
+    const excludedJobIds = existingApplications
+      .filter(application => application.status !== 'pending_review')
+      .map(application => application.jobId);
     const { filter, sort } = JobQueryBuilder.build({ ...filters, page: 1, limit: 1, balanced: false }, true);
-    const jobs = await Job.find({ ...filter, _id: { $nin: existingJobIds } })
-      .select('+featureVector +applyUrl title companyName description requiredSkills canonicalSkills requirements minExperience maxExperience experienceLevel seniority locations location workMode remoteType salary salaryBand atsPlatform atsJobId applyUrl applicationDeadline postedAt source sourceProvider sourceCompanySlug sourceExternalId')
+    const jobs = await Job.find({ ...filter, _id: { $nin: excludedJobIds } })
+      .select('+applyUrl +sourceUrl title companyName requiredSkills canonicalSkills requirements minExperience maxExperience experienceLevel seniority locations location workMode remoteType salary salaryBand atsPlatform atsJobId applicationDeadline postedAt source sourceProvider sourceCompanySlug sourceExternalId greenhouseBoardToken allowDirectApplications')
       .sort(sort)
       .limit(10000)
       .lean();
 
+    const scoringStudent = await this.buildScoringStudent(student, { allowEmbeddingGeneration: false });
+    const cachedMatches = await JobMatch.find({
+      userId: objectUserId,
+      jobId: { $in: jobs.map(job => job._id) }
+    }).select('jobId score embeddingSimilarity skillOverlapRatio matchedSkills filterReasons').lean();
+    const cachedByJobId = new Map(cachedMatches.map(match => [String(match.jobId), match]));
     const matched: BulkMatchedJob[] = [];
+    const needsYouMatches: BulkMatchedJob[] = [];
     let needsYouCount = 0;
     let unsupportedCount = 0;
     let totalMatchedAboveThreshold = 0;
-    const chunkSize = 100;
-    for (let index = 0; index < jobs.length; index += chunkSize) {
-      const annotated = await this.annotateJobsForUser(objectUserId, jobs.slice(index, index + chunkSize));
-      annotated.forEach(job => {
-        const score = Number(job.score ?? (Number(job.matchScore) / 100));
-        if (!Number.isFinite(score) || score < threshold) return;
-        totalMatchedAboveThreshold += 1;
-        const capability = classifyApplicationCapability(job);
-        if (capability === 'auto_apply') matched.push({ job, score });
-        if (capability === 'needs_you') needsYouCount += 1;
-        if (capability === 'unsupported') unsupportedCount += 1;
-      });
+    const totalConsideredJobs = jobs.length;
+
+    for (const job of jobs) {
+      const cached = cachedByJobId.get(String(job._id));
+      const scored = cached
+        ? {
+            score: Number(cached.score),
+            matchedSkills: cached.matchedSkills || [],
+            embeddingSimilarity: Number(cached.embeddingSimilarity || 0),
+            skillOverlapRatio: Number(cached.skillOverlapRatio || 0)
+          }
+        : includeAllFetched
+          ? this.scoreCandidateWithoutHardFilters(scoringStudent, { ...job, embeddingSimilarity: 0 })
+          : this.scoreCandidate(scoringStudent, { ...job, embeddingSimilarity: 0 });
+      const score = Number(scored?.score);
+      if (!Number.isFinite(score)) continue;
+      if (score >= threshold) totalMatchedAboveThreshold += 1;
+      if (!includeAllFetched && score < threshold) continue;
+      const capability = classifyApplicationCapability(job);
+      const hasPendingReviewApplication = pendingReviewJobIds.has(String(job._id));
+      if (hasPendingReviewApplication && capability !== 'auto_apply') continue;
+      const jobWithScore = {
+        ...job,
+        score,
+        matchScore: Math.round(score * 100),
+        matchedSkills: scored?.matchedSkills || [],
+        embeddingSimilarity: scored?.embeddingSimilarity || 0,
+        skillOverlapRatio: scored?.skillOverlapRatio || 0
+      };
+      if (capability === 'auto_apply') matched.push({ job: jobWithScore, score });
+      if (capability === 'needs_you') {
+        needsYouCount += 1;
+        needsYouMatches.push({ job: jobWithScore, score });
+      }
+      if (capability === 'unsupported') unsupportedCount += 1;
     }
-    return { matches: matched, needsYouCount, unsupportedCount, totalMatchedAboveThreshold };
+    return { matches: matched, needsYouMatches, needsYouCount, unsupportedCount, totalConsideredJobs, totalMatchedAboveThreshold };
   }
 
   async findBulkAutoApplyMatches(userId: string | Types.ObjectId, filters: JobsQuery = {}): Promise<BulkMatchedJob[]> {
     return (await this.findBulkAutoApplySelection(userId, filters)).matches;
   }
 
-  private async buildScoringStudent(student: any) {
-    const structured = buildStudentStructuredFields(student);
-    let profileFeatureVector: number[] = hasCohereEmbedding(student.profileFeatureVector)
+  private async buildScoringStudent(student: any, options: AnnotationOptions = {}) {
+    const allowEmbeddingGeneration = options.allowEmbeddingGeneration !== false;
+    const structured = buildStudentStructuredFields(student, {
+      includeProfileFeatureVector: allowEmbeddingGeneration || hasOpenAIEmbedding(student.profileFeatureVector)
+    });
+    let profileFeatureVector: number[] = hasOpenAIEmbedding(student.profileFeatureVector)
       ? student.profileFeatureVector
       : [];
-    if (!profileFeatureVector.length) {
+    if (!profileFeatureVector.length && allowEmbeddingGeneration && this.embeddingAvailable()) {
       try {
-        profileFeatureVector = await generateCohereEmbedding(this.resumeEmbeddingText(student, structured), 'search_query', 'resume profile embedding');
+        profileFeatureVector = await generateOpenAIEmbedding(this.resumeEmbeddingText(student, structured), 'resume profile embedding');
       } catch (error) {
-        console.warn('Cohere resume embedding unavailable; using skill-only matching:', error instanceof Error ? error.message : error);
+        this.noteEmbeddingFailure(error, 'resume profile embedding');
       }
     }
     return {
@@ -231,18 +303,18 @@ class JobMatchingRagService {
       .lean();
 
     const operations: any[] = [];
-    const hasStudentEmbedding = hasCohereEmbedding(student.profileFeatureVector);
-    const scored = await Promise.all(jobs.map(async job => {
+    const hasStudentEmbedding = hasOpenAIEmbedding(student.profileFeatureVector) && this.embeddingAvailable();
+    const scored = await mapWithConcurrency(jobs, EMBEDDING_CONCURRENCY, async job => {
       if (!hasStudentEmbedding) return { ...job, embeddingSimilarity: 0 };
       try {
         const { vector, update } = await this.ensureJobEmbedding(job);
         if (update) operations.push({ updateOne: { filter: { _id: job._id }, update: { $set: update } } });
         return { ...job, featureVector: vector, embeddingSimilarity: cosineSimilarity(student.profileFeatureVector, vector) };
       } catch (error) {
-        console.warn('Cohere job embedding unavailable; using skill-only candidate scoring:', error instanceof Error ? error.message : error);
+        this.noteEmbeddingFailure(error, 'candidate job embedding');
         return { ...job, embeddingSimilarity: 0 };
       }
-    }));
+    });
 
     if (operations.length) {
       await Job.bulkWrite(operations, { ordered: false });
@@ -254,7 +326,10 @@ class JobMatchingRagService {
   private scoreCandidate(student: any, job: any) {
     const filterReasons = this.filterReasons(student, job);
     if (filterReasons.length) return null;
+    return this.scoreCandidateWithoutHardFilters(student, job, filterReasons);
+  }
 
+  private scoreCandidateWithoutHardFilters(student: any, job: any, filterReasons: string[] = []) {
     const resumeSkills = skillSet([
       ...(student.skills || []).map((item: any) => typeof item === 'string' ? item : item?.name),
       ...(student.resumeAnalysis?.skills || [])
@@ -267,7 +342,7 @@ class JobMatchingRagService {
     const matchedSkills = jobSkills.filter(skill => resumeSkills.has(skill));
     const skillOverlapRatio = jobSkills.length ? matchedSkills.length / jobSkills.length : 1;
     const embeddingSimilarity = Math.max(0, Math.min(1, Number(job.embeddingSimilarity || 0)));
-    const score = Math.round((hasCohereEmbedding(student.profileFeatureVector)
+    const score = Math.round((hasOpenAIEmbedding(student.profileFeatureVector)
       ? ((embeddingSimilarity * this.embeddingWeight) + (skillOverlapRatio * this.skillWeight))
       : skillOverlapRatio
     ) * 10000) / 10000;
@@ -282,12 +357,13 @@ class JobMatchingRagService {
     };
   }
 
-  private async computeDisplayScore(student: any, job: any) {
+  private async computeDisplayScore(student: any, job: any, options: AnnotationOptions = {}) {
+    const allowEmbeddingGeneration = options.allowEmbeddingGeneration !== false;
     let vector: number[] = [];
     let update: Record<string, unknown> | undefined;
-    if (hasCohereEmbedding(student.profileFeatureVector)) {
+    if (hasOpenAIEmbedding(student.profileFeatureVector) && this.embeddingAvailable()) {
       try {
-        const ensured = await this.ensureJobEmbedding(job);
+        const ensured = await this.ensureJobEmbedding(job, { allowEmbeddingGeneration });
         vector = ensured.vector;
         update = ensured.update;
         if (update) {
@@ -296,7 +372,7 @@ class JobMatchingRagService {
           });
         }
       } catch (error) {
-        console.warn('Cohere job embedding unavailable for display score; using skill-only score:', error instanceof Error ? error.message : error);
+        this.noteEmbeddingFailure(error, 'display job embedding');
       }
     }
     const resumeSkills = skillSet([
@@ -343,11 +419,32 @@ class JobMatchingRagService {
     ].join('\n').replace(/\s+/g, ' ').trim();
   }
 
-  private async ensureJobEmbedding(job: any): Promise<{ vector: number[]; update?: Record<string, unknown> }> {
-    if (hasCohereEmbedding(job.featureVector)) return { vector: job.featureVector };
+  private async ensureJobEmbedding(job: any, options: AnnotationOptions = {}): Promise<{ vector: number[]; update?: Record<string, unknown> }> {
+    if (hasOpenAIEmbedding(job.featureVector)) return { vector: job.featureVector };
+    if (options.allowEmbeddingGeneration === false) {
+      throw new Error('OpenAI embedding generation disabled for this request');
+    }
+    if (!this.embeddingAvailable()) throw new Error('OpenAI embeddings are temporarily rate-limited');
     const intelligence = enrichJob(job);
-    const vector = await generateCohereEmbedding(this.jobEmbeddingText(job, intelligence), 'search_document', 'job embedding');
+    const vector = await generateOpenAIEmbedding(this.jobEmbeddingText(job, intelligence), 'job embedding');
     return { vector, update: { ...intelligence, featureVector: vector } };
+  }
+
+  private embeddingAvailable(): boolean {
+    return Date.now() >= this.embeddingDisabledUntil;
+  }
+
+  private noteEmbeddingFailure(error: unknown, label: string): void {
+    if (isOpenAIRateLimitError(error)) {
+      this.embeddingDisabledUntil = Date.now() + EMBEDDING_COOLDOWN_MS;
+    }
+    const now = Date.now();
+    if (now - this.lastEmbeddingWarningAt < 30_000) return;
+    this.lastEmbeddingWarningAt = now;
+    const suffix = isOpenAIRateLimitError(error)
+      ? `; using skill-only matching for ${Math.ceil(EMBEDDING_COOLDOWN_MS / 1000)}s cooldown`
+      : '; using skill-only matching';
+    console.warn(`OpenAI ${label} unavailable${suffix}:`, error instanceof Error ? error.message : error);
   }
 
   private filterReasons(student: any, job: any): string[] {

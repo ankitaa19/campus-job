@@ -18,16 +18,16 @@ describe('JobMatchingRagService', () => {
   });
 
   beforeEach(async () => {
-    process.env.COHERE_API_KEY = 'test-cohere-key';
+    process.env.OPENAI_API_KEY = 'test-openai-key';
     mockedAxios.post.mockReset();
-    mockedAxios.post.mockResolvedValue({ data: { embeddings: [Array(1024).fill(0.01)] } });
+    mockedAxios.post.mockResolvedValue({ data: { data: [{ embedding: Array(1536).fill(0.01) }] } });
     for (const key in mongoose.connection.collections) {
       await mongoose.connection.collections[key].deleteMany({});
     }
   });
 
   afterAll(async () => {
-    delete process.env.COHERE_API_KEY;
+    delete process.env.OPENAI_API_KEY;
     await mongoose.disconnect();
     await mongoServer.stop();
   });

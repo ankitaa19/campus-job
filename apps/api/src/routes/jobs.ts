@@ -60,13 +60,6 @@ const isOpenAIFailure = (error: any): boolean => {
     return /api\.openai\.com/i.test(url) || /OpenAI/i.test(message);
 };
 
-const isCohereFailure = (error: any): boolean => {
-    if (error instanceof BulkAutoApplyStartDependencyError && error.code === 'BULK_AUTO_APPLY_COHERE_UNAVAILABLE') return true;
-    const url = String(error?.config?.url || error?.originalError?.config?.url || '');
-    const message = String(error?.message || error?.originalError?.message || '');
-    return /api\.cohere\.com/i.test(url) || /Cohere/i.test(message);
-};
-
 const bulkAutoApplyErrorResponse = (error: unknown) => {
     const detailedError = error instanceof BulkAutoApplyStartDependencyError ? error.originalError : error;
     if (isMongoWriteFailure(error)) {
@@ -87,17 +80,6 @@ const bulkAutoApplyErrorResponse = (error: unknown) => {
             body: {
                 success: false,
                 code: 'BULK_AUTO_APPLY_OPENAI_UNAVAILABLE',
-                message: 'AI matching is temporarily unavailable — please try again shortly.'
-            }
-        };
-    }
-    if (isCohereFailure(error)) {
-        console.error('[INFRA][BULK_AUTO_APPLY][COHERE] Unable to create bulk auto-apply run:', sanitizeForLog(detailedError));
-        return {
-            status: 503,
-            body: {
-                success: false,
-                code: 'BULK_AUTO_APPLY_COHERE_UNAVAILABLE',
                 message: 'AI matching is temporarily unavailable — please try again shortly.'
             }
         };
@@ -290,11 +272,11 @@ router.get('/auto-apply/preview-count', authMiddleware, async (req: any, res: an
         const result = await BulkAutoApplyService.previewCount(userId, req.query);
         return res.json({ success: true, ...result });
     } catch (error) {
-        if (isCohereFailure(error) || isOpenAIFailure(error)) {
+        if (isOpenAIFailure(error)) {
             console.error('[INFRA][BULK_AUTO_APPLY][AI_PROVIDER] Bulk auto-apply preview failed:', sanitizeForLog(error));
             return res.status(503).json({
                 success: false,
-                code: isCohereFailure(error) ? 'BULK_AUTO_APPLY_COHERE_UNAVAILABLE' : 'BULK_AUTO_APPLY_OPENAI_UNAVAILABLE',
+                code: 'BULK_AUTO_APPLY_OPENAI_UNAVAILABLE',
                 message: 'AI matching is temporarily unavailable — please try again shortly.'
             });
         }
@@ -370,7 +352,7 @@ router.post('/:jobId/auto-apply', authMiddleware, async (req: any, res: any) => 
             score = Number(annotatedJob?.score ?? (Number(annotatedJob?.matchScore) / 100));
             if (!Number.isFinite(score)) score = 0;
         }
-        const result = await AutoApplyService.handleMatchedJob(userId, req.params.jobId, score);
+        const result = await AutoApplyService.handleMatchedJob(userId, req.params.jobId, score, { forceSubmit: true });
         return res.status(result.action === 'submitted' ? 201 : 202).json({ success: true, ...result });
     } catch (error) {
         const message = error instanceof Error ? error.message : 'Auto-apply failed';

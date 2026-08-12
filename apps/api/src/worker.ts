@@ -2,8 +2,7 @@ import 'dotenv/config';
 import { connectDB, disconnectDB } from './utils/database';
 import BulkAutoApplyService from './services/bulk-auto-apply';
 import { checkRedisHealth } from './services/redis-client';
-import { checkOpenAIHealth } from './services/openai-client';
-import { checkCohereHealth } from './services/cohere-client';
+import { checkOpenAIEmbeddingHealth, checkOpenAIHealth } from './services/openai-client';
 import { sanitizeForLog } from './utils/safe-logging';
 
 let shuttingDown = false;
@@ -29,7 +28,7 @@ const start = async () => {
   await Promise.all([
     checkRedisHealth(),
     checkOpenAIHealth(),
-    checkCohereHealth()
+    checkOpenAIEmbeddingHealth()
   ]);
 
   await connectDB();

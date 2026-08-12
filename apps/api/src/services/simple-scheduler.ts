@@ -234,11 +234,11 @@ class SimpleScheduler {
             console.log('✅ External job synchronization completed:', totals);
             await this.runPendingApplicationDelivery(true);
         } catch (error) {
-            console.error('❌ External job synchronization failed:', error);
             if (error instanceof Error && error.message.includes('already running')) {
-                const retry = setTimeout(() => this.runJobSynchronization(tier), 5 * 60 * 1000);
-                this.intervals.push(retry);
+                console.log(`⏭️ ${tier} job synchronization skipped: another sync is already running`);
+                return;
             }
+            console.error('❌ External job synchronization failed:', error);
         }
     }
 
@@ -249,11 +249,11 @@ class SimpleScheduler {
             const lifecycleChanges = results.reduce((total, result) => total + result.closed, 0);
             if (checkedSources || lifecycleChanges) console.log(`🔁 Revalidated ${checkedSources} missing-job sources; ${lifecycleChanges} lifecycle changes`);
         } catch (error) {
-            console.error('❌ Missing-job revalidation failed:', error);
             if (error instanceof Error && error.message.includes('already running')) {
-                const retry = setTimeout(() => this.runMissingJobRevalidation(), 5 * 60 * 1000);
-                this.intervals.push(retry);
+                console.log('⏭️ Missing-job revalidation skipped: another sync is already running');
+                return;
             }
+            console.error('❌ Missing-job revalidation failed:', error);
         }
     }
 

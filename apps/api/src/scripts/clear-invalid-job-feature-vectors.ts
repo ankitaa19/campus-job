@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import mongoose from 'mongoose';
 import { Job } from '../models/Job';
-import { COHERE_EMBEDDING_DIMENSIONS } from '../services/cohere-client';
+import { OPENAI_EMBEDDING_DIMENSIONS } from '../services/openai-client';
 
 const run = async (): Promise<void> => {
   const uri = process.env.MONGODB_URI;
@@ -28,7 +28,7 @@ const run = async (): Promise<void> => {
             {
               $or: [
                 { $eq: ['$featureVectorLength', null] },
-                { $eq: ['$featureVectorLength', COHERE_EMBEDDING_DIMENSIONS] }
+                { $eq: ['$featureVectorLength', OPENAI_EMBEDDING_DIMENSIONS] }
               ]
             },
             '$featureVector',
@@ -47,10 +47,10 @@ const run = async (): Promise<void> => {
     { $sort: { _id: 1 } }
   ]);
 
-  console.log('Cleared non-Cohere job feature vectors:', {
+  console.log('Cleared non-OpenAI job feature vectors:', {
     matchedCount: result.matchedCount,
     modifiedCount: result.modifiedCount,
-    expectedDimensions: COHERE_EMBEDDING_DIMENSIONS,
+    expectedDimensions: OPENAI_EMBEDDING_DIMENSIONS,
     remainingDimensions: dimensions
   });
 };

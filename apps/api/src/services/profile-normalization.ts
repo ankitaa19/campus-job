@@ -43,7 +43,8 @@ export const calculateYearsExperience = (experience: any[] = []): number => {
   return Math.round((totalMonths / 12) * 10) / 10;
 };
 
-export const buildStudentStructuredFields = (student: any) => {
+export const buildStudentStructuredFields = (student: any, options: { includeProfileFeatureVector?: boolean } = {}) => {
+  const includeProfileFeatureVector = options.includeProfileFeatureVector !== false;
   const extracted = student?.resumeAnalysis?.extractedDetails || {};
   const skills = uniqueClean([
     ...(student?.skills || []).map((skill: any) => typeof skill === 'string' ? skill : skill?.name),
@@ -67,7 +68,7 @@ export const buildStudentStructuredFields = (student: any) => {
   const yearsExperience = Number(student?.yearsExperience ?? student?.years_experience);
   const calculatedYearsExperience = calculateYearsExperience(student?.experience || extracted?.experience || []);
 
-  return {
+  const structured: any = {
     titles,
     yearsExperience: Number.isFinite(yearsExperience) && yearsExperience > 0
       ? yearsExperience
@@ -75,13 +76,18 @@ export const buildStudentStructuredFields = (student: any) => {
     education,
     locations,
     salaryExpectation,
-    structuredResumeUpdatedAt: new Date(),
-    profileFeatureVector: createFeatureVector([
+    structuredResumeUpdatedAt: new Date()
+  };
+
+  if (includeProfileFeatureVector) {
+    structured.profileFeatureVector = createFeatureVector([
       student?.resumeText || student?.resumeAnalysis?.resumeText || '',
       skills.join(' '),
       titles.join(' '),
       education.map((item: any) => `${item?.degree || ''} ${item?.field || ''} ${item?.institution || ''}`).join(' '),
       locations.join(' ')
-    ].join(' '))
-  };
+    ].join(' '));
+  }
+
+  return structured;
 };
